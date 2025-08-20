@@ -7,6 +7,7 @@ from app.models import ApiPicture, ResultHint
 router = APIRouter(prefix="/pictures", tags=["pictures"])
 
 @router.get("/random", response_model=List[ApiPicture])
+
 async def get_random_pictures(
     count: int = Query(6, ge=1, le=20),
     requested_language: Optional[str] = None

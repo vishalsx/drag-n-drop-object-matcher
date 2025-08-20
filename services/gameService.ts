@@ -39,7 +39,7 @@ export const fetchGameData = async (): Promise<GameObject[]> => {
   console.log("Fetching game data from API...");
   try {
     // Assuming the backend endpoint is available at '/pictures/random'
-    const response = await fetch(`${API_BASE_URL}/pictures/random`);
+    const response = await fetch(`${API_BASE_URL}/pictures/random?count=9`);
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }

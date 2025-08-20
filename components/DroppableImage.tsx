@@ -110,7 +110,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
           <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
         </div>
       )}
-      <img src={imageUrl} alt={description} className="w-full h-full object-cover rounded-lg" />
+      <img src={imageUrl} alt={description} className="w-full h-full object-cover rounded-lg pointer-events-none" />
       {isMatched && (
         <div className="absolute inset-0 bg-green-500 bg-opacity-70 flex flex-col items-center justify-center text-center p-2 pointer-events-none rounded-lg">
         <CheckIcon className="w-16 h-16 text-white" />

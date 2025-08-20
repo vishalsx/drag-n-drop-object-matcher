@@ -63,8 +63,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (gameData.length > 0 && correctlyMatchedIds.size === gameData.length) {
-      setIsGameComplete(true);
+      
       uploadScore(score);
+      const completionTimer = setTimeout(() => {
+        setIsGameComplete(true);
+      }, 4000); // 4-second delay to allow user to see the last match feedback
+
+      return () => clearTimeout(completionTimer); // Cleanup timer
+
     }
   }, [correctlyMatchedIds, gameData.length, score]);
 
