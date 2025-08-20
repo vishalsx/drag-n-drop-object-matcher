@@ -150,6 +150,7 @@ const App: React.FC = () => {
                     id={item.id}
                     imageUrl={item.imageUrl}
                     description={item.description}
+                    tooltipText={item.object_description}
                     imageName={item.imageName}
                     isMatched={correctlyMatchedIds.has(item.id)}
                     onDropItem={handleDrop}

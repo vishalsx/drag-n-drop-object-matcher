@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+
 
 interface CheckIconProps {
   className?: string;
@@ -40,6 +41,7 @@ interface DroppableImageProps {
   imageUrl: string;
   description: string;
   imageName: string;
+  tooltipText: string;
   isMatched: boolean;
   onDropItem: (imageId: string, descriptionId: string) => void;
   isDropTarget: boolean;
@@ -53,6 +55,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
   imageUrl,
   description,
   imageName,
+  tooltipText,
   isMatched,
   onDropItem,
   isDropTarget,
@@ -60,6 +63,9 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
   onDragLeave,
   isWrongDrop,
 }) => {
+
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
@@ -77,6 +83,15 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
     if (isMatched) return;
     onDragEnter(id);
   }
+  const handleMouseEnter = () => {
+    if (isMatched) {
+      setIsTooltipVisible(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsTooltipVisible(false);
+  };
 
   return (
     <div
@@ -85,17 +100,25 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
       onDrop={handleDrop}
       onDragEnter={handleDragEnter}
       onDragLeave={onDragLeave}
-      className={`relative w-full h-48 rounded-lg overflow-hidden shadow-lg transition-all duration-300 border-2 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-transparent'} ${isMatched ? 'border-green-500' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={`relative w-full h-48 rounded-lg shadow-lg transition-all duration-300 border-2 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-transparent'} ${isMatched ? 'border-green-500' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''}`}
     >
-      <img src={imageUrl} alt={description} className="w-full h-full object-cover" />
+      {isMatched && isTooltipVisible && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-slate-800 text-white text-xs rounded-md shadow-lg z-[60] pointer-events-none">
+          {tooltipText}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
+        </div>
+      )}
+      <img src={imageUrl} alt={description} className="w-full h-full object-cover rounded-lg" />
       {isMatched && (
-      <div className="absolute inset-0 bg-green-500 bg-opacity-70 flex flex-col items-center justify-center text-center p-2">
+        <div className="absolute inset-0 bg-green-500 bg-opacity-70 flex flex-col items-center justify-center text-center p-2 pointer-events-none rounded-lg">
         <CheckIcon className="w-16 h-16 text-white" />
         <p className="text-white font-bold text-xs mt-2 break-all">{imageName}</p>
       </div>
       )}
       {isWrongDrop && !isMatched && (
-        <div className="absolute inset-0 bg-red-500 bg-opacity-70 flex items-center justify-center">
+        <div className="absolute inset-0 bg-red-500 bg-opacity-70 flex items-center justify-center pointer-events-none rounded-lg">
           <CrossIcon className="w-20 h-20 text-white" />
         </div>
       )}

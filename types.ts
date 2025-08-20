@@ -4,4 +4,5 @@ export interface GameObject {
   description: string;
   imageUrl: string;
   imageName: string;
+  object_description: string;
 }

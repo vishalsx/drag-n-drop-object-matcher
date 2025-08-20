@@ -38,7 +38,7 @@ const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:
 export const fetchGameData = async (): Promise<GameObject[]> => {
   console.log("Fetching game data from API...");
   try {
-    // Assuming the backend endpoint is available at '/api/pictures'
+    // Assuming the backend endpoint is available at '/pictures/random'
     const response = await fetch(`${API_BASE_URL}/pictures/random`);
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
@@ -46,14 +46,16 @@ export const fetchGameData = async (): Promise<GameObject[]> => {
     const data: ApiPicture[] = await response.json();
 
     // Transform the API data into the format the frontend components expect
+    //replace with if and else to choose the right attribute based on the selected language
     const gameData: GameObject[] = data.map(item => ({
       id: String(item.sequence_number),
       description: item.result.object_hint_en,
       imageUrl: `data:${getMimeType(item.image_name)};base64,${item.image_base64}`,
-      imageName: item.result.object_name_en
+      imageName: item.result.object_name_en,
+      object_description: item.result.object_description_en, 
     }));
     
-    console.log("Game data fetched and transformed successfully.");
+    console.log("Game data fetched and transformed successfully.", gameData);
     return gameData;
   } catch (error) {
     console.error("Failed to fetch or process game data:", error);
