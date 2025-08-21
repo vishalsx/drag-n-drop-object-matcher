@@ -6,6 +6,10 @@ class ResultHint(BaseModel):
     object_name_en: Optional[str] = None
     object_description_en: Optional[str] = None
     object_description_translated: Optional[str] = None
+    object_name_translated: Optional[str] = None
+    object_hint_translated: Optional[str] = None
+    object_category: Optional[str] = None
+    
 
 class ApiPicture(BaseModel):
     sequence_number: Optional[int] = None

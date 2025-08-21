@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { GameObject } from './types';
 import { fetchGameData, uploadScore } from './services/gameService';
 import DraggableDescription from './components/DraggableDescription';
@@ -34,6 +34,111 @@ const playWrongSound = () => {
   oscillator.stop(audioContext.currentTime + 0.2);
 };
 
+// --- Language Carousel Component ---
+
+interface Language {
+  code: string;
+  name: string;
+  imageUrl: string;
+}
+
+interface LanguageCarouselProps {
+  languages: Language[];
+  selectedLanguage: string;
+  onSelectLanguage: (languageCode: string) => void;
+}
+
+const LanguageCarousel: React.FC<LanguageCarouselProps> = ({ languages, selectedLanguage, onSelectLanguage }) => {
+  const currentIndex = useMemo(() => {
+    const index = languages.findIndex(lang => lang.code === selectedLanguage);
+    return index === -1 ? 0 : index;
+  }, [selectedLanguage, languages]);
+
+  const goToPrevious = () => {
+    const isFirstSlide = currentIndex === 0;
+    const newIndex = isFirstSlide ? languages.length - 1 : currentIndex - 1;
+    onSelectLanguage(languages[newIndex].code);
+  };
+
+  const goToNext = () => {
+    const isLastSlide = currentIndex === languages.length - 1;
+    const newIndex = isLastSlide ? 0 : currentIndex + 1;
+    onSelectLanguage(languages[newIndex].code);
+  };
+
+  return (
+    <div className="relative w-full h-36 flex items-center justify-center my-4">
+      <button 
+        onClick={goToPrevious} 
+        className="absolute left-0 sm:left-1/4 z-30 bg-slate-700/50 hover:bg-slate-600/80 rounded-full p-2 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+        aria-label="Previous language"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+      </button>
+      
+      <div className="relative w-48 h-28">
+        {languages.map((lang, index) => {
+            let offset = index - currentIndex;
+            if (offset > languages.length / 2) offset -= languages.length;
+            if (offset < -languages.length / 2) offset += languages.length;
+
+            const isCurrent = offset === 0;
+            const isVisible = Math.abs(offset) <= 1;
+            
+            let transform = `translateX(${offset * 60}%) scale(${isCurrent ? 1 : 0.8})`;
+            if (!isVisible) {
+                transform = `translateX(${offset > 0 ? 120 : -120}%) scale(0.5)`;
+            }
+
+            return (
+              <div
+                key={lang.code}
+                className="absolute w-full h-full cursor-pointer"
+                style={{
+                  zIndex: isCurrent ? 10 : 5,
+                  transform: transform,
+                  opacity: isVisible ? (isCurrent ? 1 : 0.5) : 0,
+                  filter: isCurrent ? 'blur(0)' : 'blur(2px)',
+                  transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                }}
+                onClick={() => onSelectLanguage(lang.code)}
+                role="button"
+                tabIndex={isCurrent ? 0 : -1}
+                aria-label={`Select language: ${lang.name}`}
+              >
+                <img src={lang.imageUrl} alt={lang.name} className="w-full h-full object-cover rounded-xl shadow-lg" />
+                <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
+                  <span className="text-white font-bold text-lg tracking-wider drop-shadow-md">{lang.name}</span>
+                </div>
+              </div>
+            );
+        })}
+      </div>
+
+      <button 
+        onClick={goToNext} 
+        className="absolute right-0 sm:right-1/4 z-30 bg-slate-700/50 hover:bg-slate-600/80 rounded-full p-2 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+        aria-label="Next language"
+      >
+         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+      </button>
+    </div>
+  );
+};
+
+const LANGUAGES: Language[] = [
+  { code: 'English', name: 'English', imageUrl: 'https://images.pexels.com/photos/534151/pexels-photo-534151.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'Hindi', name: 'Hindi', imageUrl: 'https://images.pexels.com/photos/3881104/pexels-photo-3881104.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'Kokborok', name: 'Kokborok', imageUrl: 'https://images.pexels.com/photos/168438/pexels-photo-168438.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'Gujrati', name: 'Gujarati', imageUrl: 'https://images.pexels.com/photos/15939221/pexels-photo-15939221/free-photo-of-the-statue-of-unity-in-gujarat-india.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://en.wikipedia.org/wiki/Golden_Temple#/media/File:The_Golden_Temple_of_Amrithsar_7.jpg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'French', name: 'French', imageUrl: 'https://images.pexels.com/photos/1549326/pexels-photo-1549326.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://images.pexels.com/photos/3601453/pexels-photo-3601453.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+];
+
+const IMAGE_COUNT = 6;
+
+
 const App: React.FC = () => {
   const [gameData, setGameData] = useState<GameObject[]>([]);
   const [shuffledDescriptions, setShuffledDescriptions] = useState<GameObject[]>([]);
@@ -44,18 +149,40 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [wrongDropTargetId, setWrongDropTargetId] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
+  const [debouncedLanguage, setDebouncedLanguage] = useState<string>('English');
+
+  // Debounce language changes to avoid excessive API calls while browsing the carousel
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedLanguage(selectedLanguage);
+    }, 2500); // Wait for 2.5s of inactivity before triggering the game reload
+
+    // Cleanup function to clear the timeout if the user selects another language
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [selectedLanguage]);
+
+
 
   const initializeGame = useCallback(async () => {
     setIsLoading(true);
     setIsGameComplete(false);
     setCorrectlyMatchedIds(new Set());
     setScore(0);
-    const data = await fetchGameData();
+    const data = await fetchGameData(debouncedLanguage, IMAGE_COUNT);
+    if (data.length > 0) {
     setGameData(data);
     setShuffledDescriptions(shuffleArray(data));
     setShuffledImages(shuffleArray(data));
+  } else {
+    setGameData([]);
+    setShuffledDescriptions([]);
+    setShuffledImages([]);
+  }
     setIsLoading(false);
-  }, []);
+  }, [debouncedLanguage]);
 
   useEffect(() => {
     initializeGame();
@@ -67,7 +194,7 @@ const App: React.FC = () => {
       uploadScore(score);
       const completionTimer = setTimeout(() => {
         setIsGameComplete(true);
-      }, 4000); // 4-second delay to allow user to see the last match feedback
+      }, 5000); // 5-second delay to allow user to see the last match feedback
 
       return () => clearTimeout(completionTimer); // Cleanup timer
 
@@ -98,9 +225,13 @@ const App: React.FC = () => {
   };
 
   if (isLoading) {
+    const currentLanguageName = LANGUAGES.find(lang => lang.code === debouncedLanguage)?.name || 'English';
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-900">
-        <h1 className="text-3xl font-bold animate-pulse text-white">Loading Game...</h1>
+        <h1 className="text-3xl font-bold animate-pulse text-white text-center">
+          Loading the game in your preferred language ({currentLanguageName})...
+          <span className="ml-2 inline-block animate-ping">...</span>
+        </h1>
       </div>
     );
   }
@@ -109,12 +240,17 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4 sm:p-8 text-white">
       {isGameComplete && <Confetti />}
       <div className="max-w-7xl mx-auto">
-        <header className="text-center mb-8">
+        <header className="text-center mb-4">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
             Object Matcher
           </h1>
           <p className="text-slate-400 mt-2">Drag the description to the correct image!</p>
           <div className="mt-4 text-2xl font-bold text-yellow-400">Score: {score}</div>
+          <LanguageCarousel
+            languages={LANGUAGES}
+            selectedLanguage={selectedLanguage}
+            onSelectLanguage={setSelectedLanguage}
+          />
         </header>
 
         {isGameComplete ? (

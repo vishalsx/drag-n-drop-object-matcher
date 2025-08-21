@@ -7,8 +7,12 @@ export interface ApiPicture {
   requested_language: string;
   result: {
   object_hint_en: string;
+  object_hint_translated: string;
   object_name_en: string;
+  object_name_translated: string;
   object_description_en: string;
+  object_description_translated: string;
+  object_category: string;
   };
   image_base64: string;
   }
@@ -35,24 +39,27 @@ const getMimeType = (filename: string): string => {
 const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8000';
 
 
-export const fetchGameData = async (): Promise<GameObject[]> => {
-  console.log("Fetching game data from API...");
+export const fetchGameData = async (language: string = 'English', count: number = 6): Promise<GameObject[]> => {
+console.log(`Fetching game data from API for language: ${language}, count: ${count}`);
   try {
     // Assuming the backend endpoint is available at '/pictures/random'
-    const response = await fetch(`${API_BASE_URL}/pictures/random?count=9`);
+    // Pass language and count as query parameters to the backend endpoint (default count 6)
+    
+    const response = await fetch(`${API_BASE_URL}/pictures/random?language=${language}&count=${count}`);
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }
     const data: ApiPicture[] = await response.json();
 
     // Transform the API data into the format the frontend components expect
-    //replace with if and else to choose the right attribute based on the selected language
+    // Replace with if and else to choose the right attribute based on the selected language
+    
     const gameData: GameObject[] = data.map(item => ({
       id: String(item.sequence_number),
-      description: item.result.object_hint_en,
+      description: language === "English"? item.result.object_hint_en: item.result.object_hint_translated,
       imageUrl: `data:${getMimeType(item.image_name)};base64,${item.image_base64}`,
-      imageName: item.result.object_name_en,
-      object_description: item.result.object_description_en, 
+      imageName: language === "English"? item.result.object_name_en: item.result.object_name_translated,
+      object_description: language === "English"? item.result.object_description_en: item.result.object_description_translated,
     }));
     
     console.log("Game data fetched and transformed successfully.", gameData);
