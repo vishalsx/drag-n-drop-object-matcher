@@ -134,6 +134,8 @@ const LANGUAGES: Language[] = [
   { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://en.wikipedia.org/wiki/Golden_Temple#/media/File:The_Golden_Temple_of_Amrithsar_7.jpg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
   { code: 'French', name: 'French', imageUrl: 'https://images.pexels.com/photos/1549326/pexels-photo-1549326.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
   { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://images.pexels.com/photos/3601453/pexels-photo-3601453.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'Arabic', name: 'Arabic', imageUrl: 'https://images.pexels.com/photos/3601453/pexels-photo-3601453.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'Urdu', name: 'Urdu', imageUrl: 'https://images.pexels.com/photos/3601453/pexels-photo-3601453.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
 ];
 
 const IMAGE_COUNT = 6;
