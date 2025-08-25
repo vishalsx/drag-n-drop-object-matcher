@@ -127,15 +127,15 @@ const LanguageCarousel: React.FC<LanguageCarouselProps> = ({ languages, selected
 };
 
 const LANGUAGES: Language[] = [
-  { code: 'English', name: 'English', imageUrl: 'https://images.pexels.com/photos/534151/pexels-photo-534151.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'Hindi', name: 'Hindi', imageUrl: 'https://images.pexels.com/photos/3881104/pexels-photo-3881104.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'Kokborok', name: 'Kokborok', imageUrl: 'https://images.pexels.com/photos/168438/pexels-photo-168438.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'Gujrati', name: 'Gujarati', imageUrl: 'https://images.pexels.com/photos/15939221/pexels-photo-15939221/free-photo-of-the-statue-of-unity-in-gujarat-india.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://en.wikipedia.org/wiki/Golden_Temple#/media/File:The_Golden_Temple_of_Amrithsar_7.jpg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'French', name: 'French', imageUrl: 'https://images.pexels.com/photos/1549326/pexels-photo-1549326.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://images.pexels.com/photos/3601453/pexels-photo-3601453.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'Arabic', name: 'Arabic', imageUrl: 'https://images.pexels.com/photos/3601453/pexels-photo-3601453.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
-  { code: 'Urdu', name: 'Urdu', imageUrl: 'https://images.pexels.com/photos/3601453/pexels-photo-3601453.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop' },
+  { code: 'English', name: 'English', imageUrl: '/lang-english.jpg'},
+  { code: 'Hindi', name: 'Hindi', imageUrl: '/lang-hindi.jpg'  },
+  { code: 'Kokborok', name: 'Kokborok', imageUrl: '/lang-kobborok.jpg'},
+  { code: 'Gujrati', name: 'Gujarati', imageUrl: '/lang-gujrati.jpg' },
+  { code: 'Punjabi', name: 'Punjabi', imageUrl: '/lang-punjabi.jpg'  },
+  { code: 'French', name: 'French', imageUrl: '/lang-french.jpg' },
+  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: '/lang-vietnamese.jpg' },
+  { code: 'Arabic', name: 'Arabic', imageUrl: '/lang-arabic.jpg'  },
+  { code: 'Urdu', name: 'Urdu', imageUrl: '/lang-urdu.jpg'  },
 ];
 
 const IMAGE_COUNT = 6;
@@ -148,6 +148,7 @@ const App: React.FC = () => {
   const [correctlyMatchedIds, setCorrectlyMatchedIds] = useState<Set<string>>(new Set());
   const [score, setScore] = useState(0);
   const [isGameComplete, setIsGameComplete] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [wrongDropTargetId, setWrongDropTargetId] = useState<string | null>(null);
@@ -171,6 +172,7 @@ const App: React.FC = () => {
   const initializeGame = useCallback(async () => {
     setIsLoading(true);
     setIsGameComplete(false);
+    setShowConfetti(false);
     setCorrectlyMatchedIds(new Set());
     setScore(0);
     const data = await fetchGameData(debouncedLanguage, IMAGE_COUNT);
@@ -191,17 +193,16 @@ const App: React.FC = () => {
   }, [initializeGame]);
 
   useEffect(() => {
-    if (gameData.length > 0 && correctlyMatchedIds.size === gameData.length) {
-      
+    if (gameData.length > 0 && correctlyMatchedIds.size === gameData.length && !isGameComplete) {
+      setShowConfetti(true);
       uploadScore(score);
-      const completionTimer = setTimeout(() => {
+      const timer = setTimeout(() => {
         setIsGameComplete(true);
-      }, 5000); // 5-second delay to allow user to see the last match feedback
+      }, 3000); // Display confetti over completed game for 3s
 
-      return () => clearTimeout(completionTimer); // Cleanup timer
-
+      return () => clearTimeout(timer);
     }
-  }, [correctlyMatchedIds, gameData.length, score]);
+  }, [correctlyMatchedIds, gameData.length, score, isGameComplete]);
 
   const handleDrop = (imageId: string, descriptionId: string) => {
     if (imageId === descriptionId) {
@@ -240,7 +241,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4 sm:p-8 text-white">
-      {isGameComplete && <Confetti />}
+      {showConfetti && <Confetti />}
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-4">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
@@ -255,19 +256,6 @@ const App: React.FC = () => {
           />
         </header>
 
-        {isGameComplete ? (
-          <div className="text-center p-12 bg-slate-800 rounded-lg shadow-2xl">
-            <h2 className="text-4xl font-bold text-green-400">Congratulations!</h2>
-            <p className="mt-4 text-xl text-slate-300">You've matched all the items!</p>
-            <p className="mt-2 text-2xl text-slate-200">Final Score: {score}</p>
-            <button
-              onClick={initializeGame}
-              className="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105"
-            >
-              Play Again
-            </button>
-          </div>
-        ) : (
           <main className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Panel: Descriptions */}
             <div className="p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700">
@@ -307,6 +295,26 @@ const App: React.FC = () => {
               </div>
             </div>
           </main>
+
+        {isGameComplete && (
+          <div
+            className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="completion-title"
+          >
+            <div className="text-center p-12 bg-slate-800 rounded-lg shadow-2xl pointer-events-auto animate-fadeIn border border-slate-700">
+              <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>
+              <p className="mt-4 text-xl text-slate-300">You've matched all the items!</p>
+              <p className="mt-2 text-2xl text-slate-200">Final Score: {score}</p>
+              <button
+                onClick={initializeGame}
+                className="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105"
+              >
+                Play Again
+              </button>
+            </div>
+          </div>          
         )}
       </div>
     </div>
