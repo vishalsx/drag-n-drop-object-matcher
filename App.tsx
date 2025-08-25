@@ -129,8 +129,8 @@ const LanguageCarousel: React.FC<LanguageCarouselProps> = ({ languages, selected
 const LANGUAGES: Language[] = [
   { code: 'English', name: 'English', imageUrl: '/lang-english.jpg'},
   { code: 'Hindi', name: 'Hindi', imageUrl: '/lang-hindi.jpg'  },
-  { code: 'Kokborok', name: 'Kokborok', imageUrl: '/lang-kobborok.jpg'},
-  { code: 'Gujrati', name: 'Gujarati', imageUrl: '/lang-gujrati.jpg' },
+  { code: 'Kokborok', name: 'Kokborok', imageUrl: '/lang-kokborok.jpg'},
+  { code: 'Gujrati', name: 'Gujrati', imageUrl: '/lang-gujrati.jpg' },
   { code: 'Punjabi', name: 'Punjabi', imageUrl: '/lang-punjabi.jpg'  },
   { code: 'French', name: 'French', imageUrl: '/lang-french.jpg' },
   { code: 'Vietnamese', name: 'Vietnamese', imageUrl: '/lang-vietnamese.jpg' },
