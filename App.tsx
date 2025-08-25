@@ -231,7 +231,7 @@ const App: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <h1 className="text-3xl font-bold animate-pulse text-white text-center">
-          Loading the game in your preferred language ({currentLanguageName})...
+          Loading the game {currentLanguageName}
           <span className="ml-2 inline-block animate-ping">...</span>
         </h1>
       </div>
@@ -244,9 +244,9 @@ const App: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-4">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
-            Object Matcher
+            TUB Hints
           </h1>
-          <p className="text-slate-400 mt-2">Drag the description to the correct image!</p>
+          <p className="text-slate-400 mt-2">Drag n drop hint to match the TUB object!</p>
           <div className="mt-4 text-2xl font-bold text-yellow-400">Score: {score}</div>
           <LanguageCarousel
             languages={LANGUAGES}
@@ -271,7 +271,7 @@ const App: React.FC = () => {
           <main className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Panel: Descriptions */}
             <div className="p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700">
-              <h2 className="text-2xl font-bold mb-6 text-center text-slate-300">Descriptions</h2>
+              <h2 className="text-2xl font-bold mb-6 text-center text-slate-300">Hints</h2>
               <div className="space-y-4">
                 {shuffledDescriptions.map(item => (
                   <DraggableDescription
