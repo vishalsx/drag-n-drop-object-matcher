@@ -10,6 +10,35 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return [...array].sort(() => Math.random() - 0.5);
 };
 
+
+// --- Sound Effects ---
+
+// Helper to play a sound for correct answers
+const playCorrectSound = () => {
+  if (typeof window.AudioContext === 'undefined' && typeof (window as any).webkitAudioContext === 'undefined') {
+      console.warn("AudioContext not supported by this browser.");
+      return;
+  }
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+
+  gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.2, audioContext.currentTime + 0.01);
+
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4
+  oscillator.frequency.exponentialRampToValueAtTime(880, audioContext.currentTime + 0.1); // A5
+  oscillator.start(audioContext.currentTime);
+
+  gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.2);
+  oscillator.stop(audioContext.currentTime + 0.2);
+};
+
+
 // Helper to play a sound for wrong answers
 const playWrongSound = () => {
   if (typeof window.AudioContext === 'undefined' && typeof (window as any).webkitAudioContext === 'undefined') {
@@ -32,6 +61,39 @@ const playWrongSound = () => {
 
   gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.2);
   oscillator.stop(audioContext.currentTime + 0.2);
+};
+
+
+
+// Helper to play a sound for game completion
+const playGameCompleteSound = () => {
+  if (typeof window.AudioContext === 'undefined' && typeof (window as any).webkitAudioContext === 'undefined') {
+      console.warn("AudioContext not supported by this browser.");
+      return;
+  }
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+
+  const playNote = (frequency: number, startTime: number, duration: number) => {
+      gainNode.gain.cancelScheduledValues(startTime);
+      gainNode.gain.setValueAtTime(0.2, startTime);
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.00001, startTime + duration);
+  };
+
+  oscillator.type = 'sine';
+  oscillator.start(audioContext.currentTime);
+  
+  const now = audioContext.currentTime;
+  playNote(523.25, now, 0.15); // C5
+  playNote(659.25, now + 0.15, 0.15); // E5
+  playNote(783.99, now + 0.3, 0.15); // G5
+  playNote(1046.50, now + 0.45, 0.3); // C6
+
+  oscillator.stop(audioContext.currentTime + 0.8);
 };
 
 // --- Language Carousel Component ---
@@ -194,6 +256,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (gameData.length > 0 && correctlyMatchedIds.size === gameData.length && !isGameComplete) {
+      playGameCompleteSound();
       setShowConfetti(true);
       uploadScore(score);
       const timer = setTimeout(() => {
@@ -206,6 +269,7 @@ const App: React.FC = () => {
 
   const handleDrop = (imageId: string, descriptionId: string) => {
     if (imageId === descriptionId) {
+      playCorrectSound();
       setScore(prevScore => prevScore + 10);
       setCorrectlyMatchedIds(prevIds => new Set(prevIds).add(imageId));
     } else {
