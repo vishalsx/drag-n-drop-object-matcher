@@ -51,7 +51,8 @@ const getMimeType = (filename: string): string => {
       return 'application/octet-stream';
   }
 };
-const API_BASE_URL = '/api';
+// const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL;
 
 
 export const fetchGameData = async (language: string = 'English', count: number = 9): Promise<GameObject[]> => {
@@ -72,19 +73,6 @@ export const fetchGameData = async (language: string = 'English', count: number 
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }
     const data: ApiPicture[] = await response.json();
-
-    // Transform the API data into the format the frontend components expect
-    // Replace with if and else to choose the right attribute based on the selected language
-    
-    // const gameData: GameObject[] = data.map(item => ({
-    //   id: String(item.sequence_number),
-    //   description: language === "English"? item.result.object_hint_en: item.result.object_hint_translated,
-    //   imageUrl: `data:${getMimeType(item.image_name)};base64,${item.image_base64}`,
-    //   imageName: language === "English"? item.result.object_name_en: item.result.object_name_translated,
-    //   object_description: language === "English"? item.result.object_description_en: item.result.object_description_translated,
-    //   upvotes: item.up_votes || 0,
-    //   downvotes: item.down_votes || 0,
-    // }));
     
     const gameData: GameObject[] = data.map((item: ApiPicture) => ({
       id: item.translations.translation_id,
