@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { GameObject } from './types';
-import { fetchGameData, uploadScore } from './services/gameService';
+import type { GameObject } from './types/types';
+import { fetchGameData, uploadScore, voteOnImage } from './services/gameService';
 import DraggableDescription from './components/DraggableDescription';
 import DroppableImage from './components/DroppableImage';
 import Confetti from './components/Confetti';
@@ -189,15 +189,16 @@ const LanguageCarousel: React.FC<LanguageCarouselProps> = ({ languages, selected
 };
 
 const LANGUAGES: Language[] = [
-  { code: 'English', name: 'English', imageUrl: '/lang-english.jpg'},
-  { code: 'Hindi', name: 'Hindi', imageUrl: '/lang-hindi.jpg'  },
-  { code: 'Kokborok', name: 'Kokborok', imageUrl: '/lang-kokborok.jpg'},
-  { code: 'Gujrati', name: 'Gujrati', imageUrl: '/lang-gujrati.jpg' },
-  { code: 'Punjabi', name: 'Punjabi', imageUrl: '/lang-punjabi.jpg'  },
-  { code: 'French', name: 'French', imageUrl: '/lang-french.jpg' },
-  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: '/lang-vietnamese.jpg' },
-  { code: 'Arabic', name: 'Arabic', imageUrl: '/lang-arabic.jpg'  },
-  { code: 'Urdu', name: 'Urdu', imageUrl: '/lang-urdu.jpg'  },
+  { code: 'English', name: 'English', imageUrl: 'https://picsum.photos/seed/english/300/200' },
+  { code: 'Japanese', name: 'Japanese', imageUrl: 'https://picsum.photos/seed/japanese/300/200'},
+  { code: 'Hindi', name: 'Hindi', imageUrl: 'https://picsum.photos/seed/hindi/300/200' },
+  { code: 'Kokborok', name: 'Kokborok', imageUrl: 'https://picsum.photos/seed/kokborok/300/200' },
+  { code: 'Gujrati', name: 'Gujrati', imageUrl: 'https://picsum.photos/seed/gujrati/300/200' },
+  { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://picsum.photos/seed/punjabi/300/200' },
+  { code: 'French', name: 'French', imageUrl: 'https://picsum.photos/seed/french/300/200' },
+  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://picsum.photos/seed/vietnamese/300/200' },
+  { code: 'Arabic', name: 'Arabic', imageUrl: 'https://picsum.photos/seed/arabic/300/200' },
+  { code: 'Urdu', name: 'Urdu', imageUrl: 'https://picsum.photos/seed/urdu/300/200' },
 ];
 
 const IMAGE_COUNT = 6;
@@ -214,8 +215,12 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [wrongDropTargetId, setWrongDropTargetId] = useState<string | null>(null);
+  const [wrongDropSourceId, setWrongDropSourceId] = useState<string | null>(null);
+  const [justMatchedId, setJustMatchedId] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
   const [debouncedLanguage, setDebouncedLanguage] = useState<string>('English');
+  const [voteErrors, setVoteErrors] = useState<Record<string, string | null>>({});
+
 
   // Debounce language changes to avoid excessive API calls while browsing the carousel
   useEffect(() => {
@@ -272,12 +277,16 @@ const App: React.FC = () => {
       playCorrectSound();
       setScore(prevScore => prevScore + 10);
       setCorrectlyMatchedIds(prevIds => new Set(prevIds).add(imageId));
+      setJustMatchedId(imageId);
+      setTimeout(() => setJustMatchedId(null), 750); // Pulse animation duration
     } else {
       setScore(prevScore => prevScore - 5);
       playWrongSound();
       setWrongDropTargetId(imageId);
+      setWrongDropSourceId(descriptionId);
       setTimeout(() => {
         setWrongDropTargetId(null);
+        setWrongDropSourceId(null);
       }, 500); // Duration of the shake animation
     }
     setDropTargetId(null);
@@ -289,6 +298,59 @@ const App: React.FC = () => {
   
   const handleDragLeave = () => {
       setDropTargetId(null);
+  };
+  
+  const handleVote = async (translationId: string, voteType: 'up' | 'down') => {
+    // Keep a reference to the original state for potential rollback
+    const originalGameData = gameData.map(item => ({ ...item }));
+    const originalShuffledImages = shuffledImages.map(item => ({ ...item }));
+    console.log("\nInside handleVote - translationId:",translationId )
+    // Optimistic UI update for immediate feedback
+    const optimisticUpdate = (data: GameObject[]) => 
+      data.map(item => {
+        if (item.id === translationId) {
+          return {
+            ...item,
+            upvotes: voteType === 'up' ? item.upvotes + 1 : item.upvotes,
+            downvotes: voteType === 'down' ? item.downvotes + 1 : item.downvotes,
+          };
+        }
+        console.log("Inside handleVote:",translationId)
+        return item;
+      });
+    
+    setGameData(prevData => optimisticUpdate(prevData));
+    setShuffledImages(prevData => optimisticUpdate(prevData));
+  
+    const result = await voteOnImage(translationId, voteType);
+      console.log("VoteOnImage function with translationId as :",translationId)
+    if (result.success && result.data) {
+      // If successful, update the state with the authoritative data from the server
+      const serverUpdate = (data: GameObject[]) => 
+        data.map(item => {
+          if (item.id === result.data?.translation_id) {
+            return {
+              ...item,
+              upvotes: result.data.up_votes,
+              downvotes: result.data.down_votes,
+            };
+          }
+          return item;
+        });
+
+      setGameData(prevData => serverUpdate(prevData));
+      setShuffledImages(prevData => serverUpdate(prevData));
+    } else {
+      // If the API call fails, revert to the original state and show an error
+      console.error(`Failed to submit vote: ${result.message}. Reverting changes.`);
+      setGameData(originalGameData);
+      setShuffledImages(originalShuffledImages);
+      setVoteErrors(prev => ({...prev, [translationId]: result.message || 'Vote failed!'}));
+      // Clear the error message after a few seconds
+      setTimeout(() => {
+        setVoteErrors(prev => ({...prev, [translationId]: null}));
+      }, 3000);
+    }
   };
 
   if (isLoading) {
@@ -331,6 +393,8 @@ const App: React.FC = () => {
                     id={item.id}
                     description={item.description}
                     isMatched={correctlyMatchedIds.has(item.id)}
+                    isWrongDrop={wrongDropSourceId === item.id}
+                    isJustMatched={justMatchedId === item.id}
                   />
                 ))}
               </div>
@@ -339,7 +403,7 @@ const App: React.FC = () => {
             {/* Right Panel: Images */}
             <div className="p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700">
               <h2 className="text-2xl font-bold mb-6 text-center text-slate-300">Objects</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 {shuffledImages.map(item => (
                   <DroppableImage
                     key={`img-${item.id}`}
@@ -354,6 +418,12 @@ const App: React.FC = () => {
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     isWrongDrop={wrongDropTargetId === item.id}
+                    isJustMatched={justMatchedId === item.id}
+                    upvotes={item.upvotes}
+                    downvotes={item.downvotes}
+                    onVote={handleVote}
+                    voteError={voteErrors[item.id] || null}
+
                   />
                 ))}
               </div>

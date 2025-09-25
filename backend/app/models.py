@@ -1,18 +1,30 @@
 from typing import Optional
 from pydantic import BaseModel
 
-class ResultHint(BaseModel):
-    object_hint_en: Optional[str] = None
-    object_name_en: Optional[str] = None
-    object_description_en: Optional[str] = None
-    object_description_translated: Optional[str] = None
-    object_name_translated: Optional[str] = None
-    object_hint_translated: Optional[str] = None
-    object_category: Optional[str] = None
-    
+class ResultObject(BaseModel):
+    object_id: str
+    image_base64: str
+    image_hash: str
+    object_category: str
+ 
+class ResultTranslation(BaseModel):
+    translation_id: str
+    language: str
+    object_description: str
+    object_hint: str
+    object_name: str
+    object_short_hint: str
+
+class ResultVoting(BaseModel):
+    up_votes: Optional[int] = None
+    down_votes: Optional[int] = None
+
+class ResultSheet(BaseModel):
+    sheet_id: Optional[str]
+    sheet_name: Optional[str]    
 
 class ApiPicture(BaseModel):
-    sequence_number: Optional[int] = None
-    image_name: Optional[str] = None
-    result: ResultHint
-    image_base64: Optional[str] = None
+    object: ResultObject
+    translations: ResultTranslation
+    voting: Optional[ResultVoting] = None
+    sheet: Optional[ResultSheet] = None

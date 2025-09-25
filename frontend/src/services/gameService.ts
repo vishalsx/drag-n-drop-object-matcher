@@ -1,0 +1,166 @@
+import type { GameObject, ApiPicture} from '../types/types';
+
+
+
+// To prevent network errors during development when the backend is not available,
+// we will use mock data directly. Set this to `true` to use mock data.
+const USE_MOCK_API = false;
+
+// Helper function to provide mock game data for offline/fallback use
+const getMockGameData = (count: number, language: string = 'English'): GameObject[] => {
+  // Fix: Renamed `objectDescription` to `object_description` in mock data to match the `GameObject` interface.
+  const items: GameObject[] = [
+      { id: '1', description: 'This object is a source of light, often found in a lamp.', imageUrl: 'https://picsum.photos/seed/bulb/400/400', imageName: 'Light Bulb', object_description: 'An electric device, which produces light from electricity. In addition to lighting a dark space, they can be used to show an electronic device is on, to direct traffic, for heat, and for many other purposes.', upvotes: 12, downvotes: 3 },
+      { id: '2', description: 'Used for writing or drawing, has an eraser on one end.', imageUrl: 'https://picsum.photos/seed/pencil/400/400', imageName: 'Pencil', object_description: 'A tool for writing or drawing, with a solid pigment core encased in a protective casing which prevents the core from being broken or marking the user\'s hand.', upvotes: 25, downvotes: 1 },
+      { id: '3', description: 'You read stories in this, it has many pages.', imageUrl: 'https://picsum.photos/seed/book/400/400', imageName: 'Book', object_description: 'A set of written, printed, or blank sheets, made of ink, paper, parchment, or other materials, fastened together to hinge at one side.', upvotes: 42, downvotes: 0 },
+      { id: '4', description: 'Keeps your drinks hot or cold for hours.', imageUrl: 'https://picsum.photos/seed/thermos/400/400', imageName: 'Thermos', object_description: 'An insulating storage vessel that greatly lengthens the time over which its contents remain hotter or cooler than the flask\'s surroundings.', upvotes: 8, downvotes: 5 },
+      { id: '5', description: 'A device to tell time, it can be on a wall or your wrist.', imageUrl: 'https://picsum.photos/seed/clock/400/400', imageName: 'Clock', object_description: 'An instrument to measure, keep, and indicate time. The clock is one of the oldest human inventions, meeting the need to measure intervals of time shorter than the natural units: the day, the lunar month, and the year.', upvotes: 18, downvotes: 2 },
+      { id: '6', description: 'You use this small metal object to open doors.', imageUrl: 'https://picsum.photos/seed/key/400/400', imageName: 'Key', object_description: 'A small piece of shaped metal with incisions cut to fit the wards of a particular lock, which is inserted into a lock and turned to open or close it.', upvotes: 33, downvotes: 7 }
+  ];
+  
+  const slicedItems = items.slice(0, count);
+
+  if (language.toLowerCase() === 'english') {
+    return slicedItems;
+  }
+  
+  // Simulate translation by prefixing the language code
+  return slicedItems.map(item => ({
+      ...item,
+      description: `[${language.toUpperCase()}] ${item.description}`,
+      imageName: `[${language.toUpperCase()}] ${item.imageName}`,
+      object_description: `[${language.toUpperCase()}] ${item.object_description}`
+  }));
+};
+  
+// Helper to determine the image MIME type from its filename
+const getMimeType = (filename: string): string => {
+  const extension = filename.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    default:
+      // A generic fallback for unknown image types
+      return 'application/octet-stream';
+  }
+};
+const API_BASE_URL = '/api';
+
+
+export const fetchGameData = async (language: string = 'English', count: number = 9): Promise<GameObject[]> => {
+  if (USE_MOCK_API) {
+    console.warn(`[MOCK API] Fetching game data for language: ${language}. To disable, set USE_MOCK_API to false in services/gameService.ts.`);
+    // Simulate network delay to mimic a real API call
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return getMockGameData(count, language);
+  }
+
+  console.log(`Fetching game data from API for language: ${language}, count: ${count}`);
+  try {
+    // Assuming the backend endpoint is available at '/pictures/random'
+    // Pass language and count as query parameters to the backend endpoint (default count 6)
+    count = 9
+    const response = await fetch(`${API_BASE_URL}/pictures/random?language=${language}&count=${count}`);
+    if (!response.ok) {
+      throw new Error(`Network response was not ok: ${response.statusText}`);
+    }
+    const data: ApiPicture[] = await response.json();
+
+    // Transform the API data into the format the frontend components expect
+    // Replace with if and else to choose the right attribute based on the selected language
+    
+    // const gameData: GameObject[] = data.map(item => ({
+    //   id: String(item.sequence_number),
+    //   description: language === "English"? item.result.object_hint_en: item.result.object_hint_translated,
+    //   imageUrl: `data:${getMimeType(item.image_name)};base64,${item.image_base64}`,
+    //   imageName: language === "English"? item.result.object_name_en: item.result.object_name_translated,
+    //   object_description: language === "English"? item.result.object_description_en: item.result.object_description_translated,
+    //   upvotes: item.up_votes || 0,
+    //   downvotes: item.down_votes || 0,
+    // }));
+    
+    const gameData: GameObject[] = data.map((item: ApiPicture) => ({
+      id: item.translations.translation_id,
+      description: item.translations.object_hint,
+      imageUrl: `data:image/png;base64,${item.object.image_base64}`,
+      imageName: item.translations.object_name,
+      object_description: item.translations.object_description,
+      upvotes: item.voting?.up_votes || 0,
+      downvotes: item.voting?.down_votes || 0,
+    }));
+    
+    
+
+
+    console.log("Game data fetched and transformed successfully.", gameData);
+    return gameData;
+  } catch (error) {
+    console.error("Failed to fetch or process game data:", error);
+    // Fallback to mock data if the API fails
+    console.warn(`API request failed for language "${language}". Serving mock data instead.`);
+    return getMockGameData(count, language);
+  }
+};
+
+export const uploadScore = async (score: number): Promise<{ success: boolean }> => {
+  console.log(`Uploading score: ${score}`);
+  // Simulate network delay for score submission
+  await new Promise(resolve => setTimeout(resolve, 500));
+  console.log("Score uploaded successfully.");
+  return Promise.resolve({ success: true });
+};
+
+// Type for the vote API success response
+export interface VoteSuccessResponse {
+  translation_id: string;
+  up_votes: number;
+  down_votes: number;
+}
+
+// Type for the vote API error response
+export interface VoteErrorResponse {
+  error: string;
+}
+
+type VoteApiResponse = VoteSuccessResponse | VoteErrorResponse;
+
+export const voteOnImage = async (translationId: string, voteType: 'up' | 'down'): Promise<{ success: boolean; data?: VoteSuccessResponse; message?: string }> => {
+
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/vote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        translation_id: String(translationId), 
+        vote_type: String(voteType)
+      }),
+    });
+    const responseData: VoteApiResponse = await response.json();
+
+    if (!response.ok) {
+      const message = (responseData as VoteErrorResponse).error || `API error: ${response.statusText}`;
+      throw new Error(message);
+    }
+    
+    // Check for application-level errors in a successful response (e.g., {"error": "..."})
+    if ('error' in responseData) {
+      return { success: false, message: responseData.error };
+    }
+    
+    return { success: true, data: responseData as VoteSuccessResponse };
+  } catch (error) {
+    console.error(`Failed to vote on image ${translationId}:`, error);
+    const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { success: false, message };
+  }
+};
