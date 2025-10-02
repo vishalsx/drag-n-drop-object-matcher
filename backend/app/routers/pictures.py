@@ -131,8 +131,8 @@ async def get_random_pictures(
                         translation_id=str(d.get("translation_id")),   # ✅ stringified
                         language=d.get("requested_language", ""),
                         object_description=d.get("object_description", ""),
-                        # object_hint=d.get("object_hint", ""),
-                        object_hint=d.get(play_value, ""),
+                        object_hint=d.get("object_hint", ""),
+                        # object_hint=d.get(play_value, ""),
                         object_name=d.get("object_name", ""),
                         object_short_hint=d.get("object_short_hint", ""),
                     ),
