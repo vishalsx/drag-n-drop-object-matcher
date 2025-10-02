@@ -102,6 +102,7 @@ interface Language {
   code: string;
   name: string;
   imageUrl: string;
+  bcp47: string;
 }
 
 interface LanguageCarouselProps {
@@ -189,18 +190,16 @@ const LanguageCarousel: React.FC<LanguageCarouselProps> = ({ languages, selected
 };
 
 const LANGUAGES: Language[] = [
-  { code: 'English', name: 'English', imageUrl: 'https://picsum.photos/seed/english/300/200' },
-  { code: 'Japanese', name: 'Japanese', imageUrl: 'https://picsum.photos/seed/japanese/300/200'},
-  { code: 'Hindi', name: 'Hindi', imageUrl: 'https://picsum.photos/seed/hindi/300/200' },
-  { code: 'Kokborok', name: 'Kokborok', imageUrl: 'https://picsum.photos/seed/kokborok/300/200' },
-  { code: 'Gujrati', name: 'Gujrati', imageUrl: 'https://picsum.photos/seed/gujrati/300/200' },
-  { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://picsum.photos/seed/punjabi/300/200' },
-  { code: 'French', name: 'French', imageUrl: 'https://picsum.photos/seed/french/300/200' },
-  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://picsum.photos/seed/vietnamese/300/200' },
-  { code: 'Arabic', name: 'Arabic', imageUrl: 'https://picsum.photos/seed/arabic/300/200' },
-  { code: 'Urdu', name: 'Urdu', imageUrl: 'https://picsum.photos/seed/urdu/300/200' },
+  { code: 'English', name: 'English', imageUrl: 'https://picsum.photos/seed/english/300/200', bcp47: 'en-US' },
+  { code: 'Hindi', name: 'Hindi', imageUrl: 'https://picsum.photos/seed/hindi/300/200', bcp47: 'hi-IN' },
+  { code: 'Kokborok', name: 'Kokborok', imageUrl: 'https://picsum.photos/seed/kokborok/300/200', bcp47: 'trp-latn' },
+  { code: 'Gujrati', name: 'Gujrati', imageUrl: 'https://picsum.photos/seed/gujrati/300/200', bcp47: 'gu-IN' },
+  { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://picsum.photos/seed/punjabi/300/200', bcp47: 'pa-IN' },
+  { code: 'French', name: 'French', imageUrl: 'https://picsum.photos/seed/french/300/200', bcp47: 'fr-FR' },
+  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://picsum.photos/seed/vietnamese/300/200', bcp47: 'vi-VN' },
+  { code: 'Arabic', name: 'Arabic', imageUrl: 'https://picsum.photos/seed/arabic/300/200', bcp47: 'ar-SA' },
+  { code: 'Urdu', name: 'Urdu', imageUrl: 'https://picsum.photos/seed/urdu/300/200', bcp47: 'ur-PK' },
 ];
-
 const IMAGE_COUNT = 6;
 
 
@@ -235,6 +234,9 @@ const App: React.FC = () => {
   }, [selectedLanguage]);
 
 
+  const currentLanguageBcp47 = useMemo(() => {
+    return LANGUAGES.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
+  }, [selectedLanguage]);
 
   const initializeGame = useCallback(async () => {
     setIsLoading(true);
@@ -397,6 +399,8 @@ const App: React.FC = () => {
                     isMatched={correctlyMatchedIds.has(item.id)}
                     isWrongDrop={wrongDropSourceId === item.id}
                     isJustMatched={justMatchedId === item.id}
+                    languageCode={currentLanguageBcp47}
+
                   />
                 ))}
               </div>
