@@ -10,13 +10,12 @@ const USE_MOCK_API = false;
 const getMockGameData = (count: number, language: string = 'English'): GameObject[] => {
   // Fix: Renamed `objectDescription` to `object_description` in mock data to match the `GameObject` interface.
   const items: GameObject[] = [
-      { id: '1', description: 'This object is a source of light, often found in a lamp.', imageUrl: 'https://picsum.photos/seed/bulb/400/400', imageName: 'Light Bulb', object_description: 'An electric device, which produces light from electricity. In addition to lighting a dark space, they can be used to show an electronic device is on, to direct traffic, for heat, and for many other purposes.', upvotes: 12, downvotes: 3 },
-      { id: '2', description: 'Used for writing or drawing, has an eraser on one end.', imageUrl: 'https://picsum.photos/seed/pencil/400/400', imageName: 'Pencil', object_description: 'A tool for writing or drawing, with a solid pigment core encased in a protective casing which prevents the core from being broken or marking the user\'s hand.', upvotes: 25, downvotes: 1 },
-      { id: '3', description: 'You read stories in this, it has many pages.', imageUrl: 'https://picsum.photos/seed/book/400/400', imageName: 'Book', object_description: 'A set of written, printed, or blank sheets, made of ink, paper, parchment, or other materials, fastened together to hinge at one side.', upvotes: 42, downvotes: 0 },
-      { id: '4', description: 'Keeps your drinks hot or cold for hours.', imageUrl: 'https://picsum.photos/seed/thermos/400/400', imageName: 'Thermos', object_description: 'An insulating storage vessel that greatly lengthens the time over which its contents remain hotter or cooler than the flask\'s surroundings.', upvotes: 8, downvotes: 5 },
-      { id: '5', description: 'A device to tell time, it can be on a wall or your wrist.', imageUrl: 'https://picsum.photos/seed/clock/400/400', imageName: 'Clock', object_description: 'An instrument to measure, keep, and indicate time. The clock is one of the oldest human inventions, meeting the need to measure intervals of time shorter than the natural units: the day, the lunar month, and the year.', upvotes: 18, downvotes: 2 },
-      { id: '6', description: 'You use this small metal object to open doors.', imageUrl: 'https://picsum.photos/seed/key/400/400', imageName: 'Key', object_description: 'A small piece of shaped metal with incisions cut to fit the wards of a particular lock, which is inserted into a lock and turned to open or close it.', upvotes: 33, downvotes: 7 }
-  ];
+    { id: '1', description: 'This object is a source of light, often found in a lamp.', short_hint: 'Source of light', imageUrl: 'https://picsum.photos/seed/bulb/400/400', imageName: 'Light Bulb', object_description: 'An electric device, which produces light from electricity. In addition to lighting a dark space, they can be used to show an electronic device is on, to direct traffic, for heat, and for many other purposes.', upvotes: 12, downvotes: 3 },
+    { id: '2', description: 'Used for writing or drawing, has an eraser on one end.', short_hint: 'Writing tool', imageUrl: 'https://picsum.photos/seed/pencil/400/400', imageName: 'Pencil', object_description: 'A tool for writing or drawing, with a solid pigment core encased in a protective casing which prevents the core from being broken or marking the user\'s hand.', upvotes: 25, downvotes: 1 },
+    { id: '3', description: 'You read stories in this, it has many pages.', short_hint: 'Has many pages', imageUrl: 'https://picsum.photos/seed/book/400/400', imageName: 'Book', object_description: 'A set of written, printed, or blank sheets, made of ink, paper, parchment, or other materials, fastened together to hinge at one side.', upvotes: 42, downvotes: 0 },
+    { id: '4', description: 'Keeps your drinks hot or cold for hours.', short_hint: 'Insulated container', imageUrl: 'https://picsum.photos/seed/thermos/400/400', imageName: 'Thermos', object_description: 'An insulating storage vessel that greatly lengthens the time over which its contents remain hotter or cooler than the flask\'s surroundings.', upvotes: 8, downvotes: 5 },
+    { id: '5', description: 'A device to tell time, it can be on a wall or your wrist.', short_hint: 'Measures time', imageUrl: 'https://picsum.photos/seed/clock/400/400', imageName: 'Clock', object_description: 'An instrument to measure, keep, and indicate time. The clock is one of the oldest human inventions, meeting the need to measure intervals of time shorter than the natural units: the day, the lunar month, and the year.', upvotes: 18, downvotes: 2 },
+    { id: '6', description: 'You use this small metal object to open doors.', short_hint: 'Opens locks', imageUrl: 'https://picsum.photos/seed/key/400/400', imageName: 'Key', object_description: 'A small piece of shaped metal with incisions cut to fit the wards of a particular lock, which is inserted into a lock and turned to open or close it.', upvotes: 33, downvotes: 7 }  ];
   
   const slicedItems = items.slice(0, count);
 
@@ -28,6 +27,7 @@ const getMockGameData = (count: number, language: string = 'English'): GameObjec
   return slicedItems.map(item => ({
       ...item,
       description: `[${language.toUpperCase()}] ${item.description}`,
+      short_hint: `[${language.toUpperCase()}] ${item.short_hint}`,
       imageName: `[${language.toUpperCase()}] ${item.imageName}`,
       object_description: `[${language.toUpperCase()}] ${item.object_description}`
   }));
@@ -77,6 +77,7 @@ export const fetchGameData = async (language: string = 'English', count: number 
     const gameData: GameObject[] = data.map((item: ApiPicture) => ({
       id: item.translations.translation_id,
       description: item.translations.object_hint,
+      short_hint: item.translations.object_short_hint,
       imageUrl: `data:image/png;base64,${item.object.image_base64}`,
       imageName: item.translations.object_name,
       object_description: item.translations.object_description,

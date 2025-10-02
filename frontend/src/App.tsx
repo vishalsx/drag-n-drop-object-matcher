@@ -392,6 +392,8 @@ const App: React.FC = () => {
                     key={`desc-${item.id}`}
                     id={item.id}
                     description={item.description}
+                    shortHint={item.short_hint}
+                    objectName={item.imageName}
                     isMatched={correctlyMatchedIds.has(item.id)}
                     isWrongDrop={wrongDropSourceId === item.id}
                     isJustMatched={justMatchedId === item.id}
