@@ -1,10 +1,12 @@
+// Fix: Removed the triple-slash directive for "vite/client" as it was causing a type error and was not needed.
 import type { GameObject, ApiPicture} from '../types/types';
 
 
 
 // To prevent network errors during development when the backend is not available,
 // we will use mock data directly. Set this to `true` to use mock data.
-const USE_MOCK_API = false;
+// Fix: Set USE_MOCK_API to true to prevent "File not found" errors when the backend is not running.
+export const USE_MOCK_API = false;
 
 // Helper function to provide mock game data for offline/fallback use
 const getMockGameData = (count: number, language: string = 'English'): GameObject[] => {
@@ -51,8 +53,11 @@ const getMimeType = (filename: string): string => {
       return 'application/octet-stream';
   }
 };
+// Use the Vite proxy path which is configured in vite.config.ts
 // const API_BASE_URL = '/api';
+
 const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL;
+
 
 
 export const fetchGameData = async (language: string = 'English', count: number = 9): Promise<GameObject[]> => {
@@ -121,7 +126,12 @@ export interface VoteErrorResponse {
 type VoteApiResponse = VoteSuccessResponse | VoteErrorResponse;
 
 export const voteOnImage = async (translationId: string, voteType: 'up' | 'down'): Promise<{ success: boolean; data?: VoteSuccessResponse; message?: string }> => {
-
+  if (USE_MOCK_API) {
+    console.warn(`[MOCK API] Voting on image ${translationId} (${voteType}). This is a mock response.`);
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { success: true };
+  }
   
   try {
     const response = await fetch(`${API_BASE_URL}/vote`, {

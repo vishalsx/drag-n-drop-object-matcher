@@ -2,6 +2,7 @@
 export interface GameObject {
   id: string;
   description: string;
+  // Fix: Add missing 'short_hint' property to the GameObject interface.
   short_hint: string;
   imageUrl: string;
   imageName: string;

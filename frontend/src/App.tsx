@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { GameObject } from './types/types';
-import { fetchGameData, uploadScore, voteOnImage } from './services/gameService';
+import { fetchGameData, uploadScore, voteOnImage, USE_MOCK_API } from './services/gameService';
 import DraggableDescription from './components/DraggableDescription';
 import DroppableImage from './components/DroppableImage';
 import Confetti from './components/Confetti';
@@ -189,11 +189,45 @@ const LanguageCarousel: React.FC<LanguageCarouselProps> = ({ languages, selected
   );
 };
 
+const ThumbsUpIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
+      />
+    </svg>
+  );
+  
+  const ThumbsDownIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
+      />
+    </svg>
+  );
+
 const LANGUAGES: Language[] = [
   { code: 'English', name: 'English', imageUrl: 'https://picsum.photos/seed/english/300/200', bcp47: 'en-US' },
   { code: 'Hindi', name: 'Hindi', imageUrl: 'https://picsum.photos/seed/hindi/300/200', bcp47: 'hi-IN' },
   { code: 'Kokborok', name: 'Kokborok', imageUrl: 'https://picsum.photos/seed/kokborok/300/200', bcp47: 'trp-latn' },
-  { code: 'Gujrati', name: 'Gujrati', imageUrl: 'https://picsum.photos/seed/gujrati/300/200', bcp47: 'gu-IN' },
+  { code: 'Gujarati', name: 'Gujarati', imageUrl: 'https://picsum.photos/seed/gujrati/300/200', bcp47: 'gu-IN' },
   { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://picsum.photos/seed/punjabi/300/200', bcp47: 'pa-IN' },
   { code: 'French', name: 'French', imageUrl: 'https://picsum.photos/seed/french/300/200', bcp47: 'fr-FR' },
   { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://picsum.photos/seed/vietnamese/300/200', bcp47: 'vi-VN' },
@@ -219,6 +253,7 @@ const App: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
   const [debouncedLanguage, setDebouncedLanguage] = useState<string>('English');
   const [voteErrors, setVoteErrors] = useState<Record<string, string | null>>({});
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
 
   // Debounce language changes to avoid excessive API calls while browsing the carousel
@@ -232,6 +267,63 @@ const App: React.FC = () => {
       clearTimeout(handler);
     };
   }, [selectedLanguage]);
+
+  // Effect to load available voices for text-to-speech
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    const getVoices = () => {
+      if (synth) {
+        setVoices(synth.getVoices());
+      }
+    };
+    
+    // Voices can load asynchronously. We listen for the 'voiceschanged' event.
+    getVoices();
+    if (synth && synth.onvoiceschanged !== undefined) {
+      synth.onvoiceschanged = getVoices;
+    }
+    
+    // Cleanup on unmount
+    return () => {
+        if (synth) {
+            // Remove the event listener to prevent memory leaks
+            synth.onvoiceschanged = null;
+        }
+    };
+  }, []);
+
+  // Centralized function to speak text
+  const speakText = useCallback((text: string, languageCode: string) => {
+    const synth = window.speechSynthesis;
+    if (!synth) {
+      console.warn('Speech Synthesis not supported by this browser.');
+      return;
+    }
+
+    if (synth.speaking) {
+      synth.cancel(); // Stop any previous speech before starting a new one
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = languageCode;
+
+    // Attempt to find a voice that matches the language code
+    let voice = voices.find(v => v.lang === languageCode);
+    
+    // If no exact match is found, try a more generic match (e.g., 'en' for 'en-US')
+    if (!voice) {
+        const langPart = languageCode.split('-')[0];
+        voice = voices.find(v => v.lang.startsWith(langPart));
+    }
+    
+    if (voice) {
+        utterance.voice = voice;
+    } else if (voices.length > 0) {
+        console.warn(`No voice found for language: ${languageCode}. Using browser default.`);
+    }
+    
+    synth.speak(utterance);
+  }, [voices]);
 
 
   const currentLanguageBcp47 = useMemo(() => {
@@ -277,6 +369,10 @@ const App: React.FC = () => {
   const handleDrop = (imageId: string, descriptionId: string) => {
     if (imageId === descriptionId) {
       playCorrectSound();
+      const matchedItem = gameData.find(item => item.id === imageId);
+      if (matchedItem) {
+        speakText(matchedItem.imageName, currentLanguageBcp47);
+      }
       setScore(prevScore => prevScore + 10);
       setCorrectlyMatchedIds(prevIds => new Set(prevIds).add(imageId));
       setJustMatchedId(imageId);
@@ -301,12 +397,15 @@ const App: React.FC = () => {
   const handleDragLeave = () => {
       setDropTargetId(null);
   };
+
+  const handleMatchedImageClick = (imageName: string) => {
+    speakText(imageName, currentLanguageBcp47);
+  };
   
   const handleVote = async (translationId: string, voteType: 'up' | 'down') => {
     // Keep a reference to the original state for potential rollback
     const originalGameData = gameData.map(item => ({ ...item }));
-    const originalShuffledImages = shuffledImages.map(item => ({ ...item }));
-    console.log("\nInside handleVote - translationId:",translationId )
+
     // Optimistic UI update for immediate feedback
     const optimisticUpdate = (data: GameObject[]) => 
       data.map(item => {
@@ -317,36 +416,34 @@ const App: React.FC = () => {
             downvotes: voteType === 'down' ? item.downvotes + 1 : item.downvotes,
           };
         }
-        console.log("Inside handleVote:",translationId)
         return item;
       });
     
     setGameData(prevData => optimisticUpdate(prevData));
-    setShuffledImages(prevData => optimisticUpdate(prevData));
   
     const result = await voteOnImage(translationId, voteType);
-      console.log("VoteOnImage function with translationId as :",translationId)
-    if (result.success && result.data) {
-      // If successful, update the state with the authoritative data from the server
-      const serverUpdate = (data: GameObject[]) => 
-        data.map(item => {
-          if (item.id === result.data?.translation_id) {
-            return {
-              ...item,
-              upvotes: result.data.up_votes,
-              downvotes: result.data.down_votes,
-            };
-          }
-          return item;
-        });
+    if (result.success) {
+      // In mock mode, the optimistic UI update is sufficient.
+      // In live mode, we sync the state with the authoritative response from the server.
+      if (!USE_MOCK_API && result.data) {
+        const serverUpdate = (data: GameObject[]) =>
+          data.map(item => {
+            if (item.id === result.data?.translation_id) {
+              return {
+                ...item,
+                upvotes: result.data.up_votes,
+                downvotes: result.data.down_votes,
+              };
+            }
+            return item;
+          });
 
-      setGameData(prevData => serverUpdate(prevData));
-      setShuffledImages(prevData => serverUpdate(prevData));
+        setGameData(prevData => serverUpdate(prevData));
+      }
     } else {
       // If the API call fails, revert to the original state and show an error
       console.error(`Failed to submit vote: ${result.message}. Reverting changes.`);
       setGameData(originalGameData);
-      setShuffledImages(originalShuffledImages);
       setVoteErrors(prev => ({...prev, [translationId]: result.message || 'Vote failed!'}));
       // Clear the error message after a few seconds
       setTimeout(() => {
@@ -399,8 +496,6 @@ const App: React.FC = () => {
                     isMatched={correctlyMatchedIds.has(item.id)}
                     isWrongDrop={wrongDropSourceId === item.id}
                     isJustMatched={justMatchedId === item.id}
-                    languageCode={currentLanguageBcp47}
-
                   />
                 ))}
               </div>
@@ -425,11 +520,7 @@ const App: React.FC = () => {
                     onDragLeave={handleDragLeave}
                     isWrongDrop={wrongDropTargetId === item.id}
                     isJustMatched={justMatchedId === item.id}
-                    upvotes={item.upvotes}
-                    downvotes={item.downvotes}
-                    onVote={handleVote}
-                    voteError={voteErrors[item.id] || null}
-
+                    onMatchedImageClick={handleMatchedImageClick}
                   />
                 ))}
               </div>
@@ -438,18 +529,48 @@ const App: React.FC = () => {
 
         {isGameComplete && (
           <div
-            className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
+            className="absolute inset-0 bg-black/70 flex items-center justify-center z-40 p-4"
             role="dialog"
             aria-modal="true"
             aria-labelledby="completion-title"
           >
-            <div className="text-center p-12 bg-slate-800 rounded-lg shadow-2xl pointer-events-auto animate-fadeIn border border-slate-700">
+            <div className="text-center w-full max-w-4xl p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
               <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>
-              <p className="mt-4 text-xl text-slate-300">You've matched all the items!</p>
-              <p className="mt-2 text-2xl text-slate-200">Final Score: {score}</p>
+              <p className="mt-2 text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{score}</span></p>
+              <p className="mt-4 text-md text-slate-400">Review your matches and vote on the hints.</p>
+
+              <div className="my-6 space-y-3 max-h-[45vh] overflow-y-auto pr-2">
+                {gameData.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                    <div className="flex items-center text-left">
+                      <img src={item.imageUrl} alt={item.imageName} className="w-16 h-16 rounded-md object-cover mr-4" />
+                      <div>
+                        <p className="font-bold text-slate-200">{item.imageName}</p>
+                        <p className="text-sm text-slate-400 mt-1 italic">"{item.description}"</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center space-y-1 relative">
+                        <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold">
+                            <button onClick={() => handleVote(item.id, 'up')} className="p-1 rounded-full hover:bg-green-500/50 transition-colors" aria-label="Vote up">
+                                <ThumbsUpIcon className="w-4 h-4" />
+                            </button>
+                            <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
+                            <button onClick={() => handleVote(item.id, 'down')} className="p-1 rounded-full hover:bg-red-500/50 transition-colors" aria-label="Vote down">
+                                <ThumbsDownIcon className="w-4 h-4" />
+                            </button>
+                            <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
+                        </div>
+                        {voteErrors[item.id] && (
+                             <p className="text-xs text-red-400" role="alert">{voteErrors[item.id]}</p>
+                        )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <button
                 onClick={initializeGame}
-                className="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105"
+                className="mt-4 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105"
               >
                 Play Again
               </button>
