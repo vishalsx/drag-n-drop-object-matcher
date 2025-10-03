@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { GameObject } from './types/types';
-import { fetchGameData, uploadScore, voteOnImage, USE_MOCK_API } from './services/gameService';
+import { fetchGameData, uploadScore, voteOnImage, saveTubSheet, USE_MOCK_API } from './services/gameService';
 import DraggableDescription from './components/DraggableDescription';
 import DroppableImage from './components/DroppableImage';
 import Confetti from './components/Confetti';
@@ -130,99 +130,94 @@ const LanguageCarousel: React.FC<LanguageCarouselProps> = ({ languages, selected
   };
 
   return (
-    <div className="relative w-full h-36 flex items-center justify-center my-4">
+    <div className="relative w-full max-w-xs mx-auto h-16 flex items-center justify-center my-2">
       <button 
         onClick={goToPrevious} 
-        className="absolute left-0 sm:left-1/4 z-30 bg-slate-700/50 hover:bg-slate-600/80 rounded-full p-2 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="absolute left-0 z-10 bg-slate-700/50 hover:bg-slate-600/80 rounded-full p-2 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
         aria-label="Previous language"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
       </button>
       
-      <div className="relative w-48 h-28">
-        {languages.map((lang, index) => {
-            let offset = index - currentIndex;
-            if (offset > languages.length / 2) offset -= languages.length;
-            if (offset < -languages.length / 2) offset += languages.length;
-
-            const isCurrent = offset === 0;
-            const isVisible = Math.abs(offset) <= 1;
-            
-            let transform = `translateX(${offset * 60}%) scale(${isCurrent ? 1 : 0.8})`;
-            if (!isVisible) {
-                transform = `translateX(${offset > 0 ? 120 : -120}%) scale(0.5)`;
-            }
-
-            return (
-              <div
-                key={lang.code}
-                className="absolute w-full h-full cursor-pointer"
-                style={{
-                  zIndex: isCurrent ? 10 : 5,
-                  transform: transform,
-                  opacity: isVisible ? (isCurrent ? 1 : 0.5) : 0,
-                  filter: isCurrent ? 'blur(0)' : 'blur(2px)',
-                  transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                }}
+      <div className="w-full h-full overflow-hidden">
+        <div 
+          className="relative w-full h-full transition-transform duration-300 ease-in-out"
+          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        >
+          {languages.map((lang, index) => (
+            <div
+              key={lang.code}
+              className="absolute w-full h-full flex items-center justify-center"
+              style={{ left: `${index * 100}%` }}
+            >
+              <span 
+                className="text-white font-bold text-xl tracking-wider drop-shadow-md select-none cursor-pointer"
                 onClick={() => onSelectLanguage(lang.code)}
                 role="button"
-                tabIndex={isCurrent ? 0 : -1}
-                aria-label={`Select language: ${lang.name}`}
+                tabIndex={-1}
               >
-                <img src={lang.imageUrl} alt={lang.name} className="w-full h-full object-cover rounded-xl shadow-lg" />
-                <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
-                  <span className="text-white font-bold text-lg tracking-wider drop-shadow-md">{lang.name}</span>
-                </div>
-              </div>
-            );
-        })}
+                {lang.name}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <button 
         onClick={goToNext} 
-        className="absolute right-0 sm:right-1/4 z-30 bg-slate-700/50 hover:bg-slate-600/80 rounded-full p-2 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="absolute right-0 z-10 bg-slate-700/50 hover:bg-slate-600/80 rounded-full p-2 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
         aria-label="Next language"
       >
-         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
       </button>
     </div>
   );
 };
 
+// --- Icons ---
 const ThumbsUpIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
-      />
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
     </svg>
-  );
+);
   
-  const ThumbsDownIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
-      />
+const ThumbsDownIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/>
     </svg>
-  );
+);
 
+const SaveIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+    </svg>
+);
+
+const SpinnerIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
+const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+);
+
+const GridIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+    </svg>
+);
+const ListIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+);
+
+// --- Constants ---
 const LANGUAGES: Language[] = [
   { code: 'English', name: 'English', imageUrl: 'https://picsum.photos/seed/english/300/200', bcp47: 'en-US' },
   { code: 'Hindi', name: 'Hindi', imageUrl: 'https://picsum.photos/seed/hindi/300/200', bcp47: 'hi-IN' },
@@ -244,6 +239,7 @@ const App: React.FC = () => {
   const [correctlyMatchedIds, setCorrectlyMatchedIds] = useState<Set<string>>(new Set());
   const [score, setScore] = useState(0);
   const [isGameComplete, setIsGameComplete] = useState(false);
+  const [showCompletionScreen, setShowCompletionScreen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -254,7 +250,12 @@ const App: React.FC = () => {
   const [debouncedLanguage, setDebouncedLanguage] = useState<string>('English');
   const [voteErrors, setVoteErrors] = useState<Record<string, string | null>>({});
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-
+  const [nextLanguage, setNextLanguage] = useState<string>('English');
+  const [sheetSaveState, setSheetSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [sheetSaveError, setSheetSaveError] = useState<string | null>(null);
+  const [completionView, setCompletionView] = useState<'list' | 'grid'>('list');
+  const [tooltip, setTooltip] = useState<{ visible: boolean; content: string; top: number; left: number }>({ visible: false, content: '', top: 0, left: 0 });
+  const [hoveredGridInfo, setHoveredGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
 
   // Debounce language changes to avoid excessive API calls while browsing the carousel
   useEffect(() => {
@@ -277,16 +278,13 @@ const App: React.FC = () => {
       }
     };
     
-    // Voices can load asynchronously. We listen for the 'voiceschanged' event.
     getVoices();
     if (synth && synth.onvoiceschanged !== undefined) {
       synth.onvoiceschanged = getVoices;
     }
     
-    // Cleanup on unmount
     return () => {
         if (synth) {
-            // Remove the event listener to prevent memory leaks
             synth.onvoiceschanged = null;
         }
     };
@@ -299,29 +297,21 @@ const App: React.FC = () => {
       console.warn('Speech Synthesis not supported by this browser.');
       return;
     }
-
     if (synth.speaking) {
-      synth.cancel(); // Stop any previous speech before starting a new one
+      synth.cancel();
     }
-
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = languageCode;
-
-    // Attempt to find a voice that matches the language code
     let voice = voices.find(v => v.lang === languageCode);
-    
-    // If no exact match is found, try a more generic match (e.g., 'en' for 'en-US')
     if (!voice) {
         const langPart = languageCode.split('-')[0];
         voice = voices.find(v => v.lang.startsWith(langPart));
     }
-    
     if (voice) {
         utterance.voice = voice;
     } else if (voices.length > 0) {
         console.warn(`No voice found for language: ${languageCode}. Using browser default.`);
     }
-    
     synth.speak(utterance);
   }, [voices]);
 
@@ -330,41 +320,44 @@ const App: React.FC = () => {
     return LANGUAGES.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
   }, [selectedLanguage]);
 
-  const initializeGame = useCallback(async () => {
+  const initializeGame = useCallback(async (languageOverride?: string) => {
+    const languageToLoad = languageOverride || debouncedLanguage;
     setIsLoading(true);
     setIsGameComplete(false);
+    setShowCompletionScreen(false);
     setShowConfetti(false);
     setCorrectlyMatchedIds(new Set());
     setScore(0);
-    const data = await fetchGameData(debouncedLanguage, IMAGE_COUNT);
+    setSheetSaveState('idle');
+    setSheetSaveError(null);
+
+    const data = await fetchGameData(languageToLoad, IMAGE_COUNT);
     if (data.length > 0) {
-    setGameData(data);
-    setShuffledDescriptions(shuffleArray(data));
-    setShuffledImages(shuffleArray(data));
-  } else {
-    setGameData([]);
-    setShuffledDescriptions([]);
-    setShuffledImages([]);
-  }
+      setGameData(data);
+      setShuffledDescriptions(shuffleArray(data));
+      setShuffledImages(shuffleArray(data));
+    } else {
+      setGameData([]);
+      setShuffledDescriptions([]);
+      setShuffledImages([]);
+    }
     setIsLoading(false);
   }, [debouncedLanguage]);
 
   useEffect(() => {
     initializeGame();
-  }, [initializeGame]);
+  }, [initializeGame, debouncedLanguage]);
 
   useEffect(() => {
     if (gameData.length > 0 && correctlyMatchedIds.size === gameData.length && !isGameComplete) {
+      setIsGameComplete(true);
       playGameCompleteSound();
       setShowConfetti(true);
       uploadScore(score);
-      const timer = setTimeout(() => {
-        setIsGameComplete(true);
-      }, 3000); // Display confetti over completed game for 3s
-
-      return () => clearTimeout(timer);
+      setShowCompletionScreen(true);
+      setNextLanguage(selectedLanguage);
     }
-  }, [correctlyMatchedIds, gameData.length, score, isGameComplete]);
+  }, [correctlyMatchedIds, gameData.length, score, isGameComplete, selectedLanguage]);
 
   const handleDrop = (imageId: string, descriptionId: string) => {
     if (imageId === descriptionId) {
@@ -376,7 +369,7 @@ const App: React.FC = () => {
       setScore(prevScore => prevScore + 10);
       setCorrectlyMatchedIds(prevIds => new Set(prevIds).add(imageId));
       setJustMatchedId(imageId);
-      setTimeout(() => setJustMatchedId(null), 750); // Pulse animation duration
+      setTimeout(() => setJustMatchedId(null), 750);
     } else {
       setScore(prevScore => prevScore - 5);
       playWrongSound();
@@ -385,7 +378,7 @@ const App: React.FC = () => {
       setTimeout(() => {
         setWrongDropTargetId(null);
         setWrongDropSourceId(null);
-      }, 500); // Duration of the shake animation
+      }, 500);
     }
     setDropTargetId(null);
   };
@@ -422,6 +415,7 @@ const App: React.FC = () => {
     setGameData(prevData => optimisticUpdate(prevData));
   
     const result = await voteOnImage(translationId, voteType);
+    
     if (result.success) {
       // In mock mode, the optimistic UI update is sufficient.
       // In live mode, we sync the state with the authoritative response from the server.
@@ -429,15 +423,14 @@ const App: React.FC = () => {
         const serverUpdate = (data: GameObject[]) =>
           data.map(item => {
             if (item.id === result.data?.translation_id) {
-              return {
-                ...item,
-                upvotes: result.data.up_votes,
-                downvotes: result.data.down_votes,
+              return { 
+                ...item, 
+                upvotes: result.data.up_votes, 
+                downvotes: result.data.down_votes 
               };
             }
             return item;
           });
-
         setGameData(prevData => serverUpdate(prevData));
       }
     } else {
@@ -450,6 +443,40 @@ const App: React.FC = () => {
         setVoteErrors(prev => ({...prev, [translationId]: null}));
       }, 3000);
     }
+  };
+
+  const handleSaveSheet = async () => {
+    setSheetSaveState('saving');
+    setSheetSaveError(null);
+    const translationIds = gameData.map(item => item.id);
+    const result = await saveTubSheet(translationIds);
+    if (result.success) {
+      setSheetSaveState('success');
+    } else {
+      setSheetSaveState('error');
+      setSheetSaveError(result.message || 'Failed to save sheet.');
+      setTimeout(() => setSheetSaveState('idle'), 3000); // Revert after showing error
+    }
+  };
+
+  const handlePlayAgain = () => {
+    setSelectedLanguage(nextLanguage);
+    // Directly call initializeGame since debouncedLanguage might not be updated yet
+    initializeGame(nextLanguage);
+  };
+
+  const handleShowTooltip = (e: React.MouseEvent<HTMLElement>, description: string) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltip({
+        visible: true,
+        content: description,
+        top: rect.top,
+        left: rect.left + rect.width / 2,
+    });
+  };
+
+  const handleHideTooltip = () => {
+      setTooltip(prev => ({ ...prev, visible: false }));
   };
 
   if (isLoading) {
@@ -466,6 +493,15 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4 sm:p-8 text-white">
+      {tooltip.visible && (
+        <div 
+          style={{ top: tooltip.top, left: tooltip.left }} 
+          className="fixed transform -translate-x-1/2 -translate-y-full -mt-2 w-max max-w-xs p-2 bg-yellow-400 text-black text-xs rounded-md shadow-lg z-[60] pointer-events-none"
+        >
+          {tooltip.content}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-yellow-400"></div>
+        </div>
+      )}
       {showConfetti && <Confetti />}
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-4">
@@ -482,98 +518,154 @@ const App: React.FC = () => {
         </header>
 
           <main className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Panel: Descriptions */}
             <div className="p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700">
               <h2 className="text-2xl font-bold mb-6 text-center text-slate-300">Hints</h2>
               <div className="space-y-4">
                 {shuffledDescriptions.map(item => (
-                  <DraggableDescription
-                    key={`desc-${item.id}`}
-                    id={item.id}
-                    description={item.description}
-                    shortHint={item.short_hint}
-                    objectName={item.imageName}
-                    isMatched={correctlyMatchedIds.has(item.id)}
-                    isWrongDrop={wrongDropSourceId === item.id}
-                    isJustMatched={justMatchedId === item.id}
-                  />
+                  <DraggableDescription key={`desc-${item.id}`} id={item.id} description={item.description} shortHint={item.short_hint} objectName={item.imageName} isMatched={correctlyMatchedIds.has(item.id)} isWrongDrop={wrongDropSourceId === item.id} isJustMatched={justMatchedId === item.id}/>
                 ))}
               </div>
             </div>
 
-            {/* Right Panel: Images */}
             <div className="p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700">
               <h2 className="text-2xl font-bold mb-6 text-center text-slate-300">Objects</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 {shuffledImages.map(item => (
-                  <DroppableImage
-                    key={`img-${item.id}`}
-                    id={item.id}
-                    imageUrl={item.imageUrl}
-                    description={item.description}
-                    tooltipText={item.object_description}
-                    imageName={item.imageName}
-                    isMatched={correctlyMatchedIds.has(item.id)}
-                    onDropItem={handleDrop}
-                    isDropTarget={dropTargetId === item.id}
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                    isWrongDrop={wrongDropTargetId === item.id}
-                    isJustMatched={justMatchedId === item.id}
-                    onMatchedImageClick={handleMatchedImageClick}
-                  />
+                  <DroppableImage key={`img-${item.id}`} id={item.id} imageUrl={item.imageUrl} description={item.description} tooltipText={item.object_description} imageName={item.imageName} isMatched={correctlyMatchedIds.has(item.id)} onDropItem={handleDrop} isDropTarget={dropTargetId === item.id} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} isWrongDrop={wrongDropTargetId === item.id} isJustMatched={justMatchedId === item.id} onMatchedImageClick={handleMatchedImageClick}/>
                 ))}
               </div>
             </div>
           </main>
 
-        {isGameComplete && (
-          <div
-            className="absolute inset-0 bg-black/70 flex items-center justify-center z-40 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="completion-title"
-          >
-            <div className="text-center w-full max-w-4xl p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
+        {showCompletionScreen && (
+          <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-40 p-4" role="dialog" aria-modal="true" aria-labelledby="completion-title">
+            <div className="text-center w-full max-w-4xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
               <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>
               <p className="mt-2 text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{score}</span></p>
-              <p className="mt-4 text-md text-slate-400">Review your matches and vote on the hints.</p>
+              <p className="mt-4 text-md text-slate-400">Review your matches, vote, and save.</p>
+              
+              <div className="flex flex-col flex-grow my-3 overflow-hidden">
+                <div className="flex justify-end gap-2 mb-4 flex-shrink-0">
+                  <button onClick={() => setCompletionView('list')} className={`p-2 rounded-md transition-colors ${completionView === 'list' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`} aria-label="List view">
+                    <ListIcon className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setCompletionView('grid')} className={`p-2 rounded-md transition-colors ${completionView === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`} aria-label="Grid view">
+                    <GridIcon className="w-5 h-5" />
+                  </button>
+                </div>
 
-              <div className="my-6 space-y-3 max-h-[45vh] overflow-y-auto pr-2">
-                {gameData.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                    <div className="flex items-center text-left">
-                      <img src={item.imageUrl} alt={item.imageName} className="w-16 h-16 rounded-md object-cover mr-4" />
-                      <div>
-                        <p className="font-bold text-slate-200">{item.imageName}</p>
-                        <p className="text-sm text-slate-400 mt-1 italic">"{item.description}"</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center space-y-1 relative">
-                        <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold">
-                            <button onClick={() => handleVote(item.id, 'up')} className="p-1 rounded-full hover:bg-green-500/50 transition-colors" aria-label="Vote up">
-                                <ThumbsUpIcon className="w-4 h-4" />
-                            </button>
-                            <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
-                            <button onClick={() => handleVote(item.id, 'down')} className="p-1 rounded-full hover:bg-red-500/50 transition-colors" aria-label="Vote down">
-                                <ThumbsDownIcon className="w-4 h-4" />
-                            </button>
-                            <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
+                <div className="flex-grow overflow-y-auto pr-2">
+                  {completionView === 'list' && (
+                    <div className="space-y-3">
+                      {gameData.map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                          <div className="flex items-center text-left cursor-pointer flex-1 min-w-0 mr-4" onClick={() => handleMatchedImageClick(item.imageName)}>
+                            <img src={item.imageUrl} alt={item.imageName} className="w-16 h-16 rounded-md object-cover mr-4 flex-shrink-0" />
+                            <div 
+                                className="min-w-0 flex-1"
+                                onMouseEnter={(e) => handleShowTooltip(e, item.object_description)}
+                                onMouseLeave={handleHideTooltip}
+                            >
+                              <p className="font-bold text-slate-200 truncate">{item.imageName}</p>
+                              <p className="text-sm text-slate-400 mt-1 italic truncate">"{item.object_description}"</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-center space-y-1 relative ml-4 flex-shrink-0">
+                              <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold">
+                                  <button onClick={() => handleVote(item.id, 'up')} className="p-1 rounded-full hover:bg-green-500/50 transition-colors" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
+                                  <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
+                                  <button onClick={() => handleVote(item.id, 'down')} className="p-1 rounded-full hover:bg-red-500/50 transition-colors" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
+                                  <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
+                              </div>
+                              {voteErrors[item.id] && (<p className="text-xs text-red-400" role="alert">{voteErrors[item.id]}</p>)}
+                          </div>
                         </div>
-                        {voteErrors[item.id] && (
-                             <p className="text-xs text-red-400" role="alert">{voteErrors[item.id]}</p>
-                        )}
+                      ))}
                     </div>
-                  </div>
-                ))}
+                  )}
+                  {completionView === 'grid' && (() => {
+                    const getJustifyClass = (index: number | undefined) => {
+                      if (index === undefined || index === null) return 'justify-center';
+                      if (index <= 2) return 'justify-start'; // Top row
+                      if (index <= 5) return 'justify-center'; // Middle row
+                      return 'justify-end'; // Bottom row
+                    };
+
+                    return (
+                      <div className="flex gap-4" onMouseLeave={() => setHoveredGridInfo(null)}>
+                        <div className="w-1/2 grid grid-cols-3 gap-2">
+                          {shuffledImages.map((item, index) => (
+                            <div 
+                              key={item.id} 
+                              className="relative flex flex-col items-center text-center p-1 bg-slate-900/50 rounded-lg border border-slate-700/50 cursor-pointer transition-all duration-200 hover:scale-105 hover:border-blue-500"
+                              onMouseEnter={() => setHoveredGridInfo({ item, index })} 
+                            >
+                              <div 
+                                className="relative w-full h-20 mb-1" 
+                                onClick={() => handleMatchedImageClick(item.imageName)}
+                              >
+                                <img src={item.imageUrl} alt={item.imageName} className="w-full h-full rounded-md object-cover" />
+                              </div>
+                              <p className="font-bold text-slate-200 text-sm" onClick={() => handleMatchedImageClick(item.imageName)}>{item.imageName}</p>
+                              <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold mt-2">
+                                  <button onClick={() => handleVote(item.id, 'up')} className="p-1 rounded-full hover:bg-green-500/50 transition-colors" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
+                                  <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
+                                  <button onClick={() => handleVote(item.id, 'down')} className="p-1 rounded-full hover:bg-red-500/50 transition-colors" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
+                                  <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
+                              </div>
+                              {voteErrors[item.id] && (<p className="text-xs text-red-400 mt-1" role="alert">{voteErrors[item.id]}</p>)}
+                            </div>
+                          ))}
+                        </div>
+                        <div className={`w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center transition-all duration-300 ${getJustifyClass(hoveredGridInfo?.index)}`}>
+                          {hoveredGridInfo ? (
+                            <div className="text-center animate-fadeIn">
+                              <h3 className="font-bold text-xl text-teal-300 mb-4">{hoveredGridInfo.item.imageName}</h3>
+                              <p className="text-slate-300 text-xs leading-normal">{hoveredGridInfo.item.object_description}</p>
+                            </div>
+                          ) : (
+                            <div className="text-center text-slate-500">
+                              <p>Hover over an object to see its description.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
-              <button
-                onClick={initializeGame}
-                className="mt-4 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105"
-              >
-                Play Again
-              </button>
+              <div className="flex-shrink-0 mt-4">
+                <p className="text-slate-300 mb-2">Play again in another language?</p>
+                 <LanguageCarousel languages={LANGUAGES} selectedLanguage={nextLanguage} onSelectLanguage={setNextLanguage}/>
+                 <div className="mt-4 flex flex-wrap justify-center items-center gap-4">
+                    <button onClick={handlePlayAgain} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                      Play Again
+                    </button>
+                    <button 
+                      onClick={handleSaveSheet} 
+                      disabled={sheetSaveState === 'saving' || sheetSaveState === 'success'}
+                      className={`px-6 py-2 flex items-center justify-center gap-2 font-bold rounded-lg shadow-lg transition-all transform hover:scale-105 ${
+                        sheetSaveState === 'idle' ? 'bg-green-600 hover:bg-green-500 text-white' : ''
+                      } ${
+                        sheetSaveState === 'saving' ? 'bg-yellow-500 text-black cursor-wait' : ''
+                      } ${
+                        sheetSaveState === 'success' ? 'bg-teal-500 text-white cursor-not-allowed' : ''
+                      } ${
+                        sheetSaveState === 'error' ? 'bg-red-600 hover:bg-red-500 text-white' : ''
+                      }`}
+                    >
+                      {sheetSaveState === 'saving' && <><SpinnerIcon className="w-5 h-5" /> Saving...</>}
+                      {sheetSaveState === 'success' && <><CheckIcon className="w-5 h-5" /> Saved!</>}
+                      {sheetSaveState === 'error' && 'Save Failed'}
+                      {sheetSaveState === 'idle' && <><SaveIcon className="w-5 h-5" /> Save tubCard</>}
+                    </button>
+                    <button onClick={() => { setShowCompletionScreen(false); setShowConfetti(false); }} className="px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                      Close
+                    </button>
+                 </div>
+                 {sheetSaveError && <p className="text-red-400 text-sm mt-3" role="alert">{sheetSaveError}</p>}
+              </div>
             </div>
           </div>          
         )}

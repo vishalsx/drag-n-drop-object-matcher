@@ -55,9 +55,7 @@ const getMimeType = (filename: string): string => {
 };
 // Use the Vite proxy path which is configured in vite.config.ts
 // const API_BASE_URL = '/api';
-
 const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL;
-
 
 
 export const fetchGameData = async (language: string = 'English', count: number = 9): Promise<GameObject[]> => {
@@ -159,6 +157,36 @@ export const voteOnImage = async (translationId: string, voteType: 'up' | 'down'
     return { success: true, data: responseData as VoteSuccessResponse };
   } catch (error) {
     console.error(`Failed to vote on image ${translationId}:`, error);
+    const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { success: false, message };
+  }
+};
+
+export const saveTubSheet = async (translationIds: string[]): Promise<{ success: boolean; message?: string }> => {
+  if (USE_MOCK_API) {
+    console.warn(`[MOCK API] Saving tubCard with IDs: ${translationIds.join(', ')}. This is a mock response.`);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+    return { success: true };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/sheets/save`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ translation_ids: translationIds }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: `API error: ${response.statusText}` }));
+      throw new Error(errorData.error || `API error: ${response.statusText}`);
+    }
+
+    const responseData = await response.json();
+    return { success: true, ...responseData };
+  } catch (error) {
+    console.error('Failed to save tubCard:', error);
     const message = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { success: false, message };
   }
