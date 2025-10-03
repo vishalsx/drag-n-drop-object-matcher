@@ -106,20 +106,98 @@ async def get_random_pictures(
     # print(f"translation_doc : {translation_docs[0]}")
 
 
+    # logger.info(f"Retrieved {len(translation_docs)} documents from DB")
+
+    # # 4) Normalize response
+    # return_result = []
+    # for d in translation_docs:
+    #     # logger.debug(f"Processing document: {d}")
+    #     # logger.info(f"Full translation_doc: {d}")
+    #     # retrieve actual image, image_name etc. from objects_collection
+    #     object_id = d.get("object_id")
+    #     if object_id:
+    #         obj = await objects_collection.find_one({"_id": object_id})
+    #         if obj:
+    #             logger.debug(f"Found matching object for object_id={object_id}: {obj}")
+                
+    #             api_pic = ApiPicture(
+    #                 object=ResultObject(
+    #                     object_id=str(object_id),
+    #                     image_base64=obj.get("image_base64"),
+    #                     image_hash=obj.get("image_hash"),
+    #                     object_category=obj.get("metadata", {}).get("object_category"),
+    #                 ),
+    #                 translations=ResultTranslation(
+    #                     translation_id=str(d.get("translation_id")),   # ✅ stringified
+    #                     language=d.get("requested_language", ""),
+    #                     object_description=d.get("object_description", ""),
+    #                     object_hint=d.get("object_hint", ""),
+    #                     # object_hint=d.get(play_value, ""),
+    #                     object_name=d.get("object_name", ""),
+    #                     object_short_hint=d.get("object_short_hint", ""),
+    #                 ),
+    #                 voting=ResultVoting(
+    #                     up_votes=d.get("up_votes", 0),      # ✅ integer
+    #                     down_votes=d.get("down_votes", 0)   # ✅ integer
+    #                 )
+    #             )
+
+
+    #             #     sequence_number=obj.get("sequence_number"),
+    #             #     image_name=obj.get("image_name"),
+    #             #     image_base64=obj.get("image_base64"),
+    #             #     result=ResultHint(
+    #             #         object_hint_en=d.get("object_hint"),
+    #             #         object_name_en=d.get("object_name"),
+    #             #         object_description_en=d.get("object_description"),
+    #             #         object_description_translated=d.get("object_description"),
+    #             #         object_name_translated=d.get("object_name"),
+    #             #         object_hint_translated=d.get("object_hint"),
+    #             #         object_category=d.get("object_category")
+    #             #     ),
+    #             # )
+
+ 
+    #             return_result.append(api_pic)
+
+    #             # print only hint + description
+    #             # print(f"Complete API_pic:", api_pic)
+
+    #         else:
+    #             logger.warning(f"No object found in objects_collection for object_id={object_id}")
+    #             continue # skip if no matching object found
+    #     else:
+    #         logger.warning("No object_id found in translation document")
+    #         continue # skip if no object_id
+
+
+    translation_docs = await translation_collection.aggregate(pipeline).to_list(length=count)
+
     logger.info(f"Retrieved {len(translation_docs)} documents from DB")
+
+    # 🔀 Randomized field mapping logic (extensible for future fields)
+    # Suppose later you add more source fields, just extend this list
+    candidate_fields = ["object_hint", "object_short_hint"]
+
+    # Randomly pick 2 distinct source fields from candidates
+    selected_fields = random.sample(candidate_fields, 2)
+
+    # Fixed target slots
+    target_fields = ["object_hint", "object_short_hint"]
+
+    # Build mapping dictionary: target_field -> chosen_source_field
+    mapping = dict(zip(target_fields, selected_fields))
+    logger.info(f"Hint field mapping for this request: {mapping}")
 
     # 4) Normalize response
     return_result = []
     for d in translation_docs:
-        # logger.debug(f"Processing document: {d}")
-        # logger.info(f"Full translation_doc: {d}")
-        # retrieve actual image, image_name etc. from objects_collection
         object_id = d.get("object_id")
         if object_id:
             obj = await objects_collection.find_one({"_id": object_id})
             if obj:
                 logger.debug(f"Found matching object for object_id={object_id}: {obj}")
-                
+
                 api_pic = ApiPicture(
                     object=ResultObject(
                         object_id=str(object_id),
@@ -128,46 +206,19 @@ async def get_random_pictures(
                         object_category=obj.get("metadata", {}).get("object_category"),
                     ),
                     translations=ResultTranslation(
-                        translation_id=str(d.get("translation_id")),   # ✅ stringified
+                        translation_id=str(d.get("translation_id")),
                         language=d.get("requested_language", ""),
                         object_description=d.get("object_description", ""),
-                        object_hint=d.get("object_hint", ""),
-                        # object_hint=d.get(play_value, ""),
-                        object_name=d.get("object_name", ""),
-                        object_short_hint=d.get("object_short_hint", ""),
+                        object_hint=d.get(mapping["object_hint"], ""),          # mapped consistently
+                        object_name=d.get("object_name", ""),                  # always fixed
+                        object_short_hint=d.get(mapping["object_short_hint"], "")
                     ),
                     voting=ResultVoting(
-                        up_votes=d.get("up_votes", 0),      # ✅ integer
-                        down_votes=d.get("down_votes", 0)   # ✅ integer
+                        up_votes=d.get("up_votes", 0),
+                        down_votes=d.get("down_votes", 0)
                     )
                 )
 
-
-                #     sequence_number=obj.get("sequence_number"),
-                #     image_name=obj.get("image_name"),
-                #     image_base64=obj.get("image_base64"),
-                #     result=ResultHint(
-                #         object_hint_en=d.get("object_hint"),
-                #         object_name_en=d.get("object_name"),
-                #         object_description_en=d.get("object_description"),
-                #         object_description_translated=d.get("object_description"),
-                #         object_name_translated=d.get("object_name"),
-                #         object_hint_translated=d.get("object_hint"),
-                #         object_category=d.get("object_category")
-                #     ),
-                # )
-
- 
                 return_result.append(api_pic)
 
-                # print only hint + description
-                # print(f"Complete API_pic:", api_pic)
-
-            else:
-                logger.warning(f"No object found in objects_collection for object_id={object_id}")
-                continue # skip if no matching object found
-        else:
-            logger.warning("No object_id found in translation document")
-            continue # skip if no object_id
-        
     return return_result
