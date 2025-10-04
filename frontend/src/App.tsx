@@ -256,6 +256,7 @@ const App: React.FC = () => {
   const [completionView, setCompletionView] = useState<'list' | 'grid'>('list');
   const [tooltip, setTooltip] = useState<{ visible: boolean; content: string; top: number; left: number }>({ visible: false, content: '', top: 0, left: 0 });
   const [hoveredGridInfo, setHoveredGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
+  const [votingInProgress, setVotingInProgress] = useState<Set<string>>(new Set());
 
   // Debounce language changes to avoid excessive API calls while browsing the carousel
   useEffect(() => {
@@ -396,11 +397,15 @@ const App: React.FC = () => {
   };
   
   const handleVote = async (translationId: string, voteType: 'up' | 'down') => {
-    // Keep a reference to the original state for potential rollback
+    if (votingInProgress.has(translationId)) {
+      return; // Prevent multiple clicks
+    }
+  
+    setVotingInProgress(prev => new Set(prev).add(translationId));
+  
     const originalGameData = gameData.map(item => ({ ...item }));
-
-    // Optimistic UI update for immediate feedback
-    const optimisticUpdate = (data: GameObject[]) => 
+  
+    const optimisticUpdate = (data: GameObject[]) =>
       data.map(item => {
         if (item.id === translationId) {
           return {
@@ -411,37 +416,41 @@ const App: React.FC = () => {
         }
         return item;
       });
-    
+  
     setGameData(prevData => optimisticUpdate(prevData));
   
-    const result = await voteOnImage(translationId, voteType);
-    
-    if (result.success) {
-      // In mock mode, the optimistic UI update is sufficient.
-      // In live mode, we sync the state with the authoritative response from the server.
-      if (!USE_MOCK_API && result.data) {
-        const serverUpdate = (data: GameObject[]) =>
-          data.map(item => {
-            if (item.id === result.data?.translation_id) {
-              return { 
-                ...item, 
-                upvotes: result.data.up_votes, 
-                downvotes: result.data.down_votes 
-              };
-            }
-            return item;
-          });
-        setGameData(prevData => serverUpdate(prevData));
+    try {
+      const result = await voteOnImage(translationId, voteType);
+  
+      if (result.success) {
+        if (!USE_MOCK_API && result.data) {
+          const serverUpdate = (data: GameObject[]) =>
+            data.map(item => {
+              if (item.id === result.data?.translation_id) {
+                return {
+                  ...item,
+                  upvotes: result.data.up_votes,
+                  downvotes: result.data.down_votes,
+                };
+              }
+              return item;
+            });
+          setGameData(prevData => serverUpdate(prevData));
+        }
+      } else {
+        console.error(`Failed to submit vote: ${result.message}. Reverting changes.`);
+        setGameData(originalGameData);
+        setVoteErrors(prev => ({ ...prev, [translationId]: result.message || 'Vote failed!' }));
+        setTimeout(() => {
+          setVoteErrors(prev => ({ ...prev, [translationId]: null }));
+        }, 3000);
       }
-    } else {
-      // If the API call fails, revert to the original state and show an error
-      console.error(`Failed to submit vote: ${result.message}. Reverting changes.`);
-      setGameData(originalGameData);
-      setVoteErrors(prev => ({...prev, [translationId]: result.message || 'Vote failed!'}));
-      // Clear the error message after a few seconds
-      setTimeout(() => {
-        setVoteErrors(prev => ({...prev, [translationId]: null}));
-      }, 3000);
+    } finally {
+      setVotingInProgress(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(translationId);
+        return newSet;
+      });
     }
   };
 
@@ -572,9 +581,9 @@ const App: React.FC = () => {
                           </div>
                           <div className="flex flex-col items-center space-y-1 relative sm:ml-4 flex-shrink-0">
                               <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold">
-                                  <button onClick={() => handleVote(item.id, 'up')} className="p-1 rounded-full hover:bg-green-500/50 transition-colors" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
+                                  <button onClick={() => handleVote(item.id, 'up')} disabled={votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
                                   <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
-                                  <button onClick={() => handleVote(item.id, 'down')} className="p-1 rounded-full hover:bg-red-500/50 transition-colors" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
+                                  <button onClick={() => handleVote(item.id, 'down')} disabled={votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
                                   <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
                               </div>
                               {voteErrors[item.id] && (<p className="text-xs text-red-400" role="alert">{voteErrors[item.id]}</p>)}
@@ -608,9 +617,9 @@ const App: React.FC = () => {
                               </div>
                               <p className="font-bold text-slate-200 text-sm" onClick={() => handleMatchedImageClick(item.imageName)}>{item.imageName}</p>
                               <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold mt-2">
-                                  <button onClick={() => handleVote(item.id, 'up')} className="p-1 rounded-full hover:bg-green-500/50 transition-colors" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
+                                  <button onClick={() => handleVote(item.id, 'up')} disabled={votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
                                   <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
-                                  <button onClick={() => handleVote(item.id, 'down')} className="p-1 rounded-full hover:bg-red-500/50 transition-colors" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
+                                  <button onClick={() => handleVote(item.id, 'down')} disabled={votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
                                   <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
                               </div>
                               {voteErrors[item.id] && (<p className="text-xs text-red-400 mt-1" role="alert">{voteErrors[item.id]}</p>)}
