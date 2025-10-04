@@ -539,7 +539,7 @@ const App: React.FC = () => {
 
         {showCompletionScreen && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-40 p-4" role="dialog" aria-modal="true" aria-labelledby="completion-title">
-            <div className="text-center w-full max-w-4xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
+            <div className="text-center w-full max-w-6xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
               <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>
               <p className="mt-2 text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{score}</span></p>
               <p className="mt-4 text-md text-slate-400">Review your matches, vote, and save.</p>
@@ -558,8 +558,8 @@ const App: React.FC = () => {
                   {completionView === 'list' && (
                     <div className="space-y-3">
                       {gameData.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                          <div className="flex items-center text-left cursor-pointer flex-1 min-w-0 mr-4" onClick={() => handleMatchedImageClick(item.imageName)}>
+                        <div key={item.id} className="flex flex-col sm:flex-row items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                          <div className="flex items-center text-left cursor-pointer flex-1 min-w-0 w-full mb-3 sm:mb-0 sm:mr-4" onClick={() => handleMatchedImageClick(item.imageName)}>
                             <img src={item.imageUrl} alt={item.imageName} className="w-16 h-16 rounded-md object-cover mr-4 flex-shrink-0" />
                             <div 
                                 className="min-w-0 flex-1"
@@ -570,7 +570,7 @@ const App: React.FC = () => {
                               <p className="text-sm text-slate-400 mt-1 italic truncate">"{item.object_description}"</p>
                             </div>
                           </div>
-                          <div className="flex flex-col items-center space-y-1 relative ml-4 flex-shrink-0">
+                          <div className="flex flex-col items-center space-y-1 relative sm:ml-4 flex-shrink-0">
                               <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold">
                                   <button onClick={() => handleVote(item.id, 'up')} className="p-1 rounded-full hover:bg-green-500/50 transition-colors" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
                                   <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
@@ -592,8 +592,8 @@ const App: React.FC = () => {
                     };
 
                     return (
-                      <div className="flex gap-4" onMouseLeave={() => setHoveredGridInfo(null)}>
-                        <div className="w-1/2 grid grid-cols-3 gap-2">
+                      <div className="flex flex-col md:flex-row gap-4" onMouseLeave={() => setHoveredGridInfo(null)}>
+                        <div className="w-full md:w-1/2 grid grid-cols-3 gap-2">
                           {shuffledImages.map((item, index) => (
                             <div 
                               key={item.id} 
@@ -617,7 +617,7 @@ const App: React.FC = () => {
                             </div>
                           ))}
                         </div>
-                        <div className={`w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center transition-all duration-300 ${getJustifyClass(hoveredGridInfo?.index)}`}>
+                        <div className={`w-full md:w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center transition-all duration-300 min-h-[150px] ${getJustifyClass(hoveredGridInfo?.index)}`}>
                           {hoveredGridInfo ? (
                             <div className="text-center animate-fadeIn">
                               <h3 className="font-bold text-xl text-teal-300 mb-4">{hoveredGridInfo.item.imageName}</h3>
