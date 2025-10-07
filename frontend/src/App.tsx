@@ -553,7 +553,7 @@ const App: React.FC = () => {
               <p className="mt-2 text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{score}</span></p>
               <p className="mt-4 text-md text-slate-400">Review your matches, vote, and save.</p>
               
-              <div className="flex flex-col flex-grow my-3 overflow-hidden">
+              <div className="flex flex-col flex-grow h-[95vh] my-3 overflow-hidden">
                 <div className="flex justify-end gap-2 mb-4 flex-shrink-0">
                   <button onClick={() => setCompletionView('list')} className={`p-2 rounded-md transition-colors ${completionView === 'list' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`} aria-label="List view">
                     <ListIcon className="w-5 h-5" />
@@ -606,16 +606,16 @@ const App: React.FC = () => {
                           {shuffledImages.map((item, index) => (
                             <div 
                               key={item.id} 
-                              className="relative flex flex-col items-center text-center p-1 bg-slate-900/50 rounded-lg border border-slate-700/50 cursor-pointer transition-all duration-200 hover:scale-105 hover:border-blue-500"
+                              className="flex flex-col items-center text-center p-1 bg-slate-900/50 rounded-lg border border-slate-700/50 cursor-pointer transition-all duration-200 hover:scale-105 hover:border-blue-500"
                               onMouseEnter={() => setHoveredGridInfo({ item, index })} 
                             >
                               <div 
-                                className="relative w-full h-20 mb-1" 
+                                className="relative w-full h-20" 
                                 onClick={() => handleMatchedImageClick(item.imageName)}
                               >
                                 <img src={item.imageUrl} alt={item.imageName} className="w-full h-full rounded-md object-cover" />
+                                <p className="absolute bottom-0 left-0 right-0 p-1 bg-black/60 text-white text-xs truncate font-semibold">{item.imageName}</p>
                               </div>
-                              <p className="font-bold text-slate-200 text-sm" onClick={() => handleMatchedImageClick(item.imageName)}>{item.imageName}</p>
                               <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold mt-2">
                                   <button onClick={() => handleVote(item.id, 'up')} disabled={votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
                                   <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
@@ -645,7 +645,6 @@ const App: React.FC = () => {
               </div>
 
               <div className="flex-shrink-0 mt-4">
-                <p className="text-slate-300 mb-2">Play again in another language?</p>
                  <LanguageCarousel languages={LANGUAGES} selectedLanguage={nextLanguage} onSelectLanguage={setNextLanguage}/>
                  <div className="mt-4 flex flex-wrap justify-center items-center gap-4">
                     <button onClick={handlePlayAgain} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">
