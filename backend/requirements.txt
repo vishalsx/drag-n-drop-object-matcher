@@ -4,3 +4,6 @@ python-dotenv==1.0.1
 pydantic==2.9.2
 uvicorn==0.30.6
 Pillow==10.4.0
+boto3==1.40.39
+botocore==1.40.40
+google_cloud_storage
