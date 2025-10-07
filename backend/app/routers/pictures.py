@@ -6,6 +6,9 @@ from app.database import objects_collection, translation_collection
 from app.models import ApiPicture, ResultObject, ResultTranslation, ResultVoting, ResultSheet
 import os
 from dotenv import load_dotenv
+from app.storage.imagestore import retrieve_image  
+
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -197,11 +200,18 @@ async def get_random_pictures(
             obj = await objects_collection.find_one({"_id": object_id})
             if obj:
                 logger.debug(f"Found matching object for object_id={object_id}: {obj}")
+                image_store = obj.get("image_store")
+                if image_store:
+                    imagebase64 = retrieve_image(image_store)
+                    print("\nFound Image in image_store..")
+                else:
+                    imagebase64 = obj.get("image_base64")
 
                 api_pic = ApiPicture(
                     object=ResultObject(
                         object_id=str(object_id),
-                        image_base64=obj.get("image_base64"),
+                        # image_base64=obj.get("image_base64"), # this has to be taken from AWS S3 
+                        image_base64 = imagebase64,
                         image_hash=obj.get("image_hash"),
                         object_category=obj.get("metadata", {}).get("object_category"),
                     ),
