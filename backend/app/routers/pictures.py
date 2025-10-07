@@ -202,7 +202,7 @@ async def get_random_pictures(
                 logger.debug(f"Found matching object for object_id={object_id}: {obj}")
                 image_store = obj.get("image_store")
                 if image_store:
-                    imagebase64 = retrieve_image(image_store)
+                    imagebase64 = await retrieve_image(image_store)
                     print("\nFound Image in image_store..")
                 else:
                     imagebase64 = obj.get("image_base64")
