@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DraggableDescription from '../components/DraggableDescription';
 import DroppableImage from '../components/DroppableImage';
 import SidePanel from '../components/SidePanel';
 import type { GameObject, Difficulty, Language } from '../types/types';
 import { LANGUAGES } from '../constants/gameConstants';
 import PacManChaseAnimation from '../components/PacManChaseAnimation';
+import SnakeGameAnimation from '../components/SnakeGameAnimation';
 
 interface GameViewProps {
     score: number;
@@ -31,6 +32,13 @@ interface GameViewProps {
 
 const GameView: React.FC<GameViewProps> = (props) => {
     const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+    const [animationToShow, setAnimationToShow] = useState<'pacman' | 'snake'>('pacman');
+
+    useEffect(() => {
+        if (props.gameState === 'idle') {
+            setAnimationToShow(Math.random() < 0.5 ? 'pacman' : 'snake');
+        }
+    }, [props.gameState]);
 
     const handleDragEnter = (imageId: string) => setDropTargetId(imageId);
     const handleDragLeave = () => setDropTargetId(null);
@@ -40,7 +48,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
     };
 
     return (
-        <div className="flex flex-col lg:flex-row w-full min-h-screen p-4 gap-4 lg:p-8 lg:gap-8">
+        <div className="flex flex-col lg:flex-row w-full p-4 gap-4 lg:p-8 lg:gap-8">
             {/* Side Panel: 20% width */}
             <div className="w-full lg:w-1/5 flex-shrink-0">
                 <SidePanel
@@ -63,7 +71,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                     <h2 className="text-2xl font-bold text-slate-300">Hints</h2>
                     <p className="text-slate-400 mt-1 text-sm">Drag a hint to the matching object</p>
                 </header>
-                <div className="space-y-4 lg:overflow-y-auto lg:pr-2 flex-grow">
+                <div className="space-y-4 overflow-y-auto pr-2 flex-grow">
                     {props.gameState === 'idle' && (
                         <div className="h-full flex items-center justify-center">
                             <p className="text-slate-400 text-center text-lg">Choose your settings and click 'Play Game' to begin!</p>
@@ -90,10 +98,10 @@ const GameView: React.FC<GameViewProps> = (props) => {
                     <h2 className="text-2xl font-bold text-slate-300">Objects</h2>
                     <div className="mt-1 text-2xl font-bold text-yellow-400">Score: {props.score}</div>
                 </header>
-                <div className="flex-grow lg:overflow-y-auto lg:pr-2">
+                <div className="flex-grow overflow-y-auto pr-2">
                     {props.gameState === 'idle' ? (
                         <div className="h-full relative" aria-hidden="true">
-                            <PacManChaseAnimation />
+                            {animationToShow === 'pacman' ? <PacManChaseAnimation /> : <SnakeGameAnimation />}
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4">
