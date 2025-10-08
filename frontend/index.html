@@ -38,10 +38,37 @@
       .animate-fadeIn {
         animation: fadeIn 0.4s ease-out forwards;
       }      
+
+      /* Pacman Loader Animations */
+      @keyframes pacman-chomp {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(-35deg); }
+      }
+      @keyframes pacman-chomp-bottom {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(35deg); }
+      }
+      @keyframes pacman-dot-disappear {
+        0% { transform: scale(1); opacity: 1; }
+        100% { transform: scale(0); opacity: 0; }
+      }
     </style>
-  </head>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^18.2.0/",
+    "react": "https://aistudiocdn.com/react@^18.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^18.2.0/",
+    "vite": "https://aistudiocdn.com/vite@^7.1.9",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
   <body class="bg-slate-900 text-white">
     <div id="root"></div>
     <script type="module" src="./src/index.tsx"></script>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

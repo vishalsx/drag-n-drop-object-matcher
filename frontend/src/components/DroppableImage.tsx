@@ -42,7 +42,7 @@ interface DroppableImageProps {
   imageName: string;
   tooltipText: string;
   isMatched: boolean;
-  onDropItem: (imageId: string, descriptionId: string) => void;
+  onDropItem: (imageId: string, descriptionId:string) => void;
   isDropTarget: boolean;
   onDragEnter: (imageId: string) => void;
   onDragLeave: () => void;
@@ -112,7 +112,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
-      className={`relative group w-full h-48 rounded-lg shadow-lg transition-all duration-300 border-2 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-transparent'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''}`}
+      className={`relative group w-full aspect-[4/5] rounded-lg shadow-lg transition-all duration-300 border-2  ${isDropTarget ? 'border-blue-500 scale-105' : 'border-transparent'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''}`}
     >
       {isMatched && isTooltipVisible && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-yellow-400 text-black text-xs rounded-md shadow-lg z-[60] pointer-events-none">
