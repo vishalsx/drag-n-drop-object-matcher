@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import pictures
 from app.routers import voting
+from app.routers import TTS_service
+from app.routers import getlanguages
 import uvicorn
 
 
@@ -10,15 +12,17 @@ app = FastAPI(title="Hint and Match API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in production
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 # Register Routers
 app.include_router(pictures.router)
 app.include_router(voting.router)
+app.include_router(TTS_service.router)
+app.include_router(getlanguages.router)
 
 @app.get("/health")
 async def health():
