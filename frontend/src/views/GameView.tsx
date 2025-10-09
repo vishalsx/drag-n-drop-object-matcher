@@ -3,7 +3,6 @@ import DraggableDescription from '../components/DraggableDescription';
 import DroppableImage from '../components/DroppableImage';
 import SidePanel from '../components/SidePanel';
 import type { GameObject, Difficulty, Language } from '../types/types';
-import { LANGUAGES } from '../constants/gameConstants';
 import PacManChaseAnimation from '../components/PacManChaseAnimation';
 import SnakeGameAnimation from '../components/SnakeGameAnimation';
 
@@ -20,6 +19,7 @@ interface GameViewProps {
     gameState: 'idle' | 'loading' | 'playing' | 'complete';
     
     // SidePanel Props
+    languages: Language[];
     selectedLanguage: string;
     onSelectLanguage: (lang: string) => void;
     selectedCategory: string;
@@ -52,7 +52,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
             {/* Side Panel: 20% width */}
             <div className="w-full lg:w-1/5 flex-shrink-0">
                 <SidePanel
-                    languages={LANGUAGES as Language[]}
+                    languages={props.languages}
                     selectedLanguage={props.selectedLanguage}
                     onSelectLanguage={props.onSelectLanguage}
                     currentCategory={props.selectedCategory}

@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { GameObject, Difficulty } from '../types/types';
+import type { GameObject, Difficulty, Language } from '../types/types';
 import { fetchGameData, uploadScore, voteOnImage, saveTubSheet, USE_MOCK_API } from '../services/gameService';
 import { shuffleArray } from '../utils/arrayUtils';
-import { LANGUAGES, difficultyCounts } from '../constants/gameConstants';
+import { difficultyCounts } from '../constants/gameConstants';
 import useSoundEffects from './useSoundEffects';
 import { useSpeech } from './useSpeech';
 
 type GameState = 'idle' | 'loading' | 'playing' | 'complete';
 
-export const useGame = () => {
+export const useGame = (languages: Language[]) => {
     const [gameData, setGameData] = useState<GameObject[]>([]);
     const [shuffledDescriptions, setShuffledDescriptions] = useState<GameObject[]>([]);
     const [shuffledImages, setShuffledImages] = useState<GameObject[]>([]);
@@ -25,34 +25,49 @@ export const useGame = () => {
     const [sheetSaveState, setSheetSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [sheetSaveError, setSheetSaveError] = useState<string | null>(null);
     const [votingInProgress, setVotingInProgress] = useState<Set<string>>(new Set());
+    const [gameStartError, setGameStartError] = useState<string | null>(null);
 
     const { playCorrectSound, playWrongSound, playGameCompleteSound } = useSoundEffects();
-    const speakText = useSpeech();
+    const { speakText } = useSpeech();
+
+    useEffect(() => {
+        if (languages && languages.length > 0) {
+            // If the currently selected language is not in the new list, default to the first available language.
+            const isSelectedLanguageValid = languages.some(lang => lang.code === selectedLanguage);
+            if (!isSelectedLanguageValid) {
+                setSelectedLanguage(languages[0].code);
+            }
+        }
+    }, [languages, selectedLanguage]);
 
     const currentLanguageBcp47 = useMemo(() => {
-        return LANGUAGES.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
-    }, [selectedLanguage]);
+        return languages.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
+    }, [selectedLanguage, languages]);
 
     const handleStartGame = useCallback(async () => {
         const count = difficultyCounts[difficulty];
         setGameState('loading');
+        setGameStartError(null);
         setCorrectlyMatchedIds(new Set());
         setScore(0);
         setSheetSaveState('idle');
         setSheetSaveError(null);
 
-        const data = await fetchGameData(selectedLanguage, count, selectedCategory);
+        const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
+        const data = await fetchGameData(languageName, count, selectedCategory);
         if (data.length > 0) {
             setGameData(data);
             setShuffledDescriptions(shuffleArray(data));
             setShuffledImages(shuffleArray(data));
+            setGameState('playing');
         } else {
             setGameData([]);
             setShuffledDescriptions([]);
             setShuffledImages([]);
+            setGameStartError('No objects could be found for the selected language and category. Please try different settings.');
+            setGameState('idle');
         }
-        setGameState('playing');
-    }, [selectedLanguage, difficulty, selectedCategory]);
+    }, [selectedLanguage, difficulty, selectedCategory, languages]);
 
 
     useEffect(() => {
@@ -149,6 +164,10 @@ export const useGame = () => {
         speakText(imageName, currentLanguageBcp47);
     };
 
+    const clearGameStartError = useCallback(() => {
+        setGameStartError(null);
+    }, []);
+
     return {
         // State
         gameData,
@@ -167,6 +186,7 @@ export const useGame = () => {
         sheetSaveState,
         sheetSaveError,
         votingInProgress,
+        gameStartError,
         
         // State Setters
         setSelectedLanguage,
@@ -180,5 +200,6 @@ export const useGame = () => {
         handleResetGame,
         handleStartGame,
         handleMatchedImageClick,
+        clearGameStartError,
     };
 };

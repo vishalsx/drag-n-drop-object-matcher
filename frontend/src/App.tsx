@@ -1,12 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from './hooks/useGame';
 import LoadingScreen from './views/LoadingScreen';
 import GameView from './views/GameView';
 import CompletionScreen from './views/CompletionScreen';
 import Confetti from './components/Confetti';
 import ConfirmationDialog from './components/ConfirmationDialog';
+import { fetchActiveLanguages } from './services/gameService';
+import type { Language } from './types/types';
+import { SpinnerIcon } from './components/Icons';
+import AlertDialog from './components/AlertDialog';
 
 const App: React.FC = () => {
+    const [languages, setLanguages] = useState<Language[]>([]);
+    const [isAppLoading, setIsAppLoading] = useState(true);
+
+    useEffect(() => {
+        const loadInitialData = async () => {
+            const activeLanguages = await fetchActiveLanguages();
+            setLanguages(activeLanguages);
+            setIsAppLoading(false);
+        };
+        loadInitialData();
+    }, []);
+
     const {
         // State from useGame hook
         score,
@@ -25,6 +41,7 @@ const App: React.FC = () => {
         selectedLanguage,
         selectedCategory,
         difficulty,
+        gameStartError,
 
         // State Setters from useGame hook
         setSelectedLanguage,
@@ -38,7 +55,8 @@ const App: React.FC = () => {
         handleSaveSheet,
         handleResetGame,
         handleStartGame,
-    } = useGame();
+        clearGameStartError,
+    } = useGame(languages);
     
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
 
@@ -59,6 +77,18 @@ const App: React.FC = () => {
         setIsWithdrawConfirmVisible(false);
     };
 
+    const currentLanguageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
+    const currentLanguageBcp47 = languages.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
+
+    if (isAppLoading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white flex flex-col items-center justify-center">
+                <SpinnerIcon className="w-12 h-12 text-blue-400 mb-4" />
+                <p className="text-xl text-slate-300">Loading Game Data...</p>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
             {gameState === 'complete' && <Confetti />}
@@ -73,6 +103,7 @@ const App: React.FC = () => {
                 justMatchedId={justMatchedId}
                 handleDrop={handleDrop}
                 handleMatchedImageClick={handleMatchedImageClick}
+                languages={languages}
                 selectedLanguage={selectedLanguage}
                 onSelectLanguage={setSelectedLanguage}
                 selectedCategory={selectedCategory}
@@ -87,7 +118,7 @@ const App: React.FC = () => {
             {gameState === 'loading' && (
                  <LoadingScreen 
                     difficulty={difficulty}
-                    selectedLanguage={selectedLanguage}
+                    selectedLanguageName={currentLanguageName}
                     selectedCategory={selectedCategory}
                 />
             )}
@@ -105,6 +136,7 @@ const App: React.FC = () => {
                     onVote={handleVote}
                     onSaveSheet={handleSaveSheet}
                     onMatchedImageClick={handleMatchedImageClick}
+                    currentLanguageBcp47={currentLanguageBcp47}
                 />
             )}
 
@@ -113,6 +145,14 @@ const App: React.FC = () => {
                     message="Are you sure you want to withdraw? Your current progress will be lost."
                     onConfirm={handleConfirmWithdraw}
                     onCancel={handleCancelWithdraw}
+                />
+            )}
+
+            {gameStartError && (
+                <AlertDialog
+                    title="Could Not Start Game"
+                    message={gameStartError}
+                    onClose={clearGameStartError}
                 />
             )}
         </div>

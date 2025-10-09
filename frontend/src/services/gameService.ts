@@ -1,5 +1,5 @@
 // Fix: Removed the triple-slash directive for "vite/client" as it was causing a type error and was not needed.
-import type { GameObject, ApiPicture} from '../types/types';
+import type { GameObject, ApiPicture, Language} from '../types/types';
 
 
 
@@ -7,6 +7,18 @@ import type { GameObject, ApiPicture} from '../types/types';
 // we will use mock data directly. Set this to `true` to use mock data.
 // Fix: Set USE_MOCK_API to true to prevent "File not found" errors when the backend is not running.
 export const USE_MOCK_API = false;
+
+const FALLBACK_LANGUAGES: Language[] = [
+  { code: 'English', name: 'English', imageUrl: 'https://picsum.photos/seed/english/300/200', bcp47: 'en-US' },
+  { code: 'Hindi', name: 'Hindi', imageUrl: 'https://picsum.photos/seed/hindi/300/200', bcp47: 'hi-IN' },
+  { code: 'Kokborok', name: 'Kokborok', imageUrl: 'https://picsum.photos/seed/kokborok/300/200', bcp47: 'trp-latn' },
+  { code: 'Gujarati', name: 'Gujarati', imageUrl: 'https://picsum.photos/seed/gujrati/300/200', bcp47: 'gu-IN' },
+  { code: 'Punjabi', name: 'Punjabi', imageUrl: 'https://picsum.photos/seed/punjabi/300/200', bcp47: 'pa-IN' },
+  { code: 'French', name: 'French', imageUrl: 'https://picsum.photos/seed/french/300/200', bcp47: 'fr-FR' },
+  { code: 'Vietnamese', name: 'Vietnamese', imageUrl: 'https://picsum.photos/seed/vietnamese/300/200', bcp47: 'vi-VN' },
+  { code: 'Arabic', name: 'Arabic', imageUrl: 'https://picsum.photos/seed/arabic/300/200', bcp47: 'ar-SA' },
+  { code: 'Urdu', name: 'Urdu', imageUrl: 'https://picsum.photos/seed/urdu/300/200', bcp47: 'ur-PK' },
+];
 
 // Helper function to provide mock game data for offline/fallback use
 const getMockGameData = (count: number, language: string = 'English', category: string = 'Any'): GameObject[] => {
@@ -63,8 +75,43 @@ const getMimeType = (filename: string): string => {
 };
 // Use the Vite proxy path which is configured in vite.config.ts
 // const API_BASE_URL = '/api';
-const API_BASE_URL = "http://localhost:8080"
+const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || "http://localhost:8080";
 
+export const fetchActiveLanguages = async (): Promise<Language[]> => {
+  if (USE_MOCK_API) {
+    console.warn('[MOCK API] Fetching active languages. To disable, set USE_MOCK_API to false in services/gameService.ts.');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return FALLBACK_LANGUAGES;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/active/languages`);
+    if (!response.ok) {
+      throw new Error(`Network response was not ok: ${response.statusText}`);
+    }
+    
+    const data: { name: string; code: string; bcp47: string; imageURL?: string }[] = await response.json();
+    console.log("Fetched active languages from API:", data);
+    const languages: Language[] = data.map(lang => ({
+      name: lang.name,
+      code: lang.code,
+      bcp47: lang.bcp47,
+      imageUrl: lang.imageURL || `https://picsum.photos/seed/${lang.code.toLowerCase()}/300/200`,
+    }));
+
+    if (languages.length === 0) {
+        console.warn('API returned no active languages. Using fallback list.');
+        return FALLBACK_LANGUAGES;
+    }
+    
+    console.log("Active languages fetched successfully.", languages);
+    return languages;
+  } catch (error) {
+    console.error("Failed to fetch active languages:", error);
+    console.warn("Serving fallback language list due to API error.");
+    return FALLBACK_LANGUAGES;
+  }
+};
 
 export const fetchGameData = async (language: string = 'English', count: number = 6, category: string = 'Any'): Promise<GameObject[]> => {
   if (USE_MOCK_API) {
@@ -101,8 +148,6 @@ export const fetchGameData = async (language: string = 'English', count: number 
       objectCategory: item.object.object_category,
     }));
     
-    
-
 
     console.log("Game data fetched and transformed successfully.", gameData);
     return gameData;

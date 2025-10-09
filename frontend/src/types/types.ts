@@ -41,8 +41,8 @@ export interface ApiPicture {
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface Language {
-  code: string;
   name: string;
+  code: string;
   imageUrl: string;
   bcp47: string;
 }

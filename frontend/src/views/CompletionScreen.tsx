@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { GameObject } from '../types/types';
 import Tooltip from '../components/Tooltip';
-import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon } from '../components/Icons';
+import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon, SpeakerIcon } from '../components/Icons';
+import { useSpeech } from '../hooks/useSpeech';
 
 interface CompletionScreenProps {
     score: number;
@@ -15,12 +16,21 @@ interface CompletionScreenProps {
     onVote: (translationId: string, voteType: 'up' | 'down') => void;
     onSaveSheet: () => void;
     onMatchedImageClick: (imageName: string) => void;
+    currentLanguageBcp47: string;
 }
 
 const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
-    const [completionView, setCompletionView] = useState<'list' | 'grid'>('list');
+    const [completionView, setCompletionView] = useState<'list' | 'grid'>('grid');
     const [tooltip, setTooltip] = useState<{ visible: boolean; content: string; top: number; left: number }>({ visible: false, content: '', top: 0, left: 0 });
     const [hoveredGridInfo, setHoveredGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
+    const { speakText, stop: stopSpeech } = useSpeech();
+
+    useEffect(() => {
+        // Cleanup function to stop any playing audio when the component unmounts (modal is closed)
+        return () => {
+            stopSpeech();
+        };
+    }, [stopSpeech]);
 
     const handleShowTooltip = (e: React.MouseEvent<HTMLElement>, description: string) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -28,6 +38,18 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
     };
 
     const handleHideTooltip = () => setTooltip(prev => ({ ...prev, visible: false }));
+
+    const handleGridMouseEnter = (item: GameObject, index: number) => {
+        if (hoveredGridInfo?.item.id !== item.id) {
+            stopSpeech();
+        }
+        setHoveredGridInfo({ item, index });
+    };
+    
+    const handleGridMouseLeave = () => {
+        setHoveredGridInfo(null);
+        stopSpeech();
+    };
 
     return (
         <>
@@ -40,11 +62,11 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                     
                     <div className="flex flex-col flex-grow my-2 overflow-hidden">
                         <div className="flex justify-end gap-2 mb-4 flex-shrink-0">
-                            <button onClick={() => setCompletionView('list')} className={`p-2 rounded-md transition-colors ${completionView === 'list' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`} aria-label="List view">
-                                <ListIcon className="w-5 h-5" />
-                            </button>
                             <button onClick={() => setCompletionView('grid')} className={`p-2 rounded-md transition-colors ${completionView === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`} aria-label="Grid view">
                                 <GridIcon className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => setCompletionView('list')} className={`p-2 rounded-md transition-colors ${completionView === 'list' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`} aria-label="List view">
+                                <ListIcon className="w-5 h-5" />
                             </button>
                         </div>
                         
@@ -61,7 +83,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                             onMouseLeave={handleHideTooltip}
                                         >
                                         <p className="font-bold text-slate-200 truncate">{item.imageName}</p>
-                                        <p className="text-sm text-slate-400 mt-1 italic truncate">"{item.object_description}"</p>
+                                        <p className="text-sm text-slate-400 mt-1 italic max-h-12 overflow-y-auto pr-1">"{item.object_description}"</p>
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-center space-y-1 relative sm:ml-4 flex-shrink-0">
@@ -86,36 +108,48 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                 };
 
                                 return (
-                                <div className="flex flex-col md:flex-row gap-4" onMouseLeave={() => setHoveredGridInfo(null)}>
+                                <div className="flex flex-col md:flex-row gap-4" onMouseLeave={handleGridMouseLeave}>
                                     <div className="w-full md:w-1/2 grid grid-cols-3 gap-2">
-                                    {props.shuffledImages.map((item, index) => (
+                                    {props.shuffledImages.map((item, index) => {
+                                        const updatedItem = props.gameData.find(g => g.id === item.id) || item;
+                                        return (
                                         <div 
-                                        key={item.id} 
-                                        className="flex flex-col items-center text-center p-1 bg-slate-900/50 rounded-lg border border-slate-700/50 cursor-pointer transition-all duration-200 hover:scale-105 hover:border-blue-500"
-                                        onMouseEnter={() => setHoveredGridInfo({ item, index })} 
+                                            key={item.id} 
+                                            className="flex flex-col items-center text-center p-1 bg-slate-900/50 rounded-lg border border-slate-700/50 cursor-pointer transition-all duration-200 hover:scale-105 hover:border-blue-500"
+                                            onMouseEnter={() => handleGridMouseEnter(updatedItem, index)} 
                                         >
-                                        <div 
-                                            className="relative w-full h-20" 
-                                            onClick={() => props.onMatchedImageClick(item.imageName)}
-                                        >
-                                            <img src={item.imageUrl} alt={item.imageName} className="w-full h-full rounded-md object-cover" />
-                                            <p className="absolute bottom-0 left-0 right-0 p-1 bg-black/40 text-white text-xs truncate font-semibold">{item.imageName}</p>
+                                            <div 
+                                                className="relative w-full h-[5.5rem]" 
+                                                onClick={() => props.onMatchedImageClick(updatedItem.imageName)}
+                                            >
+                                                <img src={updatedItem.imageUrl} alt={updatedItem.imageName} className="w-full h-full rounded-md object-cover" />
+                                                <p className="absolute bottom-0 left-0 right-0 p-1 bg-black/30 text-white text-xs truncate font-semibold">{updatedItem.imageName}</p>
+                                            </div>
+                                            <div className="flex items-center w-full space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold mt-2">
+                                                <button onClick={() => props.onVote(updatedItem.id, 'up')} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
+                                                <span className="min-w-[1.5ch] text-center">{updatedItem.upvotes}</span>
+                                                <button onClick={() => props.onVote(updatedItem.id, 'down')} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
+                                                <span className="min-w-[1.5ch] text-center">{updatedItem.downvotes}</span>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        speakText(updatedItem.object_description, props.currentLanguageBcp47);
+                                                    }}
+                                                    className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-600 transition-colors ml-auto"
+                                                    aria-label="Read description aloud"
+                                                >
+                                                    <SpeakerIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            {props.voteErrors[item.id] && (<p className="text-xs text-red-400 mt-1" role="alert">{props.voteErrors[item.id]}</p>)}
                                         </div>
-                                        <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold mt-2">
-                                            <button onClick={() => props.onVote(item.id, 'up')} disabled={props.votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
-                                            <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
-                                            <button onClick={() => props.onVote(item.id, 'down')} disabled={props.votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
-                                            <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
-                                        </div>
-                                        {props.voteErrors[item.id] && (<p className="text-xs text-red-400 mt-1" role="alert">{props.voteErrors[item.id]}</p>)}
-                                        </div>
-                                    ))}
+                                    )})}
                                     </div>
                                     <div className={`w-full md:w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center transition-all duration-300 min-h-[150px] ${getJustifyClass(hoveredGridInfo?.index)}`}>
                                     {hoveredGridInfo ? (
                                         <div className="text-center animate-fadeIn">
-                                        <h3 className="font-bold text-xl text-teal-300 mb-4">{hoveredGridInfo.item.imageName}</h3>
-                                        <p className="text-slate-300 text-xs leading-normal">{hoveredGridInfo.item.object_description}</p>
+                                            <h3 className="font-bold text-xl text-teal-300 mb-2">{hoveredGridInfo.item.imageName}</h3>
+                                            <p className="text-slate-300 text-sm leading-relaxed">{hoveredGridInfo.item.object_description}</p>
                                         </div>
                                     ) : (
                                         <div className="text-center text-slate-500">

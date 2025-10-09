@@ -1,16 +1,14 @@
 import React from 'react';
-import { LANGUAGES } from '../constants/gameConstants';
 import type { Difficulty } from '../types/types';
 import PacManLoader from '../components/PacManLoader';
 
 interface LoadingScreenProps {
     difficulty: Difficulty;
-    selectedLanguage: string;
+    selectedLanguageName: string;
     selectedCategory: string;
 }
 
-const LoadingScreen: React.FC<LoadingScreenProps> = ({ difficulty, selectedLanguage, selectedCategory }) => {
-    const currentLanguageName = LANGUAGES.find(lang => lang.code === selectedLanguage)?.name || 'English';
+const LoadingScreen: React.FC<LoadingScreenProps> = ({ difficulty, selectedLanguageName, selectedCategory }) => {
     const categoryText = selectedCategory !== 'Any' ? ` (${selectedCategory})` : '';
 
     return (
@@ -18,7 +16,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ difficulty, selectedLangu
             <div className="text-center w-full max-w-md p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
                 <h2 className="text-2xl font-bold text-teal-300">Loading Game...</h2>
                 <p className="mt-2 text-slate-400">
-                    Preparing a <span className="font-semibold text-white">{difficulty}</span> game in <span className="font-semibold text-white">{currentLanguageName}</span>{categoryText}.
+                    Preparing a <span className="font-semibold text-white">{difficulty}</span> game in <span className="font-semibold text-white">{selectedLanguageName}</span>{categoryText}.
                 </p>
                 <div className="mt-8 flex justify-center">
                     <PacManLoader />
