@@ -16,3 +16,5 @@ print (f"Connected to MongoDB at {MONGODB_URI}, using database '{DB_NAME}'")
 objects_collection = db["objects"]
 translation_collection = db["translations"]
 votes_collection = db["voting"]
+translation_set_collection = db["translation_sets"]
+languages_collection = db["languages"]
