@@ -63,7 +63,8 @@ const getMimeType = (filename: string): string => {
 };
 // Use the Vite proxy path which is configured in vite.config.ts
 // const API_BASE_URL = '/api';
-const API_BASE_URL = "http://localhost:8080"
+// const API_BASE_URL = "http://localhost:8080"
+const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || "http://localhost:8080";
 
 
 export const fetchGameData = async (language: string = 'English', count: number = 6, category: string = 'Any'): Promise<GameObject[]> => {
