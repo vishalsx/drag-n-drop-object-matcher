@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserIcon, ChartBarIcon, QuestionMarkCircleIcon, InformationCircleIcon } from './Icons';
-import { CATEGORIES, DIFFICULTY_LEVELS } from '../constants/gameConstants';
+import { DIFFICULTY_LEVELS } from '../constants/gameConstants';
 import type { Language, Difficulty } from '../types/types';
 
 interface SidePanelProps {
@@ -9,6 +9,11 @@ interface SidePanelProps {
   onSelectLanguage: (languageCode: string) => void;
   currentCategory: string;
   onSelectCategory: (category: string) => void;
+  currentFos: string;
+  onSelectFos: (fos: string) => void;
+  objectCategories: string[];
+  fieldsOfStudy: string[];
+  areCategoriesLoading: boolean;
   currentDifficulty: Difficulty;
   onSelectDifficulty: (difficulty: Difficulty) => void;
   onStartGame: () => void;
@@ -22,6 +27,11 @@ const SidePanel: React.FC<SidePanelProps> = ({
     onSelectLanguage,
     currentCategory,
     onSelectCategory,
+    currentFos,
+    onSelectFos,
+    objectCategories,
+    fieldsOfStudy,
+    areCategoriesLoading,
     currentDifficulty,
     onSelectDifficulty,
     onStartGame,
@@ -31,6 +41,9 @@ const SidePanel: React.FC<SidePanelProps> = ({
     const isInteractive = gameState === 'playing' || gameState === 'complete';
     const areSettingsDisabled = gameState === 'playing' || gameState === 'loading';
     const isButtonDisabled = gameState === 'loading';
+
+    const isCategoryDisabled = areSettingsDisabled || areCategoriesLoading || currentFos !== 'Any';
+    const isFosDisabled = areSettingsDisabled || areCategoriesLoading || currentCategory !== 'Any';
 
     return (
         <aside className="w-full lg:h-full bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col">
@@ -67,18 +80,47 @@ const SidePanel: React.FC<SidePanelProps> = ({
 
                         {/* Category Selector */}
                         <div>
-                            <label htmlFor="category-select" className="block text-sm font-medium text-slate-300 mb-1">Category</label>
+                            <label htmlFor="category-select" className="block text-sm font-medium text-slate-300 mb-1">Object Category</label>
                             <div className="relative">
                                 <select
                                     id="category-select"
                                     value={currentCategory}
                                     onChange={(e) => onSelectCategory(e.target.value)}
-                                    disabled={areSettingsDisabled}
+                                    disabled={isCategoryDisabled}
                                     className="w-full appearance-none bg-slate-700 border border-slate-600 text-white py-2 pl-3 pr-8 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                                 >
-                                    {CATEGORIES.map(category => (
-                                        <option key={category} value={category}>{category}</option>
-                                    ))}
+                                    {areCategoriesLoading ? (
+                                        <option>Loading...</option>
+                                    ) : (
+                                        objectCategories.map(category => (
+                                            <option key={category} value={category}>{category}</option>
+                                        ))
+                                    )}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Field of Study Selector */}
+                        <div>
+                            <label htmlFor="fos-select" className="block text-sm font-medium text-slate-300 mb-1">Field of Study</label>
+                            <div className="relative">
+                                <select
+                                    id="fos-select"
+                                    value={currentFos}
+                                    onChange={(e) => onSelectFos(e.target.value)}
+                                    disabled={isFosDisabled}
+                                    className="w-full appearance-none bg-slate-700 border border-slate-600 text-white py-2 pl-3 pr-8 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                >
+                                    {areCategoriesLoading ? (
+                                        <option>Loading...</option>
+                                    ) : (
+                                        fieldsOfStudy.map(fos => (
+                                            <option key={fos} value={fos}>{fos}</option>
+                                        ))
+                                    )}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
                                     <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>

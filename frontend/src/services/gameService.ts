@@ -74,9 +74,9 @@ const getMimeType = (filename: string): string => {
   }
 };
 // Use the Vite proxy path which is configured in vite.config.ts
-// const API_BASE_URL = '/api';
+//const API_BASE_URL = '/api';
 const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || "http://localhost:8080";
-
+// const API_BASE_URL = "http://localhost:8080";
 export const fetchActiveLanguages = async (): Promise<Language[]> => {
   if (USE_MOCK_API) {
     console.warn('[MOCK API] Fetching active languages. To disable, set USE_MOCK_API to false in services/gameService.ts.');
@@ -91,7 +91,7 @@ export const fetchActiveLanguages = async (): Promise<Language[]> => {
     }
     
     const data: { name: string; code: string; bcp47: string; imageURL?: string }[] = await response.json();
-    console.log("Fetched active languages from API:", data);
+    
     const languages: Language[] = data.map(lang => ({
       name: lang.name,
       code: lang.code,
@@ -113,21 +113,57 @@ export const fetchActiveLanguages = async (): Promise<Language[]> => {
   }
 };
 
-export const fetchGameData = async (language: string = 'English', count: number = 6, category: string = 'Any'): Promise<GameObject[]> => {
+export const fetchCategoriesAndFos = async (language: string): Promise<{ object_categories: string[]; fields_of_study: string[] }> => {
   if (USE_MOCK_API) {
-    console.warn(`[MOCK API] Fetching game data for language: ${language}, category: ${category}. To disable, set USE_MOCK_API to false in services/gameService.ts.`);
+    console.warn(`[MOCK API] Fetching categories and FOS for language: ${language}.`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+    if (language.toLowerCase() === 'hindi') {
+        return {
+            object_categories: ['घर का सामान', 'प्रकृति', 'प्रौद्योगिकी', 'औजार'],
+            fields_of_study: ['विज्ञान', 'इतिहास', 'कला', 'भूगोल']
+        };
+    }
+    return {
+      object_categories: ['Household', 'Nature', 'Technology', 'Tools'],
+      fields_of_study: ['Science', 'History', 'Art', 'Geography']
+    };
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/active/object-categories-FOS/${language}`);
+    if (!response.ok) {
+      throw new Error(`Network response was not ok: ${response.statusText}`);
+    }
+    const data = await response.json();
+    console.log(`Categories and FOS for ${language} fetched successfully.`, data);
+    return data;
+  } catch (error) {
+    console.error(`Failed to fetch categories and FOS for ${language}:`, error);
+    // Return default values on error to avoid breaking the UI
+    return { 
+        object_categories: ['Household', 'Nature', 'Technology', 'Tools'], 
+        fields_of_study: ['Science', 'History', 'Art', 'Geography'] 
+    };
+  }
+};
+
+export const fetchGameData = async (language: string = 'English', count: number = 6, category: string = 'Any', fieldOfStudy: string = 'Any'): Promise<GameObject[]> => {
+  if (USE_MOCK_API) {
+    console.warn(`[MOCK API] Fetching game data for language: ${language}, category: ${category}, FOS: ${fieldOfStudy}. To disable, set USE_MOCK_API to false in services/gameService.ts.`);
     // Simulate network delay to mimic a real API call
     await new Promise(resolve => setTimeout(resolve, 500));
     return getMockGameData(count, language, category);
   }
 
-  console.log(`Fetching game data from API for language: ${language}, count: ${count}, category: ${category}`);
+  console.log(`Fetching game data from API for language: ${language}, count: ${count}, category: ${category}, FOS: ${fieldOfStudy}`);
   try {
     // Assuming the backend endpoint is available at '/pictures/random'
     // Pass language and count as query parameters to the backend endpoint (default count 6)
     let url = `${API_BASE_URL}/pictures/random?language=${language}&count=${count}`;
     if (category && category.toLowerCase() !== 'any') {
       url += `&category=${encodeURIComponent(category)}`;
+    } else if (fieldOfStudy && fieldOfStudy.toLowerCase() !== 'any') {
+      url += `&field_of_study=${encodeURIComponent(fieldOfStudy)}`;
     }
     const response = await fetch(url);
 
@@ -148,6 +184,8 @@ export const fetchGameData = async (language: string = 'English', count: number 
       objectCategory: item.object.object_category,
     }));
     
+    
+
 
     console.log("Game data fetched and transformed successfully.", gameData);
     return gameData;
@@ -220,20 +258,26 @@ export const voteOnImage = async (translationId: string, voteType: 'up' | 'down'
   }
 };
 
-export const saveTubSheet = async (translationIds: string[]): Promise<{ success: boolean; message?: string }> => {
+export const saveTranslationSet = async (name: string, language: string, translationIds: string[], category: string): Promise<{ success: boolean; message?: string }> => {
   if (USE_MOCK_API) {
-    console.warn(`[MOCK API] Saving TUB Sheet with IDs: ${translationIds.join(', ')}. This is a mock response.`);
+    console.warn(`[MOCK API] Saving Translation Set: ${name} with IDs: ${translationIds.join(', ')}. This is a mock response.`);
     await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-    return { success: true };
+    return { success: true, message: "Set saved successfully!" };
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/sheets/save`, {
+    const response = await fetch(`${API_BASE_URL}/TS/save_translation_set`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ translation_ids: translationIds }),
+      body: JSON.stringify({
+        name: name,
+        language: language,
+        image_translation_ids: translationIds,
+        user_id: 'anonymous',
+        category: category,
+      }),
     });
 
     if (!response.ok) {
@@ -244,7 +288,7 @@ export const saveTubSheet = async (translationIds: string[]): Promise<{ success:
     const responseData = await response.json();
     return { success: true, ...responseData };
   } catch (error) {
-    console.error('Failed to save TUB Sheet:', error);
+    console.error('Failed to save Translation Set:', error);
     const message = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { success: false, message };
   }

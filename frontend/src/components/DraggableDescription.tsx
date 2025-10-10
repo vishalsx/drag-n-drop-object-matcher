@@ -59,7 +59,7 @@ const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
       id={`desc-${props.id}`}
       draggable={!props.isMatched}
       onDragStart={handleDragStart}
-      className={`p-4 rounded-lg border border-slate-600 shadow-md transition-all duration-300 flex items-start justify-between ${props.isMatched ? matchedStyles : defaultStyles} ${props.isWrongDrop ? wrongDropStyles : ''} ${props.isJustMatched ? justMatchedStyles : ''}`}
+      className={`px-4 py-2 rounded-lg border border-slate-600 shadow-md transition-all duration-300 flex items-center justify-between ${props.isMatched ? matchedStyles : defaultStyles} ${props.isWrongDrop ? wrongDropStyles : ''} ${props.isJustMatched ? justMatchedStyles : ''}`}
     >
       <p key={hintType} className="text-sm text-slate-300 flex-grow pr-2 animate-fadeIn">{displayText}</p>
       {!props.isMatched && (

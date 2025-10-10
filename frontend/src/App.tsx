@@ -9,6 +9,7 @@ import { fetchActiveLanguages } from './services/gameService';
 import type { Language } from './types/types';
 import { SpinnerIcon } from './components/Icons';
 import AlertDialog from './components/AlertDialog';
+import SaveSetDialog from './components/SaveSetDialog';
 
 const App: React.FC = () => {
     const [languages, setLanguages] = useState<Language[]>([]);
@@ -40,22 +41,30 @@ const App: React.FC = () => {
         sheetSaveError,
         selectedLanguage,
         selectedCategory,
+        selectedFos,
+        objectCategories,
+        fieldsOfStudy,
+        areCategoriesLoading,
         difficulty,
         gameStartError,
+        isSaveSetDialogVisible,
 
         // State Setters from useGame hook
         setSelectedLanguage,
-        setSelectedCategory,
         setDifficulty,
         
         // Handlers from useGame hook
         handleDrop,
         handleMatchedImageClick,
         handleVote,
-        handleSaveSheet,
+        handleSaveSheetRequest,
+        handleConfirmSaveSheet,
+        handleCancelSaveSheet,
         handleResetGame,
         handleStartGame,
         clearGameStartError,
+        handleSelectCategory,
+        handleSelectFos,
     } = useGame(languages);
     
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
@@ -107,7 +116,12 @@ const App: React.FC = () => {
                 selectedLanguage={selectedLanguage}
                 onSelectLanguage={setSelectedLanguage}
                 selectedCategory={selectedCategory}
-                onSelectCategory={setSelectedCategory}
+                onSelectCategory={handleSelectCategory}
+                selectedFos={selectedFos}
+                onSelectFos={handleSelectFos}
+                objectCategories={objectCategories}
+                fieldsOfStudy={fieldsOfStudy}
+                areCategoriesLoading={areCategoriesLoading}
                 difficulty={difficulty}
                 onSelectDifficulty={setDifficulty}
                 onStartGame={handleStartGame}
@@ -120,6 +134,7 @@ const App: React.FC = () => {
                     difficulty={difficulty}
                     selectedLanguageName={currentLanguageName}
                     selectedCategory={selectedCategory}
+                    selectedFos={selectedFos}
                 />
             )}
 
@@ -134,7 +149,7 @@ const App: React.FC = () => {
                     sheetSaveError={sheetSaveError}
                     onClose={handleCloseCompletion}
                     onVote={handleVote}
-                    onSaveSheet={handleSaveSheet}
+                    onSaveSheet={handleSaveSheetRequest}
                     onMatchedImageClick={handleMatchedImageClick}
                     currentLanguageBcp47={currentLanguageBcp47}
                 />
@@ -153,6 +168,15 @@ const App: React.FC = () => {
                     title="Could Not Start Game"
                     message={gameStartError}
                     onClose={clearGameStartError}
+                />
+            )}
+
+            {isSaveSetDialogVisible && (
+                <SaveSetDialog
+                    isOpen={isSaveSetDialogVisible}
+                    isSaving={sheetSaveState === 'saving'}
+                    onSave={handleConfirmSaveSheet}
+                    onCancel={handleCancelSaveSheet}
                 />
             )}
         </div>

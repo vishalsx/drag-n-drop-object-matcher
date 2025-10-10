@@ -24,6 +24,11 @@ interface GameViewProps {
     onSelectLanguage: (lang: string) => void;
     selectedCategory: string;
     onSelectCategory: (cat: string) => void;
+    selectedFos: string;
+    onSelectFos: (fos: string) => void;
+    objectCategories: string[];
+    fieldsOfStudy: string[];
+    areCategoriesLoading: boolean;
     difficulty: Difficulty;
     onSelectDifficulty: (diff: Difficulty) => void;
     onStartGame: () => void;
@@ -57,6 +62,11 @@ const GameView: React.FC<GameViewProps> = (props) => {
                     onSelectLanguage={props.onSelectLanguage}
                     currentCategory={props.selectedCategory}
                     onSelectCategory={props.onSelectCategory}
+                    currentFos={props.selectedFos}
+                    onSelectFos={props.onSelectFos}
+                    objectCategories={props.objectCategories}
+                    fieldsOfStudy={props.fieldsOfStudy}
+                    areCategoriesLoading={props.areCategoriesLoading}
                     currentDifficulty={props.difficulty}
                     onSelectDifficulty={props.onSelectDifficulty}
                     onStartGame={props.onStartGame}

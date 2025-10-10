@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { GameObject, Difficulty, Language } from '../types/types';
-import { fetchGameData, uploadScore, voteOnImage, saveTubSheet, USE_MOCK_API } from '../services/gameService';
+import { fetchGameData, uploadScore, voteOnImage, saveTranslationSet, USE_MOCK_API, fetchCategoriesAndFos } from '../services/gameService';
 import { shuffleArray } from '../utils/arrayUtils';
 import { difficultyCounts } from '../constants/gameConstants';
 import useSoundEffects from './useSoundEffects';
@@ -20,12 +20,17 @@ export const useGame = (languages: Language[]) => {
     const [justMatchedId, setJustMatchedId] = useState<string | null>(null);
     const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
     const [selectedCategory, setSelectedCategory] = useState<string>('Any');
+    const [selectedFos, setSelectedFos] = useState<string>('Any');
+    const [objectCategories, setObjectCategories] = useState<string[]>(['Any']);
+    const [fieldsOfStudy, setFieldsOfStudy] = useState<string[]>(['Any']);
+    const [areCategoriesLoading, setAreCategoriesLoading] = useState(true);
     const [difficulty, setDifficulty] = useState<Difficulty>('medium');
     const [voteErrors, setVoteErrors] = useState<Record<string, string | null>>({});
     const [sheetSaveState, setSheetSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [sheetSaveError, setSheetSaveError] = useState<string | null>(null);
     const [votingInProgress, setVotingInProgress] = useState<Set<string>>(new Set());
     const [gameStartError, setGameStartError] = useState<string | null>(null);
+    const [isSaveSetDialogVisible, setIsSaveSetDialogVisible] = useState(false);
 
     const { playCorrectSound, playWrongSound, playGameCompleteSound } = useSoundEffects();
     const { speakText } = useSpeech();
@@ -39,6 +44,24 @@ export const useGame = (languages: Language[]) => {
             }
         }
     }, [languages, selectedLanguage]);
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            if (!selectedLanguage || languages.length === 0) return;
+
+            setAreCategoriesLoading(true);
+            const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
+            const data = await fetchCategoriesAndFos(languageName);
+            
+            setObjectCategories(['Any', ...data.object_categories]);
+            setFieldsOfStudy(['Any', ...data.fields_of_study]);
+            setSelectedCategory('Any'); // Reset on language change
+            setSelectedFos('Any'); // Reset on language change
+            setAreCategoriesLoading(false);
+        };
+
+        loadCategories();
+    }, [selectedLanguage, languages]);
 
     const currentLanguageBcp47 = useMemo(() => {
         return languages.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
@@ -54,7 +77,7 @@ export const useGame = (languages: Language[]) => {
         setSheetSaveError(null);
 
         const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
-        const data = await fetchGameData(languageName, count, selectedCategory);
+        const data = await fetchGameData(languageName, count, selectedCategory, selectedFos);
         if (data.length > 0) {
             setGameData(data);
             setShuffledDescriptions(shuffleArray(data));
@@ -67,7 +90,7 @@ export const useGame = (languages: Language[]) => {
             setGameStartError('No objects could be found for the selected language and category. Please try different settings.');
             setGameState('idle');
         }
-    }, [selectedLanguage, difficulty, selectedCategory, languages]);
+    }, [selectedLanguage, difficulty, selectedCategory, selectedFos, languages]);
 
 
     useEffect(() => {
@@ -137,11 +160,23 @@ export const useGame = (languages: Language[]) => {
         }
     };
     
-    const handleSaveSheet = async () => {
+    const handleSaveSheetRequest = () => {
+        setIsSaveSetDialogVisible(true);
+    };
+
+    const handleCancelSaveSheet = () => {
+        setIsSaveSetDialogVisible(false);
+    };
+
+    const handleConfirmSaveSheet = async (name: string) => {
         setSheetSaveState('saving');
         setSheetSaveError(null);
+        
         const translationIds = gameData.map(item => item.id);
-        const result = await saveTubSheet(translationIds);
+        const result = await saveTranslationSet(name, selectedLanguage, translationIds, selectedCategory);
+        
+        setIsSaveSetDialogVisible(false);
+
         if (result.success) {
             setSheetSaveState('success');
         } else {
@@ -168,6 +203,20 @@ export const useGame = (languages: Language[]) => {
         setGameStartError(null);
     }, []);
 
+    const handleSelectCategory = (category: string) => {
+        setSelectedCategory(category);
+        if (category !== 'Any') {
+            setSelectedFos('Any');
+        }
+    };
+    
+    const handleSelectFos = (fos: string) => {
+        setSelectedFos(fos);
+        if (fos !== 'Any') {
+            setSelectedCategory('Any');
+        }
+    };
+
     return {
         // State
         gameData,
@@ -181,25 +230,33 @@ export const useGame = (languages: Language[]) => {
         justMatchedId,
         selectedLanguage,
         selectedCategory,
+        selectedFos,
+        objectCategories,
+        fieldsOfStudy,
+        areCategoriesLoading,
         difficulty,
         voteErrors,
         sheetSaveState,
         sheetSaveError,
         votingInProgress,
         gameStartError,
+        isSaveSetDialogVisible,
         
         // State Setters
         setSelectedLanguage,
-        setSelectedCategory,
         setDifficulty,
 
         // Handlers
         handleDrop,
         handleVote,
-        handleSaveSheet,
+        handleSaveSheetRequest,
+        handleConfirmSaveSheet,
+        handleCancelSaveSheet,
         handleResetGame,
         handleStartGame,
         handleMatchedImageClick,
         clearGameStartError,
+        handleSelectCategory,
+        handleSelectFos,
     };
 };
