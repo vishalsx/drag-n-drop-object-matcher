@@ -36,6 +36,6 @@ class ApiPicture(BaseModel):
 class TranslationSetCreate(BaseModel):
     name: str = Field(..., description="Name for this translation set")
     language: str = Field(..., description="Requested language (e.g., 'es')")
-    image_translation_ids: List[int] = Field(..., description="List of image translation IDs")
+    image_translation_ids: List[str] = Field(..., description="List of image translation IDs")
     user_id: Optional[str] = Field(None, description="User ID, defaults to 'anonymous'")
     category: Optional[str] = Field(None, description="Object category, defaults to 'Any'")

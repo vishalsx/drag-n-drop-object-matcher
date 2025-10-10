@@ -18,8 +18,10 @@ router = APIRouter(prefix="/pictures", tags=["pictures"])
 
 @router.get("/random", response_model=List[ApiPicture])
 async def get_random_pictures(
-    count: int = Query(6, ge=1, le=20),
-    language: Optional[str] = None,
+    count: int = Query(6, ge=1, le=20, description="Number of random pictures to fetch"),
+    language: Optional[str] = Query(None, description="Language filter for pictures"),
+    category: Optional[str] = Query(None, description="Object category filter"),
+    field_of_study: Optional[str] = Query(None, description="Field of study filter"),
     translation_set_id: Optional[str] = Query(None, description="Optional translation set ID to pick pictures from"),
 ):
     # Use the same service to either choose random pictures or select a Card based on translation_set_id if provided
@@ -31,7 +33,7 @@ async def get_random_pictures(
     else:
         print("No translation set ID provided. Fetching random pictures.")
         print(f"Requested API call with count={count}, language={language}")
-        translation_docs = await get_random_picture_details(count, language)
+        translation_docs = await get_random_picture_details(count, language, category, field_of_study)
 
     # continue rest of the processing from here
     logger.info(f"Retrieved {len(translation_docs)} documents from DB")

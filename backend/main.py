@@ -4,6 +4,7 @@ from app.routers import pictures
 from app.routers import voting
 from app.routers import TTS_service
 from app.routers import getlanguages
+from app.routers import savecards
 import uvicorn
 
 
@@ -23,6 +24,7 @@ app.include_router(pictures.router)
 app.include_router(voting.router)
 app.include_router(TTS_service.router)
 app.include_router(getlanguages.router)
+app.include_router(savecards.router)
 
 @app.get("/health")
 async def health():
