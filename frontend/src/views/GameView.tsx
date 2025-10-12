@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import DraggableDescription from '../components/DraggableDescription';
 import DroppableImage from '../components/DroppableImage';
 import SidePanel from '../components/SidePanel';
-import type { GameObject, Difficulty, Language } from '../types/types';
+// Fix: Import CategoryFosItem to resolve type errors.
+import type { GameObject, Difficulty, Language, CategoryFosItem } from '../types/types';
 import PacManChaseAnimation from '../components/PacManChaseAnimation';
 import SnakeGameAnimation from '../components/SnakeGameAnimation';
 
@@ -26,8 +27,9 @@ interface GameViewProps {
     onSelectCategory: (cat: string) => void;
     selectedFos: string;
     onSelectFos: (fos: string) => void;
-    objectCategories: string[];
-    fieldsOfStudy: string[];
+    // Fix: Update prop types to match the data structure from the useGame hook.
+    objectCategories: CategoryFosItem[];
+    fieldsOfStudy: CategoryFosItem[];
     areCategoriesLoading: boolean;
     difficulty: Difficulty;
     onSelectDifficulty: (diff: Difficulty) => void;

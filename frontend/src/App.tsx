@@ -1,29 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useGame } from './hooks/useGame';
 import LoadingScreen from './views/LoadingScreen';
 import GameView from './views/GameView';
 import CompletionScreen from './views/CompletionScreen';
 import Confetti from './components/Confetti';
 import ConfirmationDialog from './components/ConfirmationDialog';
-import { fetchActiveLanguages } from './services/gameService';
-import type { Language } from './types/types';
 import { SpinnerIcon } from './components/Icons';
 import AlertDialog from './components/AlertDialog';
 import SaveSetDialog from './components/SaveSetDialog';
 
 const App: React.FC = () => {
-    const [languages, setLanguages] = useState<Language[]>([]);
-    const [isAppLoading, setIsAppLoading] = useState(true);
-
-    useEffect(() => {
-        const loadInitialData = async () => {
-            const activeLanguages = await fetchActiveLanguages();
-            setLanguages(activeLanguages);
-            setIsAppLoading(false);
-        };
-        loadInitialData();
-    }, []);
-
     const {
         // State from useGame hook
         score,
@@ -48,6 +34,8 @@ const App: React.FC = () => {
         difficulty,
         gameStartError,
         isSaveSetDialogVisible,
+        languages,
+        isAppLoading,
 
         // State Setters from useGame hook
         setSelectedLanguage,
@@ -65,7 +53,7 @@ const App: React.FC = () => {
         clearGameStartError,
         handleSelectCategory,
         handleSelectFos,
-    } = useGame(languages);
+    } = useGame();
     
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
 
@@ -88,6 +76,9 @@ const App: React.FC = () => {
 
     const currentLanguageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
     const currentLanguageBcp47 = languages.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
+
+    const selectedCategoryTranslated = objectCategories.find(c => c.en === selectedCategory)?.translated || selectedCategory;
+    const selectedFosTranslated = fieldsOfStudy.find(f => f.en === selectedFos)?.translated || selectedFos;
 
     if (isAppLoading) {
         return (
@@ -133,8 +124,8 @@ const App: React.FC = () => {
                  <LoadingScreen 
                     difficulty={difficulty}
                     selectedLanguageName={currentLanguageName}
-                    selectedCategory={selectedCategory}
-                    selectedFos={selectedFos}
+                    selectedCategory={selectedCategoryTranslated}
+                    selectedFos={selectedFosTranslated}
                 />
             )}
 

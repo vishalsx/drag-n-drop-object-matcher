@@ -1,7 +1,7 @@
 import React from 'react';
 import { UserIcon, ChartBarIcon, QuestionMarkCircleIcon, InformationCircleIcon } from './Icons';
 import { DIFFICULTY_LEVELS } from '../constants/gameConstants';
-import type { Language, Difficulty } from '../types/types';
+import type { Language, Difficulty, CategoryFosItem } from '../types/types';
 
 interface SidePanelProps {
   languages: Language[];
@@ -11,8 +11,8 @@ interface SidePanelProps {
   onSelectCategory: (category: string) => void;
   currentFos: string;
   onSelectFos: (fos: string) => void;
-  objectCategories: string[];
-  fieldsOfStudy: string[];
+  objectCategories: CategoryFosItem[];
+  fieldsOfStudy: CategoryFosItem[];
   areCategoriesLoading: boolean;
   currentDifficulty: Difficulty;
   onSelectDifficulty: (difficulty: Difficulty) => void;
@@ -40,7 +40,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
 }) => {
     const isInteractive = gameState === 'playing' || gameState === 'complete';
     const areSettingsDisabled = gameState === 'playing' || gameState === 'loading';
-    const isButtonDisabled = gameState === 'loading';
+    const isButtonDisabled = gameState === 'loading' || areCategoriesLoading;
 
     const isCategoryDisabled = areSettingsDisabled || areCategoriesLoading || currentFos !== 'Any';
     const isFosDisabled = areSettingsDisabled || areCategoriesLoading || currentCategory !== 'Any';
@@ -93,7 +93,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                                         <option>Loading...</option>
                                     ) : (
                                         objectCategories.map(category => (
-                                            <option key={category} value={category}>{category}</option>
+                                            <option key={category.en} value={category.en}>{category.translated}</option>
                                         ))
                                     )}
                                 </select>
@@ -118,7 +118,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                                         <option>Loading...</option>
                                     ) : (
                                         fieldsOfStudy.map(fos => (
-                                            <option key={fos} value={fos}>{fos}</option>
+                                            <option key={fos.en} value={fos.en}>{fos.translated}</option>
                                         ))
                                     )}
                                 </select>
@@ -183,7 +183,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                         : 'bg-green-600 hover:bg-green-500 focus:ring-green-500'
                     }`}
                 >
-                    {isInteractive ? 'Withdraw' : 'Play Game'}
+                    {areCategoriesLoading ? 'Processing...' : (isInteractive ? 'Withdraw' : 'Play Game')}
                 </button>
             </div>
         </aside>

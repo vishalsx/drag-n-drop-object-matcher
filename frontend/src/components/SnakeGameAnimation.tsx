@@ -89,22 +89,33 @@ const SnakeGameAnimation: React.FC = () => {
         const dy = foodPos.y - head.y;
 
         let nextDirection = currentDirection;
-        const isMovingHorizontally = currentDirection === 'LEFT' || currentDirection === 'RIGHT';
+        const canGoUp = currentDirection !== 'DOWN';
+        const canGoDown = currentDirection !== 'UP';
+        const canGoLeft = currentDirection !== 'RIGHT';
+        const canGoRight = currentDirection !== 'LEFT';
 
-        // Simple AI: Move towards the food, don't reverse direction
-        // Fix: Removed impossible type comparisons that were causing TypeScript errors.
-        // The type of `currentDirection` is narrowed in each branch of the `if/else`,
-        // making some of the original checks redundant and incorrect.
-        if (isMovingHorizontally) {
-             if (dy > 0) nextDirection = 'DOWN';
-             else if (dy < 0) nextDirection = 'UP';
-             else if (dx > 0 && currentDirection !== 'LEFT') nextDirection = 'RIGHT';
-             else if (dx < 0 && currentDirection !== 'RIGHT') nextDirection = 'LEFT';
-        } else { // Moving vertically
-            if (dx > 0) nextDirection = 'RIGHT';
-            else if (dx < 0) nextDirection = 'LEFT';
-            else if (dy > 0 && currentDirection !== 'UP') nextDirection = 'DOWN';
-            else if (dy < 0 && currentDirection !== 'DOWN') nextDirection = 'UP';
+        // AI strategy: Move toward the food on the axis with the greatest distance,
+        // while respecting the rule that the snake cannot reverse direction.
+        if (Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0 && canGoRight) {
+                nextDirection = 'RIGHT';
+            } else if (dx < 0 && canGoLeft) {
+                nextDirection = 'LEFT';
+            } else if (dy > 0 && canGoDown) { // fallback to vertical
+                nextDirection = 'DOWN';
+            } else if (dy < 0 && canGoUp) {
+                nextDirection = 'UP';
+            }
+        } else {
+            if (dy > 0 && canGoDown) {
+                nextDirection = 'DOWN';
+            } else if (dy < 0 && canGoUp) {
+                nextDirection = 'UP';
+            } else if (dx > 0 && canGoRight) { // fallback to horizontal
+                nextDirection = 'RIGHT';
+            } else if (dx < 0 && canGoLeft) {
+                nextDirection = 'LEFT';
+            }
         }
 
         setDirection(nextDirection);

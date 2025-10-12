@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { GameObject, Difficulty, Language } from '../types/types';
-import { fetchGameData, uploadScore, voteOnImage, saveTranslationSet, USE_MOCK_API, fetchCategoriesAndFos } from '../services/gameService';
+import type { GameObject, Difficulty, Language, CategoryFosItem } from '../types/types';
+import { fetchGameData, uploadScore, voteOnImage, saveTranslationSet, fetchCategoriesAndFos, fetchActiveLanguages } from '../services/gameService';
 import { shuffleArray } from '../utils/arrayUtils';
 import { difficultyCounts } from '../constants/gameConstants';
 import useSoundEffects from './useSoundEffects';
@@ -8,7 +8,11 @@ import { useSpeech } from './useSpeech';
 
 type GameState = 'idle' | 'loading' | 'playing' | 'complete';
 
-export const useGame = (languages: Language[]) => {
+const ANY_OPTION: CategoryFosItem = { en: 'Any', translated: 'Any' };
+
+export const useGame = () => {
+    const [languages, setLanguages] = useState<Language[]>([]);
+    const [isAppLoading, setIsAppLoading] = useState(true);
     const [gameData, setGameData] = useState<GameObject[]>([]);
     const [shuffledDescriptions, setShuffledDescriptions] = useState<GameObject[]>([]);
     const [shuffledImages, setShuffledImages] = useState<GameObject[]>([]);
@@ -21,9 +25,9 @@ export const useGame = (languages: Language[]) => {
     const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
     const [selectedCategory, setSelectedCategory] = useState<string>('Any');
     const [selectedFos, setSelectedFos] = useState<string>('Any');
-    const [objectCategories, setObjectCategories] = useState<string[]>(['Any']);
-    const [fieldsOfStudy, setFieldsOfStudy] = useState<string[]>(['Any']);
-    const [areCategoriesLoading, setAreCategoriesLoading] = useState(true);
+    const [objectCategories, setObjectCategories] = useState<CategoryFosItem[]>([ANY_OPTION]);
+    const [fieldsOfStudy, setFieldsOfStudy] = useState<CategoryFosItem[]>([ANY_OPTION]);
+    const [areCategoriesLoading, setAreCategoriesLoading] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>('medium');
     const [voteErrors, setVoteErrors] = useState<Record<string, string | null>>({});
     const [sheetSaveState, setSheetSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -35,33 +39,54 @@ export const useGame = (languages: Language[]) => {
     const { playCorrectSound, playWrongSound, playGameCompleteSound } = useSoundEffects();
     const { speakText } = useSpeech();
 
+    // Effect to load languages once on mount and set the initial language
     useEffect(() => {
-        if (languages && languages.length > 0) {
-            // If the currently selected language is not in the new list, default to the first available language.
-            const isSelectedLanguageValid = languages.some(lang => lang.code === selectedLanguage);
-            if (!isSelectedLanguageValid) {
-                setSelectedLanguage(languages[0].code);
+        const loadInitialData = async () => {
+            const activeLanguages = await fetchActiveLanguages();
+            setLanguages(activeLanguages);
+
+            if (activeLanguages.length > 0) {
+                const isDefaultLanguageValid = activeLanguages.some(lang => lang.code === 'English');
+
+                if (!isDefaultLanguageValid) {
+                    setSelectedLanguage(activeLanguages[0].code);
+                }
+            } else {
+                // If there are no languages, we can't play the game. Stop the main loading spinner.
+                setIsAppLoading(false);
             }
-        }
-    }, [languages, selectedLanguage]);
+        };
 
+        loadInitialData();
+    }, []);
+
+    // Effect to load categories whenever the language changes. This is the single source of truth.
     useEffect(() => {
-        const loadCategories = async () => {
-            if (!selectedLanguage || languages.length === 0) return;
+        // Don't run if the language isn't set, or if we don't have the language list yet to find the language name.
+        if (!selectedLanguage || languages.length === 0) {
+            return;
+        }
 
+        const loadCategories = async () => {
             setAreCategoriesLoading(true);
             const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
             const data = await fetchCategoriesAndFos(languageName);
             
-            setObjectCategories(['Any', ...data.object_categories]);
-            setFieldsOfStudy(['Any', ...data.fields_of_study]);
-            setSelectedCategory('Any'); // Reset on language change
-            setSelectedFos('Any'); // Reset on language change
+            setObjectCategories([ANY_OPTION, ...data.object_categories]);
+            setFieldsOfStudy([ANY_OPTION, ...data.fields_of_study]);
+            setSelectedCategory('Any');
+            setSelectedFos('Any');
             setAreCategoriesLoading(false);
+            
+            // This signals that the initial load is complete
+            if (isAppLoading) {
+                setIsAppLoading(false);
+            }
         };
 
         loadCategories();
     }, [selectedLanguage, languages]);
+
 
     const currentLanguageBcp47 = useMemo(() => {
         return languages.find(lang => lang.code === selectedLanguage)?.bcp47 || 'en-US';
@@ -139,7 +164,7 @@ export const useGame = (languages: Language[]) => {
         try {
             const result = await voteOnImage(translationId, voteType);
             if (result.success) {
-                if (!USE_MOCK_API && result.data) {
+                if (result.data) {
                     setGameData(prevData => prevData.map(item => 
                         item.id === result.data?.translation_id 
                         ? { ...item, upvotes: result.data.up_votes, downvotes: result.data.down_votes }
@@ -241,6 +266,8 @@ export const useGame = (languages: Language[]) => {
         votingInProgress,
         gameStartError,
         isSaveSetDialogVisible,
+        languages,
+        isAppLoading,
         
         // State Setters
         setSelectedLanguage,

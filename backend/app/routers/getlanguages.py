@@ -2,7 +2,9 @@ from fastapi import HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from app.database import translation_collection, languages_collection, objects_collection
 from bson import ObjectId
-from googletrans import Translator
+# from googletrans import Translator
+from deep_translator import GoogleTranslator
+
 import json
 from app.redis_connection import redis_client, TTS_CACHE_TTL  # ✅ reuse TTL for cache
 import logging
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # ---------- Initialize FastAPI ----------
 router = APIRouter(prefix="/active", tags=["Language, Objects category and Field of Study Services"])
-translator = Translator()
+# translator = Translator()
 
 # ---------- API endpoint ----------
 @router.get("/languages")
@@ -275,19 +277,52 @@ async def get_object_categories_FOS(language_name: str):
             translated_object_categories = []
             translated_fields_of_study = []
 
+            # for cat in object_categories:
+            #     try:
+            #         translated_text = translator.translate(cat, src="en", dest=lang_code).text
+            #     except Exception as e:
+            #         logger.warning(f"⚠️ Translation failed for category '{cat}': {e}")
+            #         translated_text = cat
+            #     translated_object_categories.append({"en": cat, "translated": translated_text})
+
+            # for field in fields_of_study:
+            #     try:
+            #         translated_text = translator.translate(field, src="en", dest=lang_code).text
+            #     except Exception as e:
+            #         logger.warning(f"⚠️ Translation failed for field '{field}': {e}")
+            #         translated_text = field
+            #     translated_fields_of_study.append({"en": field, "translated": translated_text})
+
+
+            try:
+                translator = GoogleTranslator(source='en', target=lang_code)
+                translation_supported = True
+            except Exception as e:
+                logger.warning(f"⚠️ Language '{lang_code}' not supported. Using English only.")
+                translation_supported = False
+
+            translated_object_categories = []
+            translated_fields_of_study = []
+
             for cat in object_categories:
-                try:
-                    translated_text = translator.translate(cat, src="en", dest=lang_code).text
-                except Exception as e:
-                    logger.warning(f"⚠️ Translation failed for category '{cat}': {e}")
+                if translation_supported:
+                    try:
+                        translated_text = translator.translate(cat)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Translation failed for category '{cat}': {e}")
+                        translated_text = cat
+                else:
                     translated_text = cat
                 translated_object_categories.append({"en": cat, "translated": translated_text})
 
             for field in fields_of_study:
-                try:
-                    translated_text = translator.translate(field, src="en", dest=lang_code).text
-                except Exception as e:
-                    logger.warning(f"⚠️ Translation failed for field '{field}': {e}")
+                if translation_supported:
+                    try:
+                        translated_text = translator.translate(field)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Translation failed for field '{field}': {e}")
+                        translated_text = field
+                else:
                     translated_text = field
                 translated_fields_of_study.append({"en": field, "translated": translated_text})
 
