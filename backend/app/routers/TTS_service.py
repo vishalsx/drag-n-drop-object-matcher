@@ -1,6 +1,7 @@
 from fastapi import HTTPException, APIRouter
 from pydantic import BaseModel
 from gtts import gTTS
+from gtts.lang import tts_langs
 import base64
 import io
 import hashlib
@@ -25,6 +26,13 @@ def _generate_cache_key(text: str, lang: str) -> str:
 
 async def _generate_tts_audio(text: str, language: str) -> str:
     """Generate Base64-encoded MP3 audio using gTTS."""
+    supported_langs = tts_langs()  # dict of supported languages
+
+    if language not in supported_langs:
+        logger.warning(f"TTS skipped: Language '{language}' is not supported. Supported languages: {list(supported_langs.keys())}")
+        return None
+
+
     tts = gTTS(text=text, lang=language)
     audio_stream = io.BytesIO()
     tts.write_to_fp(audio_stream)
@@ -62,10 +70,11 @@ async def text_to_speech(req: TTSRequest):
         audio_data_uri = await _generate_tts_audio(text, language)
 
         # Try to store in Redis (non-fatal)
-        try:
-            redis_client.set(cache_key, audio_data_uri, ex=TTS_CACHE_TTL)
-        except Exception as e:
-            logger.error(f"Redis set error: {e}")
+        if audio_data_uri is not None:
+            try:
+                redis_client.set(cache_key, audio_data_uri, ex=TTS_CACHE_TTL)
+            except Exception as e:
+                logger.error(f"Redis set error: {e}")
 
         return {"audioBase64": audio_data_uri, "cached": False}
 
