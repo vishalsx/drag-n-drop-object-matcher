@@ -1,26 +1,16 @@
-from fastapi import FastAPI, HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter
 from pydantic import BaseModel
 from gtts import gTTS
 import base64
 import io
-import redis.asyncio as redis  # async Redis client
 import hashlib
-import os
-from dotenv import load_dotenv
+import logging
+from app.redis_connection import redis_client, TTS_CACHE_TTL
 
-# ---------- Load environment variables ----------
-load_dotenv()
+router = APIRouter(prefix="", tags=["TTS Service"])
 
-# ---------- Configurations ----------
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-TTS_CACHE_TTL = int(os.getenv("TTS_CACHE_TTL", 7 * 24 * 60 * 60))  # default 7 days
-
-# ---------- FastAPI app ----------
-# app = FastAPI(title="Cloud Text-to-Speech API with Redis Cache")
-
-router = APIRouter(prefix="", tags=["pictures"])
-# ---------- Redis connection ----------
-redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+# ---------- Setup logging ----------
+logger = logging.getLogger(__name__)
 
 # ---------- Request schema ----------
 class TTSRequest(BaseModel):
@@ -47,7 +37,7 @@ async def _generate_tts_audio(text: str, language: str) -> str:
 async def text_to_speech(req: TTSRequest):
     """
     Converts input text to speech using gTTS.
-    Results are cached in Redis for configurable TTL.
+    Attempts to use Redis for caching, but continues gracefully if Redis is unavailable.
     """
     text = req.text.strip()
     language = req.languageCode.split('-')[0]  # normalize like 'en-US' → 'en'
@@ -57,19 +47,28 @@ async def text_to_speech(req: TTSRequest):
 
     cache_key = _generate_cache_key(text, language)
 
-    # 1️⃣ Try to fetch from Redis cache
-    cached_audio = await redis_client.get(cache_key)
+    cached_audio = None
+    try:
+        # Try fetching from Redis cache
+        cached_audio = redis_client.get(cache_key)
+    except Exception as e:
+        logger.error(f"Redis fetch error: {e}")
+
     if cached_audio:
         return {"audioBase64": cached_audio, "cached": True}
 
     try:
-        # 2️⃣ Generate new TTS
+        # Generate new TTS
         audio_data_uri = await _generate_tts_audio(text, language)
 
-        # 3️⃣ Store in Redis with TTL from .env
-        await redis_client.set(cache_key, audio_data_uri, ex=TTS_CACHE_TTL)
+        # Try to store in Redis (non-fatal)
+        try:
+            redis_client.set(cache_key, audio_data_uri, ex=TTS_CACHE_TTL)
+        except Exception as e:
+            logger.error(f"Redis set error: {e}")
 
         return {"audioBase64": audio_data_uri, "cached": False}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
+        logger.error(f"TTS generation failed: {e}")
+        raise HTTPException(status_code=500, detail="TTS generation failed.")
