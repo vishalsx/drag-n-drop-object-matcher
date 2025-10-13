@@ -1,7 +1,7 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './src/App';
+import { TooltipProvider } from './src/context/TooltipContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -10,5 +10,7 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(
-  <App />
+  <TooltipProvider>
+    <App />
+  </TooltipProvider>
 );

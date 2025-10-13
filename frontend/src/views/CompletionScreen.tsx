@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { GameObject } from '../types/types';
-import Tooltip from '../components/Tooltip';
+import { useTooltip } from '../context/TooltipContext';
 import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon, SpeakerIcon } from '../components/Icons';
 import { useSpeech } from '../hooks/useSpeech';
 
@@ -21,9 +21,9 @@ interface CompletionScreenProps {
 
 const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
     const [completionView, setCompletionView] = useState<'list' | 'grid'>('grid');
-    const [tooltip, setTooltip] = useState<{ visible: boolean; content: string; top: number; left: number }>({ visible: false, content: '', top: 0, left: 0 });
     const [hoveredGridInfo, setHoveredGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
     const { speakText, stop: stopSpeech } = useSpeech();
+    const { showTooltip, hideTooltip } = useTooltip();
 
     useEffect(() => {
         // Cleanup function to stop any playing audio when the component unmounts (modal is closed)
@@ -33,11 +33,10 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
     }, [stopSpeech]);
 
     const handleShowTooltip = (e: React.MouseEvent<HTMLElement>, description: string) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        setTooltip({ visible: true, content: description, top: rect.top, left: rect.left + rect.width / 2 });
+        showTooltip(description, e.currentTarget.getBoundingClientRect());
     };
 
-    const handleHideTooltip = () => setTooltip(prev => ({ ...prev, visible: false }));
+    const handleHideTooltip = () => hideTooltip();
 
     const handleGridMouseEnter = (item: GameObject, index: number) => {
         if (hoveredGridInfo?.item.id !== item.id) {
@@ -53,7 +52,6 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
     return (
         <>
-            {tooltip.visible && <Tooltip content={tooltip.content} top={tooltip.top} left={tooltip.left} />}
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4" role="dialog" aria-modal="true" aria-labelledby="completion-title">
                 <div className="text-center w-full max-w-6xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
                     <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>

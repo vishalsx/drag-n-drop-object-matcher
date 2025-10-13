@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useTooltip } from '../context/TooltipContext';
 
 
 interface CheckIconProps {
@@ -66,8 +67,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
   isJustMatched,
   onMatchedImageClick
 }) => {
-
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const { showTooltip, hideTooltip } = useTooltip();
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -86,14 +86,14 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
     if (isMatched) return;
     onDragEnter(id);
   }
-  const handleMouseEnter = () => {
+  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isMatched) {
-      setIsTooltipVisible(true);
+      showTooltip(tooltipText, e.currentTarget.getBoundingClientRect());
     }
   };
 
   const handleMouseLeave = () => {
-    setIsTooltipVisible(false);
+    hideTooltip();
   };
 
   const handleClick = () => {
@@ -114,12 +114,6 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
       onClick={handleClick}
       className={`relative group w-full aspect-[4/5] rounded-lg shadow-lg transition-all duration-300 border-2  ${isDropTarget ? 'border-blue-500 scale-105' : 'border-transparent'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''}`}
     >
-      {isMatched && isTooltipVisible && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-yellow-400 text-black text-xs rounded-md shadow-lg z-[60] pointer-events-none">
-          {tooltipText}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-yellow-400"></div>
-        </div>
-      )}
       <img src={imageUrl} alt={description} className="w-full h-full object-cover rounded-lg pointer-events-none" />
       {isMatched && (
         <div className="absolute inset-0 bg-green-500 bg-opacity-30 flex flex-col items-center justify-center text-center p-2 pointer-events-none rounded-lg">
