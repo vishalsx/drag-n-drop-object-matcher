@@ -43,13 +43,14 @@ interface DroppableImageProps {
   imageName: string;
   tooltipText: string;
   isMatched: boolean;
-  onDropItem: (imageId: string, descriptionId:string) => void;
+  onDropItem: (imageId: string, descriptionId: string) => void;
   isDropTarget: boolean;
   onDragEnter: (imageId: string) => void;
   onDragLeave: () => void;
   isWrongDrop: boolean;
   isJustMatched: boolean;
   onMatchedImageClick: (imageName: string) => void;
+  label?: string;
 }
 
 const DroppableImage: React.FC<DroppableImageProps> = ({
@@ -65,7 +66,8 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
   onDragLeave,
   isWrongDrop,
   isJustMatched,
-  onMatchedImageClick
+  onMatchedImageClick,
+  label
 }) => {
   const { showTooltip, hideTooltip } = useTooltip();
 
@@ -80,7 +82,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
     onDropItem(id, descriptionId);
     onDragLeave(); // Clear highlight on drop
   };
-  
+
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (isMatched) return;
@@ -112,14 +114,19 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
-      className={`relative group w-full aspect-[4/5] rounded-lg shadow-lg transition-all duration-300 border-2  ${isDropTarget ? 'border-blue-500 scale-105' : 'border-transparent'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''}`}
+      className={`relative group w-full aspect-[4/5] rounded-lg shadow-lg transition-all duration-300 border-2 bg-black/20 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-transparent'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''}`}
     >
-      <img src={imageUrl} alt={description} className="w-full h-full object-cover rounded-lg pointer-events-none" />
+      {label && (
+        <div className={`absolute top-2 left-2 w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10 ${isMatched ? 'bg-green-600' : 'bg-slate-500'}`}>
+          {label}
+        </div>
+      )}
+      <img src={imageUrl} alt={description} className="w-full h-full object-contain rounded-lg pointer-events-none" />
       {isMatched && (
         <div className="absolute inset-0 bg-green-500 bg-opacity-30 flex flex-col items-center justify-center text-center p-2 pointer-events-none rounded-lg">
-        <CheckIcon className="w-16 h-16 text-white" />
-        <p className="text-black font-bold text-lg mt-2 break-all">{imageName}</p>
-      </div>
+          <CheckIcon className="w-16 h-16 text-white" />
+          <p className="text-black font-bold text-lg mt-2 break-all">{imageName}</p>
+        </div>
       )}
       {isWrongDrop && !isMatched && (
         <div className="absolute inset-0 bg-red-500 bg-opacity-70 flex items-center justify-center pointer-events-none rounded-lg">

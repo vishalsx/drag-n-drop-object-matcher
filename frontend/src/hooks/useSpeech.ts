@@ -20,7 +20,7 @@ const getAudioPlayer = (): HTMLAudioElement => {
  * and the browser's native Speech Synthesis API as a fallback.
  */
 export const useSpeech = () => {
-    const { speak: speakWithBrowser } = useBrowserSpeech();
+    const { speak: speakWithBrowser, cancel: cancelBrowserSpeech } = useBrowserSpeech();
 
     const playAudioFromUrl = useCallback((url: string) => {
         const player = getAudioPlayer();
@@ -38,7 +38,8 @@ export const useSpeech = () => {
             player.pause();
             player.currentTime = 0;
         }
-    }, []);
+        cancelBrowserSpeech();
+    }, [cancelBrowserSpeech]);
 
     const speakText = useCallback(async (text: string, languageCode: string) => {
         if (USE_CLOUD_TTS) {
@@ -53,7 +54,7 @@ export const useSpeech = () => {
                 console.error('Cloud TTS service failed:', error, 'Falling back to browser voice.');
             }
         }
-        
+
         // If cloud TTS is disabled or fails, use the browser's built-in speech synthesis.
         speakWithBrowser(text, languageCode);
 

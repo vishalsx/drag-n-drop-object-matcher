@@ -22,22 +22,35 @@ const getMimeType = (filename: string): string => {
 //const API_BASE_URL = '/api';
 const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || "http://localhost:8080";
 // const API_BASE_URL = "http://localhost:8080";
+import { authService } from './authService';
+
+const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+  const token = authService.getToken();
+  const orgId = authService.getOrgId();
+  const headers = {
+    ...options.headers,
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(orgId ? { 'X-Org-ID': orgId } : {}),
+  };
+  return fetch(url, { ...options, headers });
+};
+
 export const fetchActiveLanguages = async (): Promise<Language[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/active/languages`);
+    const response = await authenticatedFetch(`${API_BASE_URL}/active/languages`);
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }
-    
+
     const data: { name: string; code: string; bcp47: string; imageURL?: string }[] = await response.json();
-    
+
     const languages: Language[] = data.map(lang => ({
       name: lang.name,
       code: lang.code,
       bcp47: lang.bcp47,
       imageUrl: lang.imageURL || `https://picsum.photos/seed/${lang.code.toLowerCase()}/300/200`,
     }));
-    
+
     console.log("Active languages fetched successfully.", languages);
     return languages;
   } catch (error) {
@@ -67,7 +80,7 @@ export const fetchActiveLanguages = async (): Promise<Language[]> => {
 // };
 export const fetchCategoriesAndFos = async (language: string): Promise<{ object_categories: CategoryFosItem[]; fields_of_study: CategoryFosItem[] }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/active/object-categories-FOS/${language}`);
+    const response = await authenticatedFetch(`${API_BASE_URL}/active/object-categories-FOS/${language}`);
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }
@@ -77,9 +90,9 @@ export const fetchCategoriesAndFos = async (language: string): Promise<{ object_
   } catch (error) {
     console.error(`Failed to fetch categories and FOS for ${language}:`, error);
     // Return empty arrays on error to avoid breaking the UI
-    return { 
-        object_categories: [], 
-        fields_of_study: [] 
+    return {
+      object_categories: [],
+      fields_of_study: []
     };
   }
 };
@@ -96,13 +109,13 @@ export const fetchGameData = async (language: string = 'English', count: number 
     } else if (fieldOfStudy && fieldOfStudy.toLowerCase() !== 'any') {
       url += `&field_of_study=${encodeURIComponent(fieldOfStudy)}`;
     }
-    const response = await fetch(url);
+    const response = await authenticatedFetch(url);
 
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }
     const data: ApiPicture[] = await response.json();
-    
+
     const gameData: GameObject[] = data.map((item: ApiPicture) => ({
       id: item.translations.translation_id,
       description: item.translations.object_hint,
@@ -113,9 +126,10 @@ export const fetchGameData = async (language: string = 'English', count: number 
       upvotes: item.voting?.up_votes || 0,
       downvotes: item.voting?.down_votes || 0,
       objectCategory: item.object.object_category,
+      quiz_qa: item.translations.quiz_qa,
     }));
-    
-    
+
+
 
 
     console.log("Game data fetched and transformed successfully.", gameData);
@@ -151,13 +165,13 @@ type VoteApiResponse = VoteSuccessResponse | VoteErrorResponse;
 
 export const voteOnImage = async (translationId: string, voteType: 'up' | 'down'): Promise<{ success: boolean; data?: VoteSuccessResponse; message?: string }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/vote`, {
+    const response = await authenticatedFetch(`${API_BASE_URL}/vote`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
-        translation_id: String(translationId), 
+      body: JSON.stringify({
+        translation_id: String(translationId),
         vote_type: String(voteType)
       }),
     });
@@ -167,12 +181,12 @@ export const voteOnImage = async (translationId: string, voteType: 'up' | 'down'
       const message = (responseData as VoteErrorResponse).error || `API error: ${response.statusText}`;
       throw new Error(message);
     }
-    
+
     // Check for application-level errors in a successful response (e.g., {"error": "..."})
     if ('error' in responseData) {
       return { success: false, message: responseData.error };
     }
-    
+
     return { success: true, data: responseData as VoteSuccessResponse };
   } catch (error) {
     console.error(`Failed to vote on image ${translationId}:`, error);
@@ -183,7 +197,7 @@ export const voteOnImage = async (translationId: string, voteType: 'up' | 'down'
 
 export const saveTranslationSet = async (name: string, language: string, translationIds: string[], category: string): Promise<{ success: boolean; message?: string }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/TS/save_translation_set`, {
+    const response = await authenticatedFetch(`${API_BASE_URL}/TS/save_translation_set`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

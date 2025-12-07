@@ -14,12 +14,14 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ message, onConf
         <p className="mt-2 text-slate-400">{message}</p>
         <div className="mt-6 flex justify-end gap-4">
           <button
+            type="button"
             onClick={onCancel}
             className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={onConfirm}
             className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105"
           >

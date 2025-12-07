@@ -4,21 +4,21 @@ import { DIFFICULTY_LEVELS } from '../constants/gameConstants';
 import type { Language, Difficulty, CategoryFosItem } from '../types/types';
 
 interface SidePanelProps {
-  languages: Language[];
-  selectedLanguage: string;
-  onSelectLanguage: (languageCode: string) => void;
-  currentCategory: string;
-  onSelectCategory: (category: string) => void;
-  currentFos: string;
-  onSelectFos: (fos: string) => void;
-  objectCategories: CategoryFosItem[];
-  fieldsOfStudy: CategoryFosItem[];
-  areCategoriesLoading: boolean;
-  currentDifficulty: Difficulty;
-  onSelectDifficulty: (difficulty: Difficulty) => void;
-  onStartGame: () => void;
-  onWithdrawRequest: () => void;
-  gameState: 'idle' | 'loading' | 'playing' | 'complete';
+    languages: Language[];
+    selectedLanguage: string;
+    onSelectLanguage: (languageCode: string) => void;
+    currentCategory: string;
+    onSelectCategory: (category: string) => void;
+    currentFos: string;
+    onSelectFos: (fos: string) => void;
+    objectCategories: CategoryFosItem[];
+    fieldsOfStudy: CategoryFosItem[];
+    areCategoriesLoading: boolean;
+    currentDifficulty: Difficulty;
+    onSelectDifficulty: (difficulty: Difficulty) => void;
+    onStartGame: () => void;
+    onWithdrawRequest: () => void;
+    gameState: 'idle' | 'loading' | 'playing' | 'complete';
 }
 
 const SidePanel: React.FC<SidePanelProps> = ({
@@ -48,9 +48,11 @@ const SidePanel: React.FC<SidePanelProps> = ({
     return (
         <aside className="w-full lg:h-full bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col">
             <div className="p-4 text-center border-b border-slate-700">
-                <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
-                    TUB Hints
-                </h1>
+                <img
+                    src="/alphatub-logo-text.png"
+                    alt="alphaTUB - Language Learning Simplified"
+                    className="h-12 w-auto mx-auto object-contain"
+                />
             </div>
 
             <div className="flex-grow p-4 space-y-6 overflow-y-auto">
@@ -73,7 +75,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                                     ))}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                                 </div>
                             </div>
                         </div>
@@ -98,7 +100,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                                     )}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                                 </div>
                             </div>
                         </div>
@@ -123,7 +125,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                                     )}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                                 </div>
                             </div>
                         </div>
@@ -157,7 +159,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                         </div>
                     </div>
                 </section>
-                
+
                 <section>
                     <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Profile</h2>
                     <div className="space-y-2">
@@ -172,16 +174,16 @@ const SidePanel: React.FC<SidePanelProps> = ({
                     </div>
                 </section>
             </div>
-            
+
             <div className="p-4 border-t border-slate-700 mt-auto flex-shrink-0">
                 <button
+                    type="button"
                     onClick={isInteractive ? onWithdrawRequest : onStartGame}
                     disabled={isButtonDisabled}
-                    className={`w-full text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transform hover:disabled:scale-100 hover:scale-105 ${
-                        isInteractive
+                    className={`w-full text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transform hover:disabled:scale-100 hover:scale-105 ${isInteractive
                         ? 'bg-red-600 hover:bg-red-500 focus:ring-red-500'
                         : 'bg-green-600 hover:bg-green-500 focus:ring-green-500'
-                    }`}
+                        }`}
                 >
                     {areCategoriesLoading ? 'Processing...' : (isInteractive ? 'Withdraw' : 'Play Game')}
                 </button>

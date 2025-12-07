@@ -9,30 +9,38 @@ export interface GameObject {
   upvotes: number;
   downvotes: number;
   objectCategory: string;
+  quiz_qa?: QuizQA[];
+}
+
+export interface QuizQA {
+  question: string;
+  answer: string;
+  difficulty_level: string;
 }
 
 // Type definition for the expected API response structure
 export interface ApiPicture {
-  
-  object:{
+
+  object: {
     object_id: string;
     image_base64: string;
     image_hash: string;
     object_category: string;
   }
-  translations:{
+  translations: {
     translation_id: string;
     language: string;
     object_description: string;
     object_hint: string;
     object_name: string;
     object_short_hint: string;
+    quiz_qa?: QuizQA[];
   }
-  voting:{
+  voting: {
     up_votes?: number;
     down_votes?: number;
   }
-  sheet:{
+  sheet: {
     sheet_id?: string;
     sheet_name?: string;
   }

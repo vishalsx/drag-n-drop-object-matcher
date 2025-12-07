@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SpeakerIcon } from './Icons';
 
 // Using a refresh/cycle icon for toggling hints
 const CycleIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -15,6 +16,9 @@ interface DraggableDescriptionProps {
   isMatched: boolean;
   isWrongDrop: boolean;
   isJustMatched: boolean;
+  onSpeakHint?: (text: string) => void;
+  languageBcp47?: string;
+  label?: string;
 }
 
 const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
@@ -49,6 +53,13 @@ const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
     });
   };
 
+  const handleSpeak = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (props.onSpeakHint) {
+      props.onSpeakHint(displayText);
+    }
+  };
+
   const matchedStyles = "opacity-40 bg-green-900/50 cursor-not-allowed scale-95";
   const defaultStyles = "bg-slate-700 hover:bg-slate-600 hover:scale-105 cursor-grab active:cursor-grabbing";
   const wrongDropStyles = "border-red-500 animate-shake";
@@ -59,19 +70,35 @@ const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
       id={`desc-${props.id}`}
       draggable={!props.isMatched}
       onDragStart={handleDragStart}
-      className={`px-4 py-2 rounded-lg border border-slate-600 shadow-md transition-all duration-300 flex items-center justify-between ${props.isMatched ? matchedStyles : defaultStyles} ${props.isWrongDrop ? wrongDropStyles : ''} ${props.isJustMatched ? justMatchedStyles : ''}`}
+      className={`relative px-4 py-2 rounded-lg border border-slate-600 shadow-md transition-all duration-300 flex items-center justify-between group ${props.isMatched ? matchedStyles : defaultStyles} ${props.isWrongDrop ? wrongDropStyles : ''} ${props.isJustMatched ? justMatchedStyles : ''}`}
     >
-      <p key={hintType} className="text-sm text-slate-300 flex-grow pr-2 animate-fadeIn">{displayText}</p>
+      {props.label && (
+        <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10">
+          {props.label}
+        </div>
+      )}
+      <p key={hintType} className={`text-sm text-slate-300 flex-grow pr-2 animate-fadeIn ${props.label ? 'pl-8' : ''}`}>{displayText}</p>
       {!props.isMatched && (
-        <div className="flex-shrink-0 ml-2">
-            <button
+        <div className="flex-shrink-0 ml-2 flex flex-col gap-1">
+          <button
             onClick={handleFlip}
             onMouseDown={(e) => e.stopPropagation()} // Prevents drag start on button click
             className="p-1 rounded-full text-slate-400 hover:bg-slate-500/50 hover:text-white transition-colors"
             aria-label="Cycle hint type"
-            >
+          >
             <CycleIcon className="w-5 h-5" />
+          </button>
+          {props.onSpeakHint && (
+            <button
+              type="button"
+              onClick={handleSpeak}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="p-1 rounded-full text-slate-400 hover:bg-slate-500/50 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Speak hint"
+            >
+              <SpeakerIcon className="w-4 h-4" />
             </button>
+          )}
         </div>
       )}
     </div>

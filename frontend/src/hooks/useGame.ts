@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { GameObject, Difficulty, Language, CategoryFosItem } from '../types/types';
+import type { Level2GameState, Level2PictureData } from '../types/level2Types';
 import { fetchGameData, uploadScore, voteOnImage, saveTranslationSet, fetchCategoriesAndFos, fetchActiveLanguages } from '../services/gameService';
+import { authService } from '../services/authService';
 import { shuffleArray } from '../utils/arrayUtils';
 import { difficultyCounts } from '../constants/gameConstants';
 import useSoundEffects from './useSoundEffects';
 import { useSpeech } from './useSpeech';
+import { generateLevel2Questions } from '../utils/level2MockData';
 
 type GameState = 'idle' | 'loading' | 'playing' | 'complete';
+type GameLevel = 1 | 2;
 
 const ANY_OPTION: CategoryFosItem = { en: 'Any', translated: 'Any' };
 
-export const useGame = () => {
+export const useGame = (shouldFetchLanguages: boolean = true) => {
     const [languages, setLanguages] = useState<Language[]>([]);
     const [isAppLoading, setIsAppLoading] = useState(true);
     const [gameData, setGameData] = useState<GameObject[]>([]);
@@ -36,11 +40,22 @@ export const useGame = () => {
     const [gameStartError, setGameStartError] = useState<string | null>(null);
     const [isSaveSetDialogVisible, setIsSaveSetDialogVisible] = useState(false);
 
+    // Level 2 states
+    const [gameLevel, setGameLevel] = useState<GameLevel>(1);
+    const [level2State, setLevel2State] = useState<Level2GameState | null>(null);
+    const [level2Timer, setLevel2Timer] = useState(0);
+
     const { playCorrectSound, playWrongSound, playGameCompleteSound } = useSoundEffects();
-    const { speakText } = useSpeech();
+    const { speakText, stop } = useSpeech();
+
+    // Get the token to trigger re-fetch when it changes (e.g. after login)
+    const token = authService.getToken();
+    const orgId = authService.getOrgId();
 
     // Effect to load languages once on mount and set the initial language
     useEffect(() => {
+        if (!shouldFetchLanguages) return;
+
         const loadInitialData = async () => {
             const activeLanguages = await fetchActiveLanguages();
             setLanguages(activeLanguages);
@@ -58,7 +73,7 @@ export const useGame = () => {
         };
 
         loadInitialData();
-    }, []);
+    }, [token, orgId, shouldFetchLanguages]);
 
     // Effect to load categories whenever the language changes. This is the single source of truth.
     useEffect(() => {
@@ -71,13 +86,13 @@ export const useGame = () => {
             setAreCategoriesLoading(true);
             const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
             const data = await fetchCategoriesAndFos(languageName);
-            
+
             setObjectCategories([ANY_OPTION, ...data.object_categories]);
             setFieldsOfStudy([ANY_OPTION, ...data.fields_of_study]);
             setSelectedCategory('Any');
             setSelectedFos('Any');
             setAreCategoriesLoading(false);
-            
+
             // This signals that the initial load is complete
             if (isAppLoading) {
                 setIsAppLoading(false);
@@ -148,27 +163,27 @@ export const useGame = () => {
             }, 500);
         }
     };
-    
+
     const handleVote = async (translationId: string, voteType: 'up' | 'down') => {
         if (votingInProgress.has(translationId)) return;
-      
+
         setVotingInProgress(prev => new Set(prev).add(translationId));
         const originalGameData = [...gameData];
-      
-        setGameData(prevData => prevData.map(item => 
-            item.id === translationId 
-            ? { ...item, upvotes: voteType === 'up' ? item.upvotes + 1 : item.upvotes, downvotes: voteType === 'down' ? item.downvotes + 1 : item.downvotes }
-            : item
+
+        setGameData(prevData => prevData.map(item =>
+            item.id === translationId
+                ? { ...item, upvotes: voteType === 'up' ? item.upvotes + 1 : item.upvotes, downvotes: voteType === 'down' ? item.downvotes + 1 : item.downvotes }
+                : item
         ));
-      
+
         try {
             const result = await voteOnImage(translationId, voteType);
             if (result.success) {
                 if (result.data) {
-                    setGameData(prevData => prevData.map(item => 
-                        item.id === result.data?.translation_id 
-                        ? { ...item, upvotes: result.data.up_votes, downvotes: result.data.down_votes }
-                        : item
+                    setGameData(prevData => prevData.map(item =>
+                        item.id === result.data?.translation_id
+                            ? { ...item, upvotes: result.data.up_votes, downvotes: result.data.down_votes }
+                            : item
                     ));
                 }
             } else {
@@ -184,7 +199,7 @@ export const useGame = () => {
             });
         }
     };
-    
+
     const handleSaveSheetRequest = () => {
         setIsSaveSetDialogVisible(true);
     };
@@ -196,10 +211,10 @@ export const useGame = () => {
     const handleConfirmSaveSheet = async (name: string) => {
         setSheetSaveState('saving');
         setSheetSaveError(null);
-        
+
         const translationIds = gameData.map(item => item.id);
         const result = await saveTranslationSet(name, selectedLanguage, translationIds, selectedCategory);
-        
+
         setIsSaveSetDialogVisible(false);
 
         if (result.success) {
@@ -218,6 +233,11 @@ export const useGame = () => {
         setShuffledImages([]);
         setCorrectlyMatchedIds(new Set());
         setScore(0);
+
+        // Reset Level 2 state
+        setGameLevel(1);
+        setLevel2State(null);
+        setLevel2Timer(0);
     };
 
     const handleMatchedImageClick = (imageName: string) => {
@@ -234,12 +254,146 @@ export const useGame = () => {
             setSelectedFos('Any');
         }
     };
-    
+
     const handleSelectFos = (fos: string) => {
         setSelectedFos(fos);
         if (fos !== 'Any') {
             setSelectedCategory('Any');
         }
+    };
+
+    // Level 2 Timer Effect
+    useEffect(() => {
+        if (gameLevel === 2 && level2State && !level2State.isComplete) {
+            const interval = setInterval(() => {
+                setLevel2Timer(prev => {
+                    const newTime = prev + 1;
+                    // Every 10 seconds, reduce score by 5
+                    if (newTime % 10 === 0 && level2State) {
+                        setLevel2State(prevState => prevState ? {
+                            ...prevState,
+                            score: prevState.score - 5
+                        } : null);
+                    }
+                    return newTime;
+                });
+            }, 1000);
+
+            return () => clearInterval(interval);
+        }
+    }, [gameLevel, level2State]);
+
+    // Level 2: Start Level 2 with data from Level 1
+    const handleStartLevel2 = () => {
+        if (gameData.length === 0) return;
+
+        // Randomly shuffle the pictures from Level 1
+        const shuffledPictures = shuffleArray([...gameData]);
+
+        // Generate questions for each picture
+        const pictures: Level2PictureData[] = shuffledPictures.map(pic => {
+            const questions = generateLevel2Questions(pic);
+            const answers = shuffleArray(questions.filter(q => q.isCorrect));
+
+            return {
+                pictureId: pic.id,
+                imageName: pic.imageName,
+                imageUrl: pic.imageUrl,
+                questions,
+                answers,
+                matchedQuestions: new Set<string>(),
+                wrongAttempts: 0,
+            };
+        });
+
+        setLevel2State({
+            currentPictureIndex: 0,
+            pictures,
+            score: score, // Carry over Level 1 score
+            elapsedTime: 0,
+            isComplete: false,
+        });
+
+        setLevel2Timer(0);
+        setGameLevel(2);
+        setGameState('playing');
+    };
+
+    // Level 2: Handle question drop
+    const handleLevel2QuestionDrop = (questionId: string, targetAnswerId: string) => {
+        if (!level2State) return;
+
+        const currentPicture = level2State.pictures[level2State.currentPictureIndex];
+
+        // In this game mode, a match is correct if the question ID matches the answer ID
+        // (since the answers are derived from the correct questions)
+        const isCorrect = questionId === targetAnswerId;
+
+        if (isCorrect) {
+            // Add to matched questions
+            const newMatched = new Set(currentPicture.matchedQuestions);
+            newMatched.add(questionId);
+
+            const updatedPictures = [...level2State.pictures];
+            updatedPictures[level2State.currentPictureIndex] = {
+                ...currentPicture,
+                matchedQuestions: newMatched,
+            };
+
+            setLevel2State({
+                ...level2State,
+                pictures: updatedPictures,
+                score: level2State.score + 15, // +15 for correct
+            });
+
+            playCorrectSound();
+        } else {
+            // Incorrect answer
+            const updatedPictures = [...level2State.pictures];
+            updatedPictures[level2State.currentPictureIndex] = {
+                ...currentPicture,
+                wrongAttempts: currentPicture.wrongAttempts + 1,
+            };
+
+            setLevel2State({
+                ...level2State,
+                pictures: updatedPictures,
+                score: level2State.score - 10, // -10 for incorrect
+            });
+
+            playWrongSound();
+        }
+    };
+
+    // Level 2: Move to next picture
+    const handleLevel2NextPicture = () => {
+        if (!level2State) return;
+
+        const nextIndex = level2State.currentPictureIndex + 1;
+
+        if (nextIndex >= level2State.pictures.length) {
+            // All pictures completed
+            setLevel2State({
+                ...level2State,
+                isComplete: true,
+            });
+            setGameState('complete');
+            playGameCompleteSound();
+        } else {
+            // Move to next picture
+            setLevel2State({
+                ...level2State,
+                currentPictureIndex: nextIndex,
+            });
+        }
+    };
+
+    // Level 2: Close completion and return to idle
+    const handleLevel2Complete = () => {
+        setGameLevel(1);
+        setLevel2State(null);
+        setLevel2Timer(0);
+        handleResetGame();
     };
 
     return {
@@ -268,7 +422,12 @@ export const useGame = () => {
         isSaveSetDialogVisible,
         languages,
         isAppLoading,
-        
+
+        // Level 2 State
+        gameLevel,
+        level2State,
+        level2Timer,
+
         // State Setters
         setSelectedLanguage,
         setDifficulty,
@@ -279,11 +438,18 @@ export const useGame = () => {
         handleSaveSheetRequest,
         handleConfirmSaveSheet,
         handleCancelSaveSheet,
-        handleResetGame,
         handleStartGame,
-        handleMatchedImageClick,
+        handleResetGame,
         clearGameStartError,
+        handleStartLevel2,
+        handleLevel2QuestionDrop,
+        handleLevel2NextPicture,
+        handleLevel2Complete,
+        handleMatchedImageClick,
         handleSelectCategory,
         handleSelectFos,
+        currentLanguageBcp47,
+        handleSpeakHint: speakText,
+        stopSpeech: stop,
     };
 };
