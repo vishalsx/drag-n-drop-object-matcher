@@ -1,11 +1,11 @@
 import random
 import logging
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from typing import List, Optional
-from app.database import objects_collection, translation_set_collection
+from app.database import objects_collection, translation_set_collection, translation_collection
 from app.models import ApiPicture, ResultObject, ResultTranslation, ResultVoting
 import os
-# from dotenv import load_dotenv
+import httpx
 from app.storage.imagestore import retrieve_image  
 from app.services.TScarddetails import get_TS_card_details
 from app.services.randompicdetails import get_random_picture_details
@@ -18,12 +18,17 @@ router = APIRouter(prefix="/pictures", tags=["pictures"])
 
 @router.get("/random", response_model=List[ApiPicture])
 async def get_random_pictures(
+    request: Request,
     count: int = Query(6, ge=1, le=20, description="Number of random pictures to fetch"),
     language: Optional[str] = Query(None, description="Language filter for pictures"),
     category: Optional[str] = Query(None, description="Object category filter"),
     field_of_study: Optional[str] = Query(None, description="Field of study filter"),
     translation_set_id: Optional[str] = Query(None, description="Optional translation set ID to pick pictures from"),
 ):
+    # Extract org_id from request state (set by AuthMiddleware)
+    org = getattr(request.state, "org", None)
+    org_id = org["org_id"] if org else None
+
     # Use the same service to either choose random pictures or select a Card based on translation_set_id if provided
     ts_coll = translation_set_collection.findOne({"set_id": translation_set_id}) if translation_set_id else None
     translation_docs = []
@@ -32,11 +37,45 @@ async def get_random_pictures(
         translation_docs = await get_TS_card_details(ts_coll)
     else:
         print("No translation set ID provided. Fetching random pictures.")
-        print(f"Requested API call with count={count}, language={language}")
-        translation_docs = await get_random_picture_details(count, language, category, field_of_study)
+        print(f"Requested API call with count={count}, language={language}, org_id={org_id}")
+        translation_docs = await get_random_picture_details(count, language, category, field_of_study, org_id)
 
     # continue rest of the processing from here
     logger.info(f"Retrieved {len(translation_docs)} documents from DB")
+
+    # Check and update quiz_qa if needed for each translation
+    api_quiz_qa_url = os.getenv("EXTERNAL_QUIZ_QA_URL", "http://localhost:8000/translations/update_quiz_qa")
+    for doc in translation_docs:
+        translation_id = doc.get("translation_id")
+        quiz_qa = doc.get("quiz_qa", [])
+        
+        # Check if quiz_qa is missing, blank, or has fewer than 15 questions
+        needs_update = False
+        if not quiz_qa:  # None or empty list
+            needs_update = True
+            logger.info(f"Translation {translation_id} has no quiz_qa, will update")
+        elif len(quiz_qa) < 15:
+            needs_update = True
+            logger.info(f"Translation {translation_id} has only {len(quiz_qa)} questions, will update")
+        
+        if needs_update:
+            try:
+                # Call the API to populate quiz_qa
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        f"{api_quiz_qa_url}",
+                        data={"translation_id_str": str(translation_id)}
+                    )
+                    if response.status_code == 200:
+                        logger.info(f"Successfully updated quiz_qa for translation {translation_id}")
+                        # Fetch the updated document to get the new quiz_qa
+                        updated_doc = await translation_collection.find_one({"_id": translation_id})
+                        if updated_doc:
+                            doc["quiz_qa"] = updated_doc.get("quiz_qa", [])
+                    else:
+                        logger.error(f"Failed to update quiz_qa for translation {translation_id}: {response.status_code}")
+            except Exception as e:
+                logger.error(f"Error updating quiz_qa for translation {translation_id}: {str(e)}")
 
     # 🔀 Randomized field mapping logic (extensible for future fields)
     # Suppose later you add more source fields, just extend this list
@@ -81,7 +120,8 @@ async def get_random_pictures(
                         object_description=d.get("object_description", ""),
                         object_hint=d.get(mapping["object_hint"], ""),          # mapped consistently
                         object_name=d.get("object_name", ""),                  # always fixed
-                        object_short_hint=d.get(mapping["object_short_hint"], "")
+                        object_short_hint=d.get(mapping["object_short_hint"], ""),
+                        quiz_qa=d.get("quiz_qa", [])
                     ),
                     voting=ResultVoting(
                         up_votes=d.get("up_votes", 0),

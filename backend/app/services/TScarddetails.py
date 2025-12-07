@@ -39,6 +39,7 @@ async def get_TS_card_details(ts_coll: any)-> list:
                     "object_description": 1,
                     "object_hint": 1,
                     "object_short_hint": 1,
+                    "quiz_qa": 1,
                     "up_votes": 1,
                     "down_votes": 1
                 }
