@@ -61,7 +61,7 @@ async def get_random_pictures(
         if needs_update:
             try:
                 # Call the API to populate quiz_qa
-                async with httpx.AsyncClient(timeout=30.0) as client:
+                async with httpx.AsyncClient(timeout=120.0) as client:
                     response = await client.post(
                         f"{api_quiz_qa_url}",
                         data={"translation_id_str": str(translation_id)}
