@@ -64,9 +64,52 @@ const Level2View: React.FC<Level2ViewProps> = ({
     q => q.isCorrect && !pictureData.matchedQuestions.has(q.id)
   );
 
+  // Victory sound function using Web Audio API
+  const playVictorySound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+      // Define victory melody: C-E-G-C (major chord arpeggio)
+      const notes = [
+        { frequency: 523.25, startTime: 0, duration: 0.3 },    // C5
+        { frequency: 659.25, startTime: 0.25, duration: 0.3 }, // E5
+        { frequency: 783.99, startTime: 0.5, duration: 0.3 },  // G5
+        { frequency: 1046.5, startTime: 0.75, duration: 0.5 }, // C6
+      ];
+
+      notes.forEach(note => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = note.frequency;
+        oscillator.type = 'sine';
+
+        // Envelope: fade in and out for smooth sound
+        const now = audioContext.currentTime + note.startTime;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.3, now + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, now + note.duration);
+
+        oscillator.start(now);
+        oscillator.stop(now + note.duration);
+      });
+
+      // Clean up audio context after sound finishes
+      setTimeout(() => {
+        audioContext.close();
+      }, 2000);
+    } catch (error) {
+      console.error('Error playing victory sound:', error);
+    }
+  };
+
   useEffect(() => {
     if (remainingQuestions.length === 0 && pictureData.matchedQuestions.size > 0) {
       setShowCelebration(true);
+      playVictorySound(); // Play victory sound when confetti shows
       setTimeout(() => {
         setShowCelebration(false);
         onPictureComplete();

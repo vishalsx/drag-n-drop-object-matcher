@@ -168,7 +168,7 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
             {gameState === 'complete' && gameLevel === 1 && <Confetti />}
 
-            <GameHeader orgData={orgData} gameLevel={gameLevel} />
+            <GameHeader orgData={orgData} gameLevel={gameLevel} gameState={gameState} />
 
             {gameLevel === 1 && (
                 <GameView

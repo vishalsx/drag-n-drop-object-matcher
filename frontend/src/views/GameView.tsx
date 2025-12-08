@@ -105,7 +105,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                         <h2 className="text-2xl font-bold text-slate-300">Hints</h2>
                         <p className="text-slate-400 mt-1 text-sm">Drag a hint to the matching object</p>
                     </header>
-                    <div className="space-y-4 overflow-y-auto pr-2 flex-grow">
+                    <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-2 flex-grow content-center">
                         {props.gameState === 'idle' && (
                             <div className="h-full flex items-center justify-center">
                                 <p className="text-slate-400 text-center text-lg">Choose your settings and click 'Play Game' to begin!</p>
@@ -135,7 +135,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                         <h2 className="text-2xl font-bold text-slate-300">Objects</h2>
                         <div className="mt-1 text-2xl font-bold text-yellow-400">Score: {props.score}</div>
                     </header>
-                    <div className="flex-grow overflow-y-auto pr-2">
+                    <div className="flex-grow overflow-y-auto pr-2 flex items-center">
                         {props.gameState === 'idle' ? (
                             <div className="h-full relative" aria-hidden="true">
                                 {animationToShow === 'pacman' ? <PacManChaseAnimation /> : <SnakeGameAnimation />}

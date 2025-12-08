@@ -4,9 +4,10 @@ import { Organisation } from '../services/routingService';
 interface GameHeaderProps {
     orgData?: Organisation | null;
     gameLevel: number;
+    gameState?: 'idle' | 'loading' | 'playing' | 'complete';
 }
 
-const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel }) => {
+const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState }) => {
     return (
         <div className="w-full bg-slate-800/70 border-b border-slate-700 px-8 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -41,9 +42,11 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel }) => {
                 )}
             </div>
 
-            <div className="px-4 py-1 bg-slate-700 rounded-full border border-slate-600">
-                <span className="text-slate-300 font-semibold">Level {gameLevel}</span>
-            </div>
+            {gameState && gameState !== 'idle' && (
+                <div className="px-4 py-1 bg-slate-700 rounded-full border border-slate-600">
+                    <span className="text-slate-300 font-semibold">Level {gameLevel}</span>
+                </div>
+            )}
         </div>
     );
 };
