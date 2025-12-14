@@ -47,7 +47,16 @@ const Level2CompletionScreen: React.FC<Level2CompletionScreenProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4">
-            <div className="w-full max-w-6xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl border border-slate-700">
+            <div className="w-full max-w-6xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl border border-slate-700 relative">
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+                    aria-label="Close"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
                 <h2 className="text-4xl font-bold text-green-400 text-center">Level 2 Complete!</h2>
                 <p className="mt-2 text-lg text-slate-300 text-center">
                     Final Score: <span className="font-bold text-yellow-300">{finalScore}</span> |

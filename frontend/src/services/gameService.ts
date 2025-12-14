@@ -32,32 +32,40 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(orgId ? { 'X-Org-ID': orgId } : {}),
   };
-  return fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    authService.logout();
+    window.location.reload();
+    // Throwing an error ensures that the calling function doesn't try to process the response
+    throw new Error('Unauthorized');
+  }
+
+  if (response.status >= 500) {
+    throw new Error(`Server Error: ${response.statusText}`);
+  }
+
+  return response;
 };
 
 export const fetchActiveLanguages = async (): Promise<Language[]> => {
-  try {
-    const response = await authenticatedFetch(`${API_BASE_URL}/active/languages`);
-    if (!response.ok) {
-      throw new Error(`Network response was not ok: ${response.statusText}`);
-    }
-
-    const data: { name: string; code: string; bcp47: string; imageURL?: string }[] = await response.json();
-
-    const languages: Language[] = data.map(lang => ({
-      name: lang.name,
-      code: lang.code,
-      bcp47: lang.bcp47,
-      imageUrl: lang.imageURL || `https://picsum.photos/seed/${lang.code.toLowerCase()}/300/200`,
-    }));
-
-    console.log("Active languages fetched successfully.", languages);
-    return languages;
-  } catch (error) {
-    console.error("Failed to fetch active languages:", error);
-    // Return an empty array on failure to prevent the app from crashing.
-    return [];
+  // Allow errors to propagate to the caller
+  const response = await authenticatedFetch(`${API_BASE_URL}/active/languages`);
+  if (!response.ok) {
+    throw new Error(`Network response was not ok: ${response.statusText}`);
   }
+
+  const data: { name: string; code: string; bcp47: string; imageURL?: string }[] = await response.json();
+
+  const languages: Language[] = data.map(lang => ({
+    name: lang.name,
+    code: lang.code,
+    bcp47: lang.bcp47,
+    imageUrl: lang.imageURL || `https://picsum.photos/seed/${lang.code.toLowerCase()}/300/200`,
+  }));
+
+  console.log("Active languages fetched successfully.", languages);
+  return languages;
 };
 
 // export const fetchCategoriesAndFos = async (language: string): Promise<{ object_categories: string[]; fields_of_study: string[] }> => {
@@ -98,16 +106,40 @@ export const fetchCategoriesAndFos = async (language: string): Promise<{ object_
 };
 
 
-export const fetchGameData = async (language: string = 'English', count: number = 6, category: string = 'Any', fieldOfStudy: string = 'Any'): Promise<GameObject[]> => {
-  console.log(`Fetching game data from API for language: ${language}, count: ${count}, category: ${category}, FOS: ${fieldOfStudy}`);
+export const fetchGameData = async (
+  language: string = 'English',
+  count: number = 6,
+  category: string = 'Any',
+  fieldOfStudy: string = 'Any',
+  translationSetId?: string,
+  searchText?: string,
+  bookId?: string,
+  chapterId?: string,
+  pageId?: string,
+  orgCode?: string
+): Promise<GameObject[]> => {
+  console.log(`Fetching game data from API for language: ${language}, count: ${count}, category: ${category}, FOS: ${fieldOfStudy}, TS: ${translationSetId}, searchText: ${searchText}, Book: ${bookId}, Chapter: ${chapterId}, Page: ${pageId}, OrgCode: ${orgCode}`);
   try {
     // Assuming the backend endpoint is available at '/pictures/random'
     // Pass language and count as query parameters to the backend endpoint (default count 6)
     let url = `${API_BASE_URL}/pictures/random?language=${language}&count=${count}`;
-    if (category && category.toLowerCase() !== 'any') {
-      url += `&category=${encodeURIComponent(category)}`;
-    } else if (fieldOfStudy && fieldOfStudy.toLowerCase() !== 'any') {
-      url += `&field_of_study=${encodeURIComponent(fieldOfStudy)}`;
+
+    if (orgCode) {
+      url += `&org_code=${encodeURIComponent(orgCode)}`;
+    }
+
+    if (bookId && chapterId && pageId) {
+      url += `&book_id=${bookId}&chapter_id=${chapterId}&page_id=${pageId}`;
+    } else if (translationSetId) {
+      url += `&translation_set_id=${translationSetId}`;
+    } else if (searchText) {
+      url += `&search_text=${encodeURIComponent(searchText)}`;
+    } else {
+      if (category && category.toLowerCase() !== 'any') {
+        url += `&category=${encodeURIComponent(category)}`;
+      } else if (fieldOfStudy && fieldOfStudy.toLowerCase() !== 'any') {
+        url += `&field_of_study=${encodeURIComponent(fieldOfStudy)}`;
+      }
     }
     const response = await authenticatedFetch(url);
 

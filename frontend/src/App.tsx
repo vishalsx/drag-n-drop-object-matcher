@@ -48,10 +48,18 @@ const App: React.FC = () => {
         gameLevel,
         level2State,
         level2Timer,
+        selectedTubSheet,
+        searchKeyword,
 
         // State Setters from useGame hook
         setSelectedLanguage,
         setDifficulty,
+        setSelectedTubSheet,
+        setSelectedBookId,
+        setSelectedChapterId,
+        setSelectedPageId,
+        selectedPageId,
+        setSearchKeyword,
 
         // Handlers from useGame hook
         handleDrop,
@@ -71,19 +79,32 @@ const App: React.FC = () => {
         handleLevel2Complete,
         currentLanguageBcp47,
         handleSpeakHint,
+
         stopSpeech,
+        startGameWithData,
     } = useGame(isOrgChecked);
 
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
     const [orgData, setOrgData] = useState<Organisation | null>(null);
     const [showLogin, setShowLogin] = useState(false);
+    const [param2, setParam2] = useState<string | undefined>(undefined);
+    const [param3, setParam3] = useState<string | undefined>(undefined);
 
     React.useEffect(() => {
         // Clear existing session on mount to treat as a fresh request
-        authService.logout();
+        // authService.logout(); // Removed to persist credentials across navigations
 
         const checkOrg = async () => {
-            const pathSegment = window.location.pathname.split('/')[1];
+            const pathSegments = window.location.pathname.split('/').filter(Boolean);
+            const pathSegment = pathSegments[0];
+
+            if (pathSegments.length > 1) {
+                setParam2(pathSegments[1]);
+            }
+            if (pathSegments.length > 2) {
+                setParam3(pathSegments[2]);
+            }
+
             if (pathSegment) {
                 const org = await determineOrg(pathSegment);
                 console.log('Received org data:', org);
@@ -95,7 +116,13 @@ const App: React.FC = () => {
                     if (org.org_type === 'Private') {
                         setShowLogin(true);
                     }
+                    if (org.org_type === 'Private') {
+                        setShowLogin(true);
+                    }
                 }
+            } else {
+                setOrgData(null);
+                authService.removeOrgId();
             }
             setIsOrgChecked(true);
         };
@@ -126,7 +153,7 @@ const App: React.FC = () => {
     }, [stopSpeech]);
 
     if (showLogin) {
-        return <LoginScreen orgName={orgData?.org_code} onLoginSuccess={() => setShowLogin(false)} />;
+        return <LoginScreen orgName={orgData?.org_code} param2={param2} param3={param3} onLoginSuccess={() => setShowLogin(false)} />;
     }
 
     const handleCloseCompletion = () => {
@@ -168,7 +195,16 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
             {gameState === 'complete' && gameLevel === 1 && <Confetti />}
 
-            <GameHeader orgData={orgData} gameLevel={gameLevel} gameState={gameState} />
+            <GameHeader
+                orgData={orgData}
+                gameLevel={gameLevel}
+                gameState={gameState}
+                username={authService.getUsername()}
+                onLogout={() => {
+                    authService.logout();
+                    window.location.reload();
+                }}
+            />
 
             {gameLevel === 1 && (
                 <GameView
@@ -199,6 +235,14 @@ const App: React.FC = () => {
                     handleSpeakHint={onSpeakHint}
                     languageBcp47={currentLanguageBcp47}
                     orgData={orgData}
+                    selectedTubSheet={selectedTubSheet}
+                    onSelectTubSheet={setSelectedTubSheet}
+                    searchKeyword={searchKeyword}
+                    onSearchKeywordChange={setSearchKeyword}
+                    onSelectBookId={setSelectedBookId}
+                    onSelectChapterId={setSelectedChapterId}
+                    onSelectPageId={setSelectedPageId}
+                    selectedPageId={selectedPageId}
                 />
             )}
 
@@ -226,6 +270,8 @@ const App: React.FC = () => {
                     onMatchedImageClick={handleMatchedImageClick}
                     currentLanguageBcp47={currentLanguageBcp47}
                     onLevel2={handleStartLevel2}
+                    isFromTubSheet={!!selectedTubSheet}
+                    isLoggedIn={!!authService.getUsername()}
                 />
             )}
 
@@ -254,6 +300,12 @@ const App: React.FC = () => {
                     onStartGame={handleStartGame}
                     onWithdrawRequest={handleWithdrawRequest}
                     gameState={gameState}
+                    searchKeyword={searchKeyword}
+                    onSearchKeywordChange={setSearchKeyword}
+                    onSelectBookId={setSelectedBookId}
+                    onSelectChapterId={setSelectedChapterId}
+                    onSelectPageId={setSelectedPageId}
+                    selectedPageId={selectedPageId}
                 />
             )}
 

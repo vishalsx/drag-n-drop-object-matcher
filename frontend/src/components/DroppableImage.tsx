@@ -114,7 +114,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
-      className={`relative group w-full aspect-[3/4] rounded-xl shadow-lg transition-all duration-300 border-2 bg-slate-100 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-slate-300'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''} overflow-hidden`}
+      className={`relative group w-full h-36 md:h-44 lg:h-48 rounded-xl shadow-lg transition-all duration-300 border-2 bg-slate-100 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-slate-300'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''} overflow-hidden`}
     >
       {label && (
         <div className={`absolute top-2 left-2 w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10 ${isMatched ? 'bg-green-600' : 'bg-slate-500'}`}>

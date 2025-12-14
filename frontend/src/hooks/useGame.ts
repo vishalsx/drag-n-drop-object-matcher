@@ -28,7 +28,12 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
     const [justMatchedId, setJustMatchedId] = useState<string | null>(null);
     const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
     const [selectedCategory, setSelectedCategory] = useState<string>('Any');
+    const [selectedTubSheet, setSelectedTubSheet] = useState<string>('');
     const [selectedFos, setSelectedFos] = useState<string>('Any');
+    const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+    const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+    const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+    const [searchKeyword, setSearchKeyword] = useState<string>('');
     const [objectCategories, setObjectCategories] = useState<CategoryFosItem[]>([ANY_OPTION]);
     const [fieldsOfStudy, setFieldsOfStudy] = useState<CategoryFosItem[]>([ANY_OPTION]);
     const [areCategoriesLoading, setAreCategoriesLoading] = useState(false);
@@ -57,17 +62,24 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         if (!shouldFetchLanguages) return;
 
         const loadInitialData = async () => {
-            const activeLanguages = await fetchActiveLanguages();
-            setLanguages(activeLanguages);
+            try {
+                const activeLanguages = await fetchActiveLanguages();
+                setLanguages(activeLanguages);
 
-            if (activeLanguages.length > 0) {
-                const isDefaultLanguageValid = activeLanguages.some(lang => lang.code === 'English');
+                if (activeLanguages.length > 0) {
+                    const isDefaultLanguageValid = activeLanguages.some(lang => lang.code === 'English');
 
-                if (!isDefaultLanguageValid) {
-                    setSelectedLanguage(activeLanguages[0].code);
+                    if (!isDefaultLanguageValid) {
+                        setSelectedLanguage(activeLanguages[0].code);
+                    }
+                } else {
+                    // If there are no languages, we can't play the game. Stop the main loading spinner.
+                    // This case assumes fetch succeeded but returned empty list.
+                    setIsAppLoading(false);
                 }
-            } else {
-                // If there are no languages, we can't play the game. Stop the main loading spinner.
+            } catch (error) {
+                console.error("Error loading initial data:", error);
+                setGameStartError(error instanceof Error ? error.message : "Failed to load game data");
                 setIsAppLoading(false);
             }
         };
@@ -117,7 +129,26 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         setSheetSaveError(null);
 
         const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
-        const data = await fetchGameData(languageName, count, selectedCategory, selectedFos);
+        // Pass selectedTubSheet as the translationSetId argument (it holds info.id if selected, or empty string)
+        // If selectedTubSheet is set, we want to play that specific sheet.
+        // Pass searchKeyword as searchText
+
+        // Extract orgCode from URL path segment if present
+        const pathSegments = window.location.pathname.split('/').filter(Boolean);
+        const orgCode = pathSegments.length > 0 ? pathSegments[0] : undefined;
+
+        const data = await fetchGameData(
+            languageName,
+            count,
+            selectedCategory,
+            selectedFos,
+            selectedTubSheet || undefined,
+            searchKeyword || undefined,
+            selectedBookId || undefined,
+            selectedChapterId || undefined,
+            selectedPageId || undefined,
+            orgCode
+        );
         if (data.length > 0) {
             setGameData(data);
             setShuffledDescriptions(shuffleArray(data));
@@ -130,7 +161,7 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
             setGameStartError('No objects could be found for the selected language and category. Please try different settings.');
             setGameState('idle');
         }
-    }, [selectedLanguage, difficulty, selectedCategory, selectedFos, languages]);
+    }, [selectedLanguage, difficulty, selectedCategory, selectedFos, selectedTubSheet, searchKeyword, languages, selectedBookId, selectedChapterId, selectedPageId]);
 
 
     useEffect(() => {
@@ -213,7 +244,8 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         setSheetSaveError(null);
 
         const translationIds = gameData.map(item => item.id);
-        const result = await saveTranslationSet(name, selectedLanguage, translationIds, selectedCategory);
+        const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
+        const result = await saveTranslationSet(name, languageName, translationIds, selectedCategory);
 
         setIsSaveSetDialogVisible(false);
 
@@ -233,6 +265,15 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         setShuffledImages([]);
         setCorrectlyMatchedIds(new Set());
         setScore(0);
+
+        // Reset search fields
+        setSearchKeyword('');
+        setSelectedCategory('Any');
+        setSelectedFos('Any');
+        setSelectedTubSheet('');
+        setSelectedBookId(null);
+        setSelectedChapterId(null);
+        setSelectedPageId(null);
 
         // Reset Level 2 state
         setGameLevel(1);
@@ -396,6 +437,28 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         handleResetGame();
     };
 
+    const startGameWithData = useCallback((data: GameObject[]) => {
+        setGameState('loading');
+        setGameStartError(null);
+        setCorrectlyMatchedIds(new Set());
+        setScore(0);
+        setSheetSaveState('idle');
+        setSheetSaveError(null);
+
+        if (data.length > 0) {
+            setGameData(data);
+            setShuffledDescriptions(shuffleArray(data));
+            setShuffledImages(shuffleArray(data));
+            setGameState('playing');
+        } else {
+            setGameData([]);
+            setShuffledDescriptions([]);
+            setShuffledImages([]);
+            setGameStartError('No objects found in this content.');
+            setGameState('idle');
+        }
+    }, []);
+
     return {
         // State
         gameData,
@@ -410,9 +473,14 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         selectedLanguage,
         selectedCategory,
         selectedFos,
+        selectedBookId,
+        selectedChapterId,
+        selectedPageId,
+        searchKeyword,
         objectCategories,
         fieldsOfStudy,
         areCategoriesLoading,
+        selectedTubSheet,
         difficulty,
         voteErrors,
         sheetSaveState,
@@ -431,6 +499,11 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         // State Setters
         setSelectedLanguage,
         setDifficulty,
+        setSelectedTubSheet,
+        setSelectedBookId,
+        setSelectedChapterId,
+        setSelectedPageId,
+        setSearchKeyword,
 
         // Handlers
         handleDrop,
@@ -439,6 +512,7 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         handleConfirmSaveSheet,
         handleCancelSaveSheet,
         handleStartGame,
+        startGameWithData, // New export
         handleResetGame,
         clearGameStartError,
         handleStartLevel2,

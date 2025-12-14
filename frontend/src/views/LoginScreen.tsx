@@ -4,10 +4,12 @@ import { SpinnerIcon } from '../components/Icons';
 
 interface LoginScreenProps {
     orgName?: string;
+    param2?: string;
+    param3?: string;
     onLoginSuccess: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ orgName, onLoginSuccess }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ orgName, param2, param3, onLoginSuccess }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -19,7 +21,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ orgName, onLoginSuccess }) =>
         setIsLoading(true);
 
         try {
-            await authService.login(username, password, orgName);
+            await authService.login(username, password, orgName, param2, param3);
             onLoginSuccess();
         } catch (err) {
             setError('Login failed. Please check your credentials.');

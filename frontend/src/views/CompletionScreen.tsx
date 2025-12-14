@@ -18,11 +18,13 @@ interface CompletionScreenProps {
     onMatchedImageClick: (imageName: string) => void;
     currentLanguageBcp47: string;
     onLevel2?: () => void;
+    isFromTubSheet?: boolean;
+    isLoggedIn: boolean;
 }
 
 const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
     const [completionView, setCompletionView] = useState<'list' | 'grid'>('grid');
-    const [hoveredGridInfo, setHoveredGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
+    const [selectedGridInfo, setSelectedGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
     const { speakText, stop: stopSpeech } = useSpeech();
     const { showTooltip, hideTooltip } = useTooltip();
 
@@ -39,17 +41,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
     const handleHideTooltip = () => hideTooltip();
 
-    const handleGridMouseEnter = (item: GameObject, index: number) => {
-        if (hoveredGridInfo?.item.id !== item.id) {
-            stopSpeech();
-        }
-        setHoveredGridInfo({ item, index });
-    };
 
-    const handleGridMouseLeave = () => {
-        setHoveredGridInfo(null);
-        stopSpeech();
-    };
 
     return (
         <>
@@ -107,27 +99,28 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                 };
 
                                 return (
-                                    <div className="flex flex-col md:flex-row gap-4" onMouseLeave={handleGridMouseLeave}>
+                                    <div className="flex flex-col md:flex-row gap-4">
                                         <div className="w-full md:w-1/2 grid grid-cols-3 gap-2">
                                             {props.shuffledImages.map((item, index) => {
                                                 const updatedItem = props.gameData.find(g => g.id === item.id) || item;
+                                                const isSelected = selectedGridInfo?.item.id === updatedItem.id;
                                                 return (
                                                     <div
                                                         key={item.id}
-                                                        className="flex flex-col items-center text-center p-1 bg-slate-900/50 rounded-lg border border-slate-700/50 cursor-pointer transition-all duration-200 hover:scale-105 hover:border-blue-500"
-                                                        onMouseEnter={() => handleGridMouseEnter(updatedItem, index)}
+                                                        className={`flex flex-col items-center text-center p-1 bg-slate-900/50 rounded-lg border transition-all duration-200 cursor-pointer hover:scale-105 ${isSelected ? 'border-teal-400 ring-2 ring-teal-400/30' : 'border-slate-700/50 hover:border-blue-500'}`}
+                                                        onClick={() => {
+                                                            props.onMatchedImageClick(updatedItem.imageName);
+                                                            setSelectedGridInfo({ item: updatedItem, index });
+                                                        }}
                                                     >
-                                                        <div
-                                                            className="relative w-full h-[5.5rem]"
-                                                            onClick={() => props.onMatchedImageClick(updatedItem.imageName)}
-                                                        >
-                                                            <img src={updatedItem.imageUrl} alt={updatedItem.imageName} className="w-full h-full rounded-md object-cover" />
+                                                        <div className="relative w-full h-[5.5rem]">
+                                                            <img src={updatedItem.imageUrl} alt={updatedItem.imageName} className="w-full h-full rounded-md object-contain" />
                                                             <p className="absolute bottom-0 left-0 right-0 p-1 bg-black/30 text-white text-xs truncate font-semibold">{updatedItem.imageName}</p>
                                                         </div>
                                                         <div className="flex items-center w-full space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold mt-2">
-                                                            <button onClick={() => props.onVote(updatedItem.id, 'up')} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
+                                                            <button onClick={(e) => { e.stopPropagation(); props.onVote(updatedItem.id, 'up'); }} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
                                                             <span className="min-w-[1.5ch] text-center">{updatedItem.upvotes}</span>
-                                                            <button onClick={() => props.onVote(updatedItem.id, 'down')} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
+                                                            <button onClick={(e) => { e.stopPropagation(); props.onVote(updatedItem.id, 'down'); }} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
                                                             <span className="min-w-[1.5ch] text-center">{updatedItem.downvotes}</span>
                                                             <button
                                                                 onClick={(e) => {
@@ -145,15 +138,15 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                                 )
                                             })}
                                         </div>
-                                        <div className={`w-full md:w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center transition-all duration-300 min-h-[150px] ${getJustifyClass(hoveredGridInfo?.index)}`}>
-                                            {hoveredGridInfo ? (
-                                                <div className="text-center animate-fadeIn">
-                                                    <h3 className="font-bold text-xl text-teal-300 mb-2">{hoveredGridInfo.item.imageName}</h3>
-                                                    <p className="text-slate-300 text-sm leading-relaxed">{hoveredGridInfo.item.object_description}</p>
+                                        <div className={`w-full md:w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center transition-all duration-300 min-h-[150px] max-h-[60vh] overflow-y-auto ${getJustifyClass(selectedGridInfo?.index)}`}>
+                                            {selectedGridInfo ? (
+                                                <div className="text-center animate-fadeIn w-full">
+                                                    <h3 className="font-bold text-xl text-teal-300 mb-2 sticky top-0 bg-slate-900/90 py-1 backdrop-blur-sm z-10">{selectedGridInfo.item.imageName}</h3>
+                                                    <p className="text-slate-300 text-sm leading-relaxed break-words text-justify px-2">{selectedGridInfo.item.object_description}</p>
                                                 </div>
                                             ) : (
-                                                <div className="text-center text-slate-500">
-                                                    <p>Hover over an object to see its description.</p>
+                                                <div className="text-center text-slate-500 my-auto">
+                                                    <p>Click on an object to see its description.</p>
                                                 </div>
                                             )}
                                         </div>
@@ -165,20 +158,25 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
                     <div className="flex-shrink-0 mt-4">
                         <div className="flex flex-wrap justify-center items-center gap-4">
-                            <button
-                                onClick={props.onSaveSheet}
-                                disabled={props.sheetSaveState === 'saving' || props.sheetSaveState === 'success'}
-                                className={`px-6 py-2 flex items-center justify-center gap-2 font-bold rounded-lg shadow-lg transition-all transform hover:scale-105 ${props.sheetSaveState === 'idle' ? 'bg-green-600 hover:bg-green-500 text-white' : ''
-                                    } ${props.sheetSaveState === 'saving' ? 'bg-yellow-500 text-black cursor-wait' : ''
-                                    } ${props.sheetSaveState === 'success' ? 'bg-teal-500 text-white cursor-not-allowed' : ''
-                                    } ${props.sheetSaveState === 'error' ? 'bg-red-600 hover:bg-red-500 text-white' : ''
-                                    }`}
-                            >
-                                {props.sheetSaveState === 'saving' && <><SpinnerIcon className="w-5 h-5" /> Saving...</>}
-                                {props.sheetSaveState === 'success' && <><CheckIcon className="w-5 h-5" /> Saved!</>}
-                                {props.sheetSaveState === 'error' && 'Save Failed'}
-                                {props.sheetSaveState === 'idle' && <><SaveIcon className="w-5 h-5" /> Save tubCard</>}
-                            </button>
+                            {!props.isFromTubSheet && (
+                                <button
+                                    onClick={props.onSaveSheet}
+                                    disabled={!props.isLoggedIn || props.sheetSaveState === 'saving' || props.sheetSaveState === 'success'}
+                                    title={!props.isLoggedIn ? "Login required to save" : "Save this game as a TubCard"}
+                                    className={`px-6 py-2 flex items-center justify-center gap-2 font-bold rounded-lg shadow-lg transition-all transform hover:scale-105 
+                                        ${!props.isLoggedIn ? 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-70 hover:scale-100' : ''}
+                                        ${props.isLoggedIn && props.sheetSaveState === 'idle' ? 'bg-green-600 hover:bg-green-500 text-white' : ''}
+                                        ${props.sheetSaveState === 'saving' ? 'bg-yellow-500 text-black cursor-wait hover:scale-100' : ''}
+                                        ${props.sheetSaveState === 'success' ? 'bg-teal-500 text-white cursor-not-allowed hover:scale-100' : ''}
+                                        ${props.sheetSaveState === 'error' ? 'bg-red-600 hover:bg-red-500 text-white' : ''}
+                                    `}
+                                >
+                                    {props.sheetSaveState === 'saving' && <><SpinnerIcon className="w-5 h-5" /> Saving...</>}
+                                    {props.sheetSaveState === 'success' && <><CheckIcon className="w-5 h-5" /> Saved!</>}
+                                    {props.sheetSaveState === 'error' && 'Save Failed'}
+                                    {props.sheetSaveState === 'idle' && <><SaveIcon className="w-5 h-5" />Save This Card</>}
+                                </button>
+                            )}
                             {props.onLevel2 && (
                                 <button
                                     onClick={props.onLevel2}

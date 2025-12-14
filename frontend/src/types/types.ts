@@ -59,3 +59,13 @@ export interface CategoryFosItem {
   en: string;
   translated: string;
 }
+
+export interface PlaylistItem {
+  id: string;
+  name: string;
+}
+
+export interface TubSheetItem {
+  id: string;
+  name: string;
+}

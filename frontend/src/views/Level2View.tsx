@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import type { Level2PictureData } from '../types/level2Types';
 import Confetti from '../components/Confetti';
+import LoadingScreen from './LoadingScreen';
 import { SpeakerIcon, MenuIcon } from '../components/Icons';
 import SidePanel from '../components/SidePanel';
-import type { Language, CategoryFosItem, Difficulty } from '../types/types';
+import type { Language, CategoryFosItem, Difficulty, PlaylistItem, TubSheetItem, GameObject } from '../types/types';
 
 interface Level2ViewProps {
   pictureData: Level2PictureData;
@@ -30,6 +31,12 @@ interface Level2ViewProps {
   onStartGame: () => void;
   onWithdrawRequest: () => void;
   gameState: 'idle' | 'loading' | 'playing' | 'complete';
+  searchKeyword: string;
+  onSearchKeywordChange: (keyword: string) => void;
+  onSelectBookId: (id: string | null) => void;
+  onSelectChapterId: (id: string | null) => void;
+  onSelectPageId: (id: string | null) => void;
+  selectedPageId: string | null;
 }
 
 const Level2View: React.FC<Level2ViewProps> = ({
@@ -54,11 +61,59 @@ const Level2View: React.FC<Level2ViewProps> = ({
   onStartGame,
   onWithdrawRequest,
   gameState,
+  searchKeyword,
+  onSearchKeywordChange,
+  onSelectBookId,
+  onSelectChapterId,
+  onSelectPageId,
+  selectedPageId,
 }) => {
   const [draggedQuestion, setDraggedQuestion] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [wrongDropId, setWrongDropId] = useState<string | null>(null);
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
+
+  // Search fields state - Placeholder data for future API integration
+  const [standardPlaylists] = useState<PlaylistItem[]>([
+    { id: 'playlist-1', name: 'Beginner Vocabulary' },
+    { id: 'playlist-2', name: 'Intermediate Phrases' },
+    { id: 'playlist-3', name: 'Advanced Topics' },
+  ]);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<string>('');
+
+  const [myTubSheets] = useState<TubSheetItem[]>([
+    { id: 'sheet-1', name: 'My Custom Sheet 1' },
+    { id: 'sheet-2', name: 'My Custom Sheet 2' },
+    { id: 'sheet-3', name: 'My Custom Sheet 3' },
+  ]);
+  const [selectedTubSheet, setSelectedTubSheet] = useState<string>('');
+
+
+  // Page selection state for playlist
+
+  // Page selection state for playlist
+  // const [selectedPageInfo, setSelectedPageInfo] = useState<{ bookId: string, chapterId: string, pageId: string } | null>(null);
+
+  // Local loading state for playlist page fetch
+  // const [isLoadingPlaylistPage, setIsLoadingPlaylistPage] = useState(false);
+
+  // Search handlers - Placeholder functions for future API integration
+  const handleSelectPlaylist = (playlistId: string) => {
+    setSelectedPlaylist(playlistId);
+    console.log('Selected playlist:', playlistId);
+    // TODO: Integrate with API to fetch playlist data
+  };
+
+  const handleSelectTubSheet = (tubSheetId: string) => {
+    setSelectedTubSheet(tubSheetId);
+    console.log('Selected tubsheet:', tubSheetId);
+    // TODO: Integrate with API to fetch tubsheet data
+  };
+
+  const handleSearch = () => {
+    console.log('Searching for keyword:', searchKeyword);
+    // TODO: Integrate with API to search based on keyword
+  };
 
   const remainingQuestions = pictureData.questions.filter(
     q => q.isCorrect && !pictureData.matchedQuestions.has(q.id)
@@ -117,6 +172,27 @@ const Level2View: React.FC<Level2ViewProps> = ({
     }
   }, [remainingQuestions.length, pictureData.matchedQuestions.size, onPictureComplete]);
 
+  // Auto-collapse panel when game starts
+  React.useEffect(() => {
+    if (gameState === 'playing') {
+      setIsLeftPanelOpen(false);
+    }
+  }, [gameState]);
+
+  // Handle page selection from playlist
+  // Handle page selection from playlist
+  const handlePageSelect = (bookId: string, chapterId: string, pageId: string) => {
+    onSelectBookId(bookId);
+    onSelectChapterId(chapterId);
+    onSelectPageId(pageId);
+  };
+
+  // Override onStartGame to handle playlist page selection
+  const handleStartGame = () => {
+    // Normal game start - useGame logic handles playlist if selected
+    onStartGame();
+  };
+
   const handleDragStart = (e: React.DragEvent, questionId: string) => {
     setDraggedQuestion(questionId);
     e.dataTransfer.effectAllowed = 'move';
@@ -159,6 +235,10 @@ const Level2View: React.FC<Level2ViewProps> = ({
     <>
       {showCelebration && <Confetti />}
 
+      {/* Loading Screen for Playlist Page Fetch */}
+      {/* Loading Screen for Playlist Page Fetch */}
+      {/* {isLoadingPlaylistPage && (...)} */}
+
       <div className="flex flex-col w-full">
         <div className="flex flex-col lg:flex-row w-full p-4 gap-4 lg:p-6 lg:gap-6 relative min-h-[85vh]">
           {/* Toggle Button */}
@@ -186,9 +266,21 @@ const Level2View: React.FC<Level2ViewProps> = ({
                 areCategoriesLoading={areCategoriesLoading}
                 currentDifficulty={difficulty}
                 onSelectDifficulty={onSelectDifficulty}
-                onStartGame={onStartGame}
+                onStartGame={handleStartGame}
+                // onStartPlaylistGame={onStartPlaylistGame}
                 onWithdrawRequest={onWithdrawRequest}
                 gameState={gameState}
+                standardPlaylists={standardPlaylists}
+                selectedPlaylist={selectedPlaylist}
+                onSelectPlaylist={handleSelectPlaylist}
+                myTubSheets={myTubSheets}
+                selectedTubSheet={selectedTubSheet}
+                onSelectTubSheet={handleSelectTubSheet}
+                searchKeyword={searchKeyword}
+                onSearchKeywordChange={onSearchKeywordChange}
+                onSearch={handleSearch}
+                selectedPageId={selectedPageId}
+                onPageSelect={handlePageSelect}
               />
             </div>
           )}
@@ -200,7 +292,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
               <p className="text-slate-400 text-xs">Drag questions to matching answers</p>
             </header>
 
-            <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-2 flex-grow content-center">
+            <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
               {pictureData.questions.map((question, index) => {
                 const isMatched = pictureData.matchedQuestions.has(question.id);
                 const isDragging = draggedQuestion === question.id;
@@ -247,7 +339,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
               <p className="text-slate-400 text-xs">Drop questions here</p>
             </header>
 
-            <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-2 flex-grow content-center">
+            <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
               {pictureData.answers.map((answer, index) => {
                 const isMatched = pictureData.matchedQuestions.has(answer.id);
 
@@ -311,7 +403,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
               </div>
             </header>
 
-            <div className="flex-grow flex items-center justify-center bg-black/20 rounded-lg p-2 overflow-hidden">
+            <div className="flex-grow flex items-start justify-center bg-black/20 rounded-lg p-2 overflow-hidden min-h-0">
               <img
                 src={pictureData.imageUrl}
                 alt={pictureData.imageName}
