@@ -97,6 +97,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
             if (searchKeyword) onSearchKeywordChange('');
             if (currentCategory !== 'Any') onSelectCategory('Any');
             if (currentFos !== 'Any') onSelectFos('Any');
+            if (selectedPageId) onPageSelect('', '', '');
         }
         onSelectTubSheet(tubSheetId);
     };
