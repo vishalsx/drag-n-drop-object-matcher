@@ -3,11 +3,13 @@ import DraggableDescription from '../components/DraggableDescription';
 import DroppableImage from '../components/DroppableImage';
 import SidePanel from '../components/SidePanel';
 import LoadingScreen from './LoadingScreen';
-import { MenuIcon } from '../components/Icons';
+import { MenuIcon, BookOpenIcon } from '../components/Icons';
+import YouTubeEmbed from '../components/YouTubeEmbed';
 // Fix: Import CategoryFosItem to resolve type errors.
 import type { GameObject, Difficulty, Language, CategoryFosItem, PlaylistItem, TubSheetItem } from '../types/types';
 import PacManChaseAnimation from '../components/PacManChaseAnimation';
 import SnakeGameAnimation from '../components/SnakeGameAnimation';
+import PacManLoader from '../components/PacManLoader';
 import { tubSheetService } from '../services/tubSheetService';
 
 interface GameViewProps {
@@ -49,6 +51,7 @@ interface GameViewProps {
     onSelectChapterId: (id: string | null) => void;
     onSelectPageId: (id: string | null) => void;
     selectedPageId: string | null;
+    userId: string | null;
 }
 
 const GameView: React.FC<GameViewProps> = (props) => {
@@ -56,6 +59,31 @@ const GameView: React.FC<GameViewProps> = (props) => {
     const [animationToShow, setAnimationToShow] = useState<'pacman' | 'snake'>('pacman');
     const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
     const [expandedSection, setExpandedSection] = useState<'presets' | 'custom'>('presets');
+    const [showStory, setShowStory] = useState(false);
+
+    // Video randomization logic
+    const VIDEO_IDS = [
+        '6LM2Fi2aOTw',
+        'ibpP7w5MY_o',
+        'amTmnnqQf_E',
+        'Q246wlwKgso',
+        '7fJtmMbz4tY',
+        'cWZZWclYIgc'
+    ];
+
+
+    // Function to get a random video ID
+    const getRandomVideoId = (excludeId?: string) => {
+        const availableIds = excludeId ? VIDEO_IDS.filter(id => id !== excludeId) : VIDEO_IDS;
+        const randomIndex = Math.floor(Math.random() * availableIds.length);
+        return availableIds[randomIndex];
+    };
+
+    const [currentVideoId, setCurrentVideoId] = useState(() => getRandomVideoId());
+
+    const handleVideoEnd = () => {
+        setCurrentVideoId(prevId => getRandomVideoId(prevId));
+    };
 
     // Search fields state - Placeholder data for future API integration
     const [standardPlaylists] = useState<PlaylistItem[]>([
@@ -128,6 +156,11 @@ const GameView: React.FC<GameViewProps> = (props) => {
         }
     }, [props.gameState]);
 
+    // Reset selected playlist when language changes
+    useEffect(() => {
+        setSelectedPlaylist('');
+    }, [props.selectedLanguage]);
+
     // Handle page selection from playlist
     const handlePageSelect = (bookId: string, chapterId: string, pageId: string) => {
         props.onSelectBookId(bookId);
@@ -144,6 +177,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
     useEffect(() => {
         if (props.gameState === 'idle') {
             setAnimationToShow(Math.random() < 0.5 ? 'pacman' : 'snake');
+            setShowStory(false);
         }
     }, [props.gameState]);
 
@@ -154,7 +188,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
         setDropTargetId(null); // Clear highlight on drop
     };
 
-    const arePresetsDisabled = !props.orgData;
+    const arePresetsDisabled = !props.orgData && !props.userId;
 
     useEffect(() => {
         if (arePresetsDisabled) {
@@ -223,31 +257,98 @@ const GameView: React.FC<GameViewProps> = (props) => {
 
                 {/* Hints Panel: 45% width when open, 55% when closed */}
                 <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[45%]' : 'lg:w-[55%]'} p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
-                    <header className="text-center mb-6 flex-shrink-0">
-                        <h2 className="text-2xl font-bold text-slate-300">Hints</h2>
-                        <p className="text-slate-400 mt-1 text-sm">Drag a hint to the matching object</p>
+                    <header className="text-center mb-6 flex-shrink-0 relative">
+                        {(props.gameState === 'playing' || props.gameState === 'complete') && (
+                            <button
+                                onClick={() => setShowStory(!showStory)}
+                                className="absolute right-0 top-0 p-2 text-slate-400 hover:text-white transition-colors"
+                                title={showStory ? "Show Hints" : "Show Story"}
+                            >
+                                <BookOpenIcon className="w-6 h-6" />
+                            </button>
+                        )}
+                        <h2 className="text-2xl font-bold text-slate-300">{showStory ? 'Story' : 'Hints'}</h2>
+                        <p className="text-slate-400 mt-1 text-sm">
+                            {showStory ? 'Read the story' : 'Drag a hint to the matching object'}
+                        </p>
                     </header>
                     <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
-                        {props.gameState === 'idle' && (
-                            <div className="h-full flex items-center justify-center">
-                                <p className="text-slate-400 text-center text-lg">Choose your settings and click 'Play Game' to begin!</p>
+                        {showStory ? (
+                            <div className="p-4 text-slate-300 text-lg leading-relaxed">
+                                <h3 className="text-xl font-semibold mb-4 text-teal-400">The Story</h3>
+                                <p className="mb-4">
+                                    Once upon a time, in a vibrant world full of wonders, a young adventurer set out on a journey of discovery.
+                                    Along the path, they encountered many fascinating objects, each with a unique story to tell.
+                                </p>
+                                <p className="mb-4">
+                                    "To understand the world," a wise old owl hooted, "you must learn the name of things and what they do."
+                                    And so, the adventurer began to match the clues they found with the objects around them.
+                                </p>
+                                <p>
+                                    Can you help them complete their journal? match the hints to the correct pictures to reveal the secrets of this land.
+                                </p>
                             </div>
+                        ) : (
+                            <>
+                                {props.gameState === 'idle' && (
+                                    <div className="h-full flex flex-col items-center justify-between p-2">
+                                        {/* Video Container */}
+                                        <div className="w-full flex-grow flex items-center justify-center mb-4 rounded-lg overflow-hidden bg-black/40 relative">
+                                            <div className="absolute inset-0 z-10" />
+                                            <YouTubeEmbed
+                                                videoId={currentVideoId}
+                                                onEnded={handleVideoEnd}
+                                                className="aspect-[9/16] h-full w-full max-h-[50vh]"
+                                            />
+                                        </div>
+
+                                        {/* Instructions */}
+                                        <div className="w-full text-center pb-8">
+                                            <p className="text-slate-400 text-lg">Choose your settings and click 'Play Game' to begin!</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {props.gameState === 'loading' && (
+                                    <div className="h-full flex flex-col items-center justify-between p-2">
+                                        {/* Video Container - Loading State (Using same video for continuity or random, using currentVideoId) */}
+                                        <div className="w-full flex-grow flex items-center justify-center mb-4 rounded-lg overflow-hidden bg-black/40 relative">
+                                            <div className="absolute inset-0 z-10" />
+                                            <YouTubeEmbed
+                                                videoId={currentVideoId}
+                                                onEnded={handleVideoEnd}
+                                                className="aspect-[9/16] h-full w-full max-h-[50vh]"
+                                            />
+                                        </div>
+
+                                        {/* Loading Details */}
+                                        <div className="w-full text-center">
+                                            <h2 className="text-xl font-bold text-teal-300 mb-2">Loading Game...</h2>
+                                            <p className="text-slate-400 mb-4">
+                                                Preparing a <span className="font-semibold text-white">{props.difficulty}</span> game in <span className="font-semibold text-white">{props.selectedLanguage}</span>.
+                                            </p>
+                                            <div className="flex justify-center">
+                                                <PacManLoader />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {(props.gameState === 'playing' || props.gameState === 'complete') && props.shuffledDescriptions.map((item, index) => (
+                                    <DraggableDescription
+                                        key={`desc-${item.id}`}
+                                        id={item.id}
+                                        description={item.description}
+                                        shortHint={item.short_hint}
+                                        objectName={item.imageName}
+                                        isMatched={props.correctlyMatchedIds.has(item.id)}
+                                        isWrongDrop={props.wrongDropSourceId === item.id}
+                                        isJustMatched={props.justMatchedId === item.id}
+                                        onSpeakHint={props.handleSpeakHint}
+                                        languageBcp47={props.languageBcp47}
+                                        label={(index + 1).toString()}
+                                    />
+                                ))}
+                            </>
                         )}
-                        {(props.gameState === 'playing' || props.gameState === 'loading' || props.gameState === 'complete') && props.shuffledDescriptions.map((item, index) => (
-                            <DraggableDescription
-                                key={`desc-${item.id}`}
-                                id={item.id}
-                                description={item.description}
-                                shortHint={item.short_hint}
-                                objectName={item.imageName}
-                                isMatched={props.correctlyMatchedIds.has(item.id)}
-                                isWrongDrop={props.wrongDropSourceId === item.id}
-                                isJustMatched={props.justMatchedId === item.id}
-                                onSpeakHint={props.handleSpeakHint}
-                                languageBcp47={props.languageBcp47}
-                                label={(index + 1).toString()}
-                            />
-                        ))}
                     </div>
                 </div>
 
@@ -258,13 +359,13 @@ const GameView: React.FC<GameViewProps> = (props) => {
                         <div className="mt-1 text-2xl font-bold text-yellow-400">Score: {props.score}</div>
                     </header>
                     <div className="flex-grow overflow-y-auto pr-2 flex items-start">
-                        {props.gameState === 'idle' ? (
-                            <div className="h-full relative" aria-hidden="true">
+                        {props.gameState === 'idle' || props.gameState === 'loading' ? (
+                            <div className="w-full h-full relative" aria-hidden="true">
                                 {animationToShow === 'pacman' ? <PacManChaseAnimation /> : <SnakeGameAnimation />}
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4">
-                                {(props.gameState === 'playing' || props.gameState === 'loading' || props.gameState === 'complete') && props.shuffledImages.map((item, index) => (
+                                {(props.gameState === 'playing' || props.gameState === 'complete') && props.shuffledImages.map((item, index) => (
                                     <DroppableImage
                                         key={`img-${item.id}`}
                                         id={item.id}

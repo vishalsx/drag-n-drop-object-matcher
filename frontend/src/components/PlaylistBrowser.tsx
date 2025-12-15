@@ -22,6 +22,16 @@ const PlaylistBrowser: React.FC<PlaylistBrowserProps> = ({ onPageSelect, disable
     // Search state
     const [searchText, setSearchText] = useState('');
 
+    // Reset state when language changes
+    useEffect(() => {
+        setSearchText('');
+        setBooks([]);
+        setExpandedBookId(null);
+        setExpandedChapterId(null);
+        setError(null);
+        setLoading(false);
+    }, [selectedLanguage]);
+
     // Don't auto-load on mount to avoid 401 loops
     // User must click "Find" to search
 

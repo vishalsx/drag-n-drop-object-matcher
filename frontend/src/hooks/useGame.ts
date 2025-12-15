@@ -96,13 +96,20 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
 
         const loadCategories = async () => {
             setAreCategoriesLoading(true);
+            // Reset selections immediately to avoid mismatched states
+            setSelectedCategory('Any');
+            setSelectedFos('Any');
+            setSelectedTubSheet('');
+            setSearchKeyword('');
+            setSelectedBookId(null);
+            setSelectedChapterId(null);
+            setSelectedPageId(null);
+
             const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
             const data = await fetchCategoriesAndFos(languageName);
 
             setObjectCategories([ANY_OPTION, ...data.object_categories]);
             setFieldsOfStudy([ANY_OPTION, ...data.fields_of_study]);
-            setSelectedCategory('Any');
-            setSelectedFos('Any');
             setAreCategoriesLoading(false);
 
             // This signals that the initial load is complete

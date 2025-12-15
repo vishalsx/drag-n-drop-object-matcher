@@ -182,14 +182,7 @@ const App: React.FC = () => {
         handleSpeakHint(text, currentLanguageBcp47);
     };
 
-    if (isAppLoading) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white flex flex-col items-center justify-center">
-                <SpinnerIcon className="w-12 h-12 text-blue-400 mb-4" />
-                <p className="text-xl text-slate-300">Loading Game Data...</p>
-            </div>
-        );
-    }
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
@@ -243,10 +236,11 @@ const App: React.FC = () => {
                     onSelectChapterId={setSelectedChapterId}
                     onSelectPageId={setSelectedPageId}
                     selectedPageId={selectedPageId}
+                    userId={authService.getUsername()}
                 />
             )}
 
-            {gameState === 'loading' && (
+            {gameState === 'loading' && gameLevel !== 1 && (
                 <LoadingScreen
                     difficulty={difficulty}
                     selectedLanguageName={currentLanguageName}
