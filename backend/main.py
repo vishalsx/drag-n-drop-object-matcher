@@ -7,6 +7,7 @@ from app.routers import getlanguages
 from app.routers import savecards
 from app.routers import determine_org
 from app.routers import auth
+from app.routers import curriculum
 import uvicorn
 
 
@@ -32,6 +33,7 @@ app.include_router(getlanguages.router)
 app.include_router(savecards.router)
 app.include_router(determine_org.router)
 app.include_router(auth.router)
+app.include_router(curriculum.router)
 
 @app.get("/health")
 async def health():

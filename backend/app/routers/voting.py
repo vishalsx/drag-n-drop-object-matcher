@@ -33,6 +33,7 @@ async def record_vote(vote_req: VoteRequest, request: Request):
 
     print (f"\nip address:{client_host},IP address hash: {ip_hash}")
     # Check if this IP already voted for this translation
+    existing_vote = None
     try:
         existing_vote = await votes_collection.find_one({
             "translation_id": vote_req.translation_id,

@@ -1,13 +1,14 @@
 
 from bson import ObjectId
-from app.database import translation_collection
+from app.database import translation_collection, translation_set_collection
 
-async def get_TS_card_details(ts_coll: any)-> list:
+async def get_TS_card_details(translation_set_id:str)-> list:
     # Step 1: Fetch translation set if provided
-    # ts_doc = await translation_sets_collection.find_one({"set_id": translation_set_id}) if translation_set_id else None
+    ts_coll = await translation_set_collection.find_one(
+        {"set_id": translation_set_id}) if translation_set_id else None
 
     translation_docs = []
-
+    
     if ts_coll and ts_coll.get("image_translation_ids"):
         # Step 2: Extract list of translation IDs
         image_translation_ids = ts_coll["image_translation_ids"]

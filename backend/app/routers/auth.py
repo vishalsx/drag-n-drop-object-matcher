@@ -6,6 +6,17 @@ from app.database import organisations_collection
 
 router = APIRouter()
 
+from fastapi import Depends, Request
+
+async def get_current_user(request: Request):
+    user = getattr(request.state, "user", None)
+    # If middleware didn't populate it (e.g. no header), usually we raise 401
+    # But for some flexible endpoints we might allow optional. 
+    # The user requirement implies "mandatory", so let's raise if missing.
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
 import os
 from dotenv import load_dotenv  
 
@@ -59,7 +70,7 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 @router.post("/auth/login", response_model=LoginResponse)
-async def login(username: str = Form(...), password: str = Form(...), org_code: Optional[str] = Form(None)):
+async def login(username: str = Form(...), password: str = Form(...), org_code: Optional[str] = Form(None), param2: Optional[str] = Form(None), param3: Optional[str] = Form(None)):
     try:
         payload = {
             "username": username,
@@ -67,15 +78,33 @@ async def login(username: str = Form(...), password: str = Form(...), org_code: 
         }
         if org_code:
             payload["org_code"] = org_code
+        if param2:
+            payload["param2"] = param2
+        if param3:
+            payload["param3"] = param3
         print(f"\n\nPayload: {payload}\n\n")
 
         # The external service expects application/x-www-form-urlencoded
         response = requests.post(EXTERNAL_LOGIN_URL, data=payload)
-        # print(f"\n\nResponse from external login: {response.json()}\n\n")
-        print(f"\n\nResponse from external login: {response.status_code}\n\n")
+        print(f"\n\n=== DEBUG: External Login Status Code: {response.status_code} ===")
         if response.status_code == 200:
             response_data = response.json()
+            print(f"\n\n=== DEBUG: External Login Response Data ===")
+            print(f"username: {response_data.get('username')}")
+            print(f"org_id: {response_data.get('org_id')}")
+            print(f"roles: {response_data.get('roles')}")
+            print(f"languages_allowed: {response_data.get('languages_allowed')}")
+            print(f"permissions: {response_data.get('permissions')}")
+            print(f"Full response keys: {response_data.keys()}")
+            print(f"===\n\n")
             
+            # Check for logical errors or missing data even with 200 OK
+            if "error" in response_data:
+                raise HTTPException(status_code=401, detail=response_data.get("error", "Login failed"))
+                
+            if not response_data.get("username"):
+                raise HTTPException(status_code=401, detail="Invalid token: missing username from provider")
+
             # --- ENRICH TOKEN START ---
             # The external token might not have all fields in its payload.
             # We create a new token signed by US, containing the info we need.
@@ -84,12 +113,23 @@ async def login(username: str = Form(...), password: str = Form(...), org_code: 
                 "username": response_data.get("username"),
                 "languages_allowed": response_data.get("languages_allowed"),
                 "org_id": response_data.get("org_id"),
+                "organisation_id": response_data.get("org_id"),  # Also add as organisation_id
                 "roles": response_data.get("roles"),
                 "permissions": response_data.get("permissions")
             }
+            print(f"\n\n=== DEBUG: Token Enrichment ===")
+            print(f"User Payload for JWT: {user_payload}")
             new_token = create_access_token(user_payload)
+            print(f"New Enriched Token: {new_token[:50]}...")
+            print(f"===\n\n")
+            
+            # Decode the token we just created to verify it contains org_id
+            decoded_token = jwt.decode(new_token, SECRET_KEY, algorithms=[ALGORITHM])
+            print(f"\n\n=== DEBUG: Decoded Enriched Token ===")
+            print(f"Decoded payload: {decoded_token}")
+            print(f"===\n\n")
+            
             response_data["access_token"] = new_token
-            print(f"\n\nEnriched Token Payload: {user_payload}\n\n")
             # --- ENRICH TOKEN END ---
 
             if org_code:

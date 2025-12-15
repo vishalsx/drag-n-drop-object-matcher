@@ -4,12 +4,13 @@ from starlette.responses import JSONResponse
 import jwt
 from app.database import organisations_collection
 import os
+from dotenv import load_dotenv
 
+
+load_dotenv()
 # You might want to move this to .env
-# SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key") 
-# ALGORITHM = "HS256"
-SECRET_KEY="super-secret-key"  # use env var in production
-ALGORITHM="HS256"
+SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key") 
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Skip auth for public endpoints if needed, or handle within the logic
@@ -34,8 +35,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 # I will assume we can decode it. If not, we might need to call an introspection endpoint.
                 
                 # options={"verify_signature": False} # Use this if you don't have the secret
-                payload = jwt.decode(token, options={"verify_signature": False}) 
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_signature": True}) 
                 user_info = payload
+                
+                # print(f"\n\n=== DEBUG: Middleware Token Decode ===")
+                # print(f"Decoded payload: {payload}")
+                # print(f"org_id in payload: {payload.get('org_id')}")
+                # print(f"organisation_id in payload: {payload.get('organisation_id')}")
+                # print(f"===\n\n")
+                
                 request.state.user = user_info
                 
             except (ValueError, jwt.DecodeError):

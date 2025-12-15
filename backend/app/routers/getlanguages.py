@@ -115,7 +115,7 @@ async def get_languages(request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to fetch languages: {str(e)}")
 
 @router.get("/object-categories-FOS/{language_name}") #FOS - field of study
-async def get_object_categories_FOS(language_name: str):
+async def get_object_categories_FOS(language_name: str, request: Request):
     try:
         # 1️⃣ Get ISO code for the requested language
         language_doc = await languages_collection.find_one(
@@ -127,23 +127,33 @@ async def get_object_categories_FOS(language_name: str):
 
         lang_code = language_doc.get("isoCode", "en")
 
-        # ✅ Create Redis cache key
-        cache_key = f"categories_fos:{lang_code.lower()}"
+        # Get Org ID
+        org = getattr(request.state, "org", None)
+        org_id = org.get("org_id") if org else None
+        
+        # ✅ Create Redis cache key (include org_id to separate caches)
+        org_suffix = f"org:{org_id}" if org_id else "public"
+        cache_key = f"categories_fos:{lang_code.lower()}:{org_suffix}"
 
         # 2️⃣ Try fetching cached translation from Redis (Upstash is sync)
         try:
             cached_data = redis_client.get(cache_key)
             if cached_data:
-                logger.info(f"✅ Cache hit for {lang_code}")
+                logger.info(f"✅ Cache hit for {lang_code} ({org_suffix})")
                 return JSONResponse(content=json.loads(cached_data))
         except Exception as e:
             logger.warning(f"Redis fetch failed: {e}")
 
         # 3️⃣ Fetch all approved translation object_ids
-        object_ids = await translation_collection.distinct(
-            "object_id",
-            {"requested_language": language_name.title(), "translation_status": "Approved"}
-        )
+        query = {"requested_language": language_name.title(), "translation_status": "Approved"}
+        
+        if org_id:
+            query["org_id"] = org_id
+        else:
+            # If no org_id, fetch public translations (org_id is null or missing)
+            query["$or"] = [{"org_id": {"$exists": False}}, {"org_id": None}]
+
+        object_ids = await translation_collection.distinct("object_id", query)
 
         if not object_ids:
             return JSONResponse(content={"object_categories": [], "fields_of_study": []})
