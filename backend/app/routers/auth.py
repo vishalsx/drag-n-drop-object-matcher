@@ -58,8 +58,16 @@ from datetime import datetime, timedelta
 
 # ... (keep existing imports)
 # Ensure SECRET_KEY matches middleware or use env var
-SECRET_KEY = "super-secret-key" 
-ALGORITHM = "HS256"
+# SECRET_KEY = "super-secret-key" 
+# ALGORITHM = "HS256"
+import os
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key") 
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
