@@ -72,6 +72,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
   const [showCelebration, setShowCelebration] = useState(false);
   const [wrongDropId, setWrongDropId] = useState<string | null>(null);
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
+  const [expandedSection, setExpandedSection] = useState<'presets' | 'custom'>('presets');
 
   // Search fields state - Placeholder data for future API integration
   const [standardPlaylists] = useState<PlaylistItem[]>([
@@ -281,6 +282,8 @@ const Level2View: React.FC<Level2ViewProps> = ({
                 onSearch={handleSearch}
                 selectedPageId={selectedPageId}
                 onPageSelect={handlePageSelect}
+                expandedSection={expandedSection}
+                onExpandedSectionChange={setExpandedSection}
               />
             </div>
           )}
