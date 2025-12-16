@@ -95,7 +95,7 @@ const App: React.FC = () => {
         // authService.logout(); // Removed to persist credentials across navigations
 
         const checkOrg = async () => {
-            const pathSegments = window.location.pathname.split('/').filter(Boolean);
+            const pathSegments = window.location.pathname.split('/').filter(Boolean).filter(segment => segment.toLowerCase() !== 'index.html');
             const pathSegment = pathSegments[0];
 
             if (pathSegments.length > 1) {
