@@ -46,35 +46,50 @@ async def health():
 
 
 
+
 # Define path to frontend build
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 
-# Check if the build directory exists
-if os.path.isdir(frontend_path):
-    # Mount assets directory (e.g. /assets/index.css)
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="assets")
-
-    # Serve index.html at root
-    @app.get("/")
-    def read_root():
-        return FileResponse(os.path.join(frontend_path, "index.html"))
-
-    # Catch-all route to serve index.html for SPA routing (e.g. /GLA)
-    # This must be the last route defined to allow API routes to take precedence
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        # Check if it's a file that exists in dist (e.g. favicon.ico)
-        file_path = os.path.join(frontend_path, full_path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return FileResponse(file_path)
-        
-        # Otherwise return index.html
-        return FileResponse(os.path.join(frontend_path, "index.html"))
+# --- DIAGNOSTIC LOGGING ---
+print(f"--- STARTUP DIAGNOSTICS ---")
+print(f"Current Working Directory: {os.getcwd()}")
+print(f"Frontend Path Resolution: {frontend_path}")
+if os.path.exists(frontend_path):
+    print(f"Frontend Directory Exists: YES")
+    print(f"Contents of Frontend Directory: {os.listdir(frontend_path)}")
 else:
-    # Fallback if frontend is not built
-    @app.get("/")
-    def read_root():
-        return {"message": "Hello from hin n match app (Frontend build not found)"}
+    print(f"Frontend Directory Exists: NO")
+print(f"---------------------------")
+
+# Always attempt to mount assets (will fail gracefully or 404 if directory missing, but we want to try)
+if os.path.isdir(os.path.join(frontend_path, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="assets")
+else:
+    print(f"WARNING: Assets directory not found at {os.path.join(frontend_path, 'assets')}")
+
+# Serve index.html at root
+@app.get("/")
+def read_root():
+    index_file = os.path.join(frontend_path, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"error": f"Frontend build not found at {frontend_path}. Please run build script."}
+
+# Catch-all route to serve index.html for SPA routing (e.g. /GLA)
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Check if it's a file that exists in dist (e.g. favicon.ico)
+    file_path = os.path.join(frontend_path, full_path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    # Otherwise return index.html for SPA routing
+    index_file = os.path.join(frontend_path, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    
+    # Explicit error if index.html is missing (instead of generic 404)
+    return {"error": f"Frontend build not found at {frontend_path}. SPA routing failed."}
 
 if __name__ == "__main__":
     uvicorn.run(
