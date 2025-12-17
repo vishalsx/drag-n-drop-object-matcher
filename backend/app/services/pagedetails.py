@@ -55,6 +55,10 @@ async def get_page_details(book_id: str, chapter_id: str, page_id: str, request:
         logger.info(f"No images found for page {page_id}")
         return []
     
+    # Extract story and moral from the page level response
+    page_story = images_data.get("story")
+    page_moral = images_data.get("moral")
+
     # 2. Process each image
     for img in images:
         # Handle both string (direct hash) and dict (ImageRef object) formats
@@ -111,6 +115,9 @@ async def get_page_details(book_id: str, chapter_id: str, page_id: str, request:
                  "object_hint": translation_doc.get("object_hint"),
                  "object_short_hint": translation_doc.get("object_short_hint"),
                  "quiz_qa": translation_doc.get("quiz_qa"),
+                 "story": page_story,
+                 "moral": page_moral,
+
                  "up_votes": translation_doc.get("up_votes", 0),
                  "down_votes": translation_doc.get("down_votes", 0),
                  # Extra fields if needed

@@ -5,9 +5,12 @@ router = APIRouter()
 
 from app.database import organisations_collection
 
+import re
+
 @router.post("/determine_org", response_model=Organisation)
 async def determine_org(path_segment: str):
-    org = await organisations_collection.find_one({"org_code": path_segment})
+    # Case-insensitive search
+    org = await organisations_collection.find_one({"org_code": {"$regex": f"^{re.escape(path_segment)}$", "$options": "i"}})
     print(f"\n\nOrg data for {path_segment}: {org}\n\n")
     if org:
         # Extract logo_url from settings if it exists

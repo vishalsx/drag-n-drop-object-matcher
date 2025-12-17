@@ -43,6 +43,8 @@ class ResultTranslation(BaseModel):
     object_name: str
     object_short_hint: str
     quiz_qa: Optional[List[QuizQA]] = None
+    story: Optional[str] = None
+    moral: Optional[str] = None
 
 class ResultVoting(BaseModel):
     up_votes: Optional[int] = None

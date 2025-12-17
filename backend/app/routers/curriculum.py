@@ -43,6 +43,17 @@ async def search_books(
         if language:
             params["language"] = language
         
+        # Prioritize context-aware org_id from X-Org-ID header (via request.state.org)
+        org_id = None
+        if hasattr(request.state, "org") and request.state.org:
+            org_id = request.state.org.get("org_id")
+        
+        # if not org_id:
+        #     org_id = current_user.get("org_id") or current_user.get("organisation_id")
+        
+        if org_id:
+            params["external_org_id"] = org_id
+            
         print(f"Params being sent to external API: {params}")
         print(f"===\n\n")
         

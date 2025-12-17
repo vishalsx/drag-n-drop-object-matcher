@@ -153,7 +153,9 @@ async def get_random_pictures(
                         object_hint=d.get(mapping["object_hint"], ""),          # mapped consistently
                         object_name=d.get("object_name", ""),                  # always fixed
                         object_short_hint=d.get(mapping["object_short_hint"], ""),
-                        quiz_qa=d.get("quiz_qa", [])
+                        quiz_qa=d.get("quiz_qa", []),
+                        story=d.get("story"),
+                        moral=d.get("moral")
                     ),
                     voting=ResultVoting(
                         up_votes=d.get("up_votes", 0),
