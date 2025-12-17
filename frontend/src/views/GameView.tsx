@@ -27,6 +27,7 @@ interface GameViewProps {
     // SidePanel Props
     languages: Language[];
     selectedLanguage: string;
+    selectedLanguageName: string;
     onSelectLanguage: (lang: string) => void;
     selectedCategory: string;
     onSelectCategory: (cat: string) => void;
@@ -50,7 +51,13 @@ interface GameViewProps {
     onSelectBookId: (id: string | null) => void;
     onSelectChapterId: (id: string | null) => void;
     onSelectPageId: (id: string | null) => void;
+    onSelectBookTitle: (title: string) => void;
+    onSelectChapterName: (name: string) => void;
+    onSelectPageTitle: (title: string) => void;
     selectedPageId: string | null;
+    selectedBookTitle: string;
+    selectedChapterName: string;
+    selectedPageTitle: string;
     userId: string | null;
 }
 
@@ -162,10 +169,13 @@ const GameView: React.FC<GameViewProps> = (props) => {
     }, [props.selectedLanguage]);
 
     // Handle page selection from playlist
-    const handlePageSelect = (bookId: string, chapterId: string, pageId: string) => {
+    const handlePageSelect = (bookId: string, chapterId: string, pageId: string, bookTitle: string, chapterName: string, pageTitle: string) => {
         props.onSelectBookId(bookId);
         props.onSelectChapterId(chapterId);
         props.onSelectPageId(pageId);
+        props.onSelectBookTitle(bookTitle);
+        props.onSelectChapterName(chapterName);
+        props.onSelectPageTitle(pageTitle);
     };
 
     // Override onStartGame to handle playlist page selection - rely on useGame to handle logic
@@ -188,7 +198,11 @@ const GameView: React.FC<GameViewProps> = (props) => {
         setDropTargetId(null); // Clear highlight on drop
     };
 
-    const arePresetsDisabled = !props.orgData && !props.userId;
+    // Check if we're on base URL (no path segment)
+    const pathSegments = window.location.pathname.split('/').filter(Boolean).filter(segment => segment.toLowerCase() !== 'index.html');
+    const isBaseUrl = pathSegments.length === 0;
+
+    const arePresetsDisabled = isBaseUrl || (!props.orgData && !props.userId);
 
     useEffect(() => {
         if (arePresetsDisabled) {
@@ -276,17 +290,31 @@ const GameView: React.FC<GameViewProps> = (props) => {
                         {showStory ? (
                             <div className="p-4 text-slate-300 text-lg leading-relaxed">
                                 <h3 className="text-xl font-semibold mb-4 text-teal-400">The Story</h3>
-                                <p className="mb-4">
-                                    Once upon a time, in a vibrant world full of wonders, a young adventurer set out on a journey of discovery.
-                                    Along the path, they encountered many fascinating objects, each with a unique story to tell.
-                                </p>
-                                <p className="mb-4">
-                                    "To understand the world," a wise old owl hooted, "you must learn the name of things and what they do."
-                                    And so, the adventurer began to match the clues they found with the objects around them.
-                                </p>
-                                <p>
-                                    Can you help them complete their journal? match the hints to the correct pictures to reveal the secrets of this land.
-                                </p>
+                                {props.shuffledDescriptions[0]?.story ? (
+                                    <>
+                                        <p className="mb-4 whitespace-pre-wrap">{props.shuffledDescriptions[0].story}</p>
+                                        {props.shuffledDescriptions[0].moral && (
+                                            <div className="mt-6 p-4 bg-teal-900/30 rounded-lg border border-teal-700/50">
+                                                <span className="font-bold text-teal-300 text-xl block mb-2">Moral:</span>
+                                                <p className="italic text-slate-200 text-xl">{props.shuffledDescriptions[0].moral}</p>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="mb-4">
+                                            Once upon a time, in a vibrant world full of wonders, a young adventurer set out on a journey of discovery.
+                                            Along the path, they encountered many fascinating objects, each with a unique story to tell.
+                                        </p>
+                                        <p className="mb-4">
+                                            "To understand the world," a wise old owl hooted, "you must learn the name of things and what they do."
+                                            And so, the adventurer began to match the clues they found with the objects around them.
+                                        </p>
+                                        <p>
+                                            Can you help them complete their journal? match the hints to the correct pictures to reveal the secrets of this land.
+                                        </p>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <>
@@ -324,7 +352,27 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                         <div className="w-full text-center">
                                             <h2 className="text-xl font-bold text-teal-300 mb-2">Loading Game...</h2>
                                             <p className="text-slate-400 mb-4">
-                                                Preparing a <span className="font-semibold text-white">{props.difficulty}</span> game in <span className="font-semibold text-white">{props.selectedLanguage}</span>.
+                                                {props.selectedPageId && props.selectedBookTitle ? (
+                                                    // Loading from playlist
+                                                    <>
+                                                        Loading <span className="font-semibold text-white">Playlist</span> content from <span className="font-semibold text-white">{props.selectedPageTitle || 'selected page'}</span> in <span className="font-semibold text-white">{props.selectedBookTitle || 'selected book'}</span>.
+                                                    </>
+                                                ) : props.selectedTubSheet ? (
+                                                    // Loading from tubsheet
+                                                    <>
+                                                        Loading <span className="font-semibold text-white">Saved Cards</span> in <span className="font-semibold text-white">{props.selectedLanguageName}</span>.
+                                                    </>
+                                                ) : props.searchKeyword ? (
+                                                    // Loading from keyword search
+                                                    <>
+                                                        Loading <span className="font-semibold text-white">{props.difficulty}</span> game with keyword <span className="font-semibold text-white">"{props.searchKeyword}"</span> in <span className="font-semibold text-white">{props.selectedLanguageName}</span>.
+                                                    </>
+                                                ) : (
+                                                    // Default: using category/field of study
+                                                    <>
+                                                        Preparing a <span className="font-semibold text-white">{props.difficulty}</span> game in <span className="font-semibold text-white">{props.selectedLanguageName}</span>{props.selectedCategory !== 'Any' ? ` (${props.selectedCategory})` : props.selectedFos !== 'Any' ? ` (${props.selectedFos})` : ''}.
+                                                    </>
+                                                )}
                                             </p>
                                             <div className="flex justify-center">
                                                 <PacManLoader />

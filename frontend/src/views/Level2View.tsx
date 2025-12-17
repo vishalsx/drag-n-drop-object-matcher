@@ -36,6 +36,9 @@ interface Level2ViewProps {
   onSelectBookId: (id: string | null) => void;
   onSelectChapterId: (id: string | null) => void;
   onSelectPageId: (id: string | null) => void;
+  onSelectBookTitle: (title: string) => void;
+  onSelectChapterName: (name: string) => void;
+  onSelectPageTitle: (title: string) => void;
   selectedPageId: string | null;
 }
 
@@ -66,6 +69,9 @@ const Level2View: React.FC<Level2ViewProps> = ({
   onSelectBookId,
   onSelectChapterId,
   onSelectPageId,
+  onSelectBookTitle,
+  onSelectChapterName,
+  onSelectPageTitle,
   selectedPageId,
 }) => {
   const [draggedQuestion, setDraggedQuestion] = useState<string | null>(null);
@@ -182,10 +188,13 @@ const Level2View: React.FC<Level2ViewProps> = ({
 
   // Handle page selection from playlist
   // Handle page selection from playlist
-  const handlePageSelect = (bookId: string, chapterId: string, pageId: string) => {
+  const handlePageSelect = (bookId: string, chapterId: string, pageId: string, bookTitle: string, chapterName: string, pageTitle: string) => {
     onSelectBookId(bookId);
     onSelectChapterId(chapterId);
     onSelectPageId(pageId);
+    onSelectBookTitle(bookTitle);
+    onSelectChapterName(chapterName);
+    onSelectPageTitle(pageTitle);
   };
 
   // Override onStartGame to handle playlist page selection

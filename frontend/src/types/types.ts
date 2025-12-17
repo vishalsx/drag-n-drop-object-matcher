@@ -10,6 +10,8 @@ export interface GameObject {
   downvotes: number;
   objectCategory: string;
   quiz_qa?: QuizQA[];
+  story?: string;
+  moral?: string;
 }
 
 export interface QuizQA {
@@ -35,6 +37,8 @@ export interface ApiPicture {
     object_name: string;
     object_short_hint: string;
     quiz_qa?: QuizQA[];
+    story?: string;
+    moral?: string;
   }
   voting: {
     up_votes?: number;

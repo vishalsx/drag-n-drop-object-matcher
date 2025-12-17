@@ -30,7 +30,7 @@ interface SidePanelProps {
     onSearchKeywordChange: (keyword: string) => void;
     onSearch: () => void;
     selectedPageId: string | null;
-    onPageSelect: (bookId: string, chapterId: string, pageId: string) => void;
+    onPageSelect: (bookId: string, chapterId: string, pageId: string, bookTitle: string, chapterName: string, pageTitle: string) => void;
     expandedSection: 'presets' | 'custom';
     onExpandedSectionChange: (section: 'presets' | 'custom') => void;
     arePresetsDisabled?: boolean;
@@ -82,13 +82,13 @@ const SidePanel: React.FC<SidePanelProps> = ({
     };
 
     // Mutual exclusion handlers - clear other fields when one is selected
-    const handlePageSelectWithClear = (bookId: string, chapterId: string, pageId: string) => {
+    const handlePageSelectWithClear = (bookId: string, chapterId: string, pageId: string, bookTitle: string, chapterName: string, pageTitle: string) => {
         // Clear other search methods
         if (selectedTubSheet) onSelectTubSheet('');
         if (searchKeyword) onSearchKeywordChange('');
         if (currentCategory !== 'Any') onSelectCategory('Any');
         if (currentFos !== 'Any') onSelectFos('Any');
-        onPageSelect(bookId, chapterId, pageId);
+        onPageSelect(bookId, chapterId, pageId, bookTitle, chapterName, pageTitle);
     };
 
     const handleTubSheetSelectWithClear = (tubSheetId: string) => {
@@ -97,7 +97,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
             if (searchKeyword) onSearchKeywordChange('');
             if (currentCategory !== 'Any') onSelectCategory('Any');
             if (currentFos !== 'Any') onSelectFos('Any');
-            if (selectedPageId) onPageSelect('', '', '');
+            if (selectedPageId) onPageSelect('', '', '', '', '', '');
         }
         onSelectTubSheet(tubSheetId);
     };
@@ -187,7 +187,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                 {expandedSection === 'presets' && !arePresetsDisabled && (
                     <div className="space-y-4 animate-fadeIn">
                         {/* Playlists */}
-                        <div className="h-48 flex flex-col">
+                        <div className="h-64 flex flex-col">
                             <label className="block text-sm font-medium text-slate-300 mb-1">Playlists</label>
                             <div className="flex-1 bg-slate-700/50 rounded-md p-2 border border-slate-600 overflow-hidden">
                                 <PlaylistBrowser

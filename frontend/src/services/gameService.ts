@@ -159,6 +159,8 @@ export const fetchGameData = async (
       downvotes: item.voting?.down_votes || 0,
       objectCategory: item.object.object_category,
       quiz_qa: item.translations.quiz_qa,
+      story: item.translations.story,
+      moral: item.translations.moral,
     }));
 
 

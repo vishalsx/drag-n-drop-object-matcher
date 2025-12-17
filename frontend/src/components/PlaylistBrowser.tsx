@@ -5,7 +5,7 @@ import { GameObject, Language } from '../types/types';
 import { SearchIcon } from './Icons';
 
 interface PlaylistBrowserProps {
-    onPageSelect: (bookId: string, chapterId: string, pageId: string) => void;
+    onPageSelect: (bookId: string, chapterId: string, pageId: string, bookTitle: string, chapterName: string, pageTitle: string) => void;
     disabled?: boolean;
     selectedLanguage?: string;
     languages?: Language[];
@@ -137,10 +137,15 @@ const PlaylistBrowser: React.FC<PlaylistBrowserProps> = ({ onPageSelect, disable
         }
     };
 
-    const handlePageClick = (bookId: string, chapterId: string, page: Page) => {
+    const handlePageClick = (book: Book, chapter: Chapter, page: Page) => {
         const pageId = page.page_id || String(page.page_number);
+        const chapterId = chapter.chapter_id || String(chapter.chapter_number);
+        const bookId = book._id;
+        const bookTitle = book.title || '';
+        const chapterName = chapter.chapter_name || '';
+        const pageTitle = page.title || `Page ${page.page_number}`;
         // Just notify parent about selection, don't load game data yet
-        onPageSelect(bookId, chapterId, pageId);
+        onPageSelect(bookId, chapterId, pageId, bookTitle, chapterName, pageTitle);
     };
 
     return (
@@ -199,7 +204,7 @@ const PlaylistBrowser: React.FC<PlaylistBrowserProps> = ({ onPageSelect, disable
                                                 {chapter.pages.map(page => (
                                                     <button
                                                         key={page.page_id || page.page_number}
-                                                        onClick={() => handlePageClick(book._id, chapter.chapter_id!, page)}
+                                                        onClick={() => handlePageClick(book, chapter, page)}
                                                         className={`w-full text-left text-xs py-1 flex items-center gap-2 ${selectedPageId === (page.page_id || String(page.page_number))
                                                             ? 'text-green-400 hover:text-green-300'
                                                             : 'text-slate-400 hover:text-blue-400'

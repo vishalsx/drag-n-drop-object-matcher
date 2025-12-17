@@ -33,6 +33,9 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
     const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
     const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
     const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+    const [selectedBookTitle, setSelectedBookTitle] = useState<string>('');
+    const [selectedChapterName, setSelectedChapterName] = useState<string>('');
+    const [selectedPageTitle, setSelectedPageTitle] = useState<string>('');
     const [searchKeyword, setSearchKeyword] = useState<string>('');
     const [objectCategories, setObjectCategories] = useState<CategoryFosItem[]>([ANY_OPTION]);
     const [fieldsOfStudy, setFieldsOfStudy] = useState<CategoryFosItem[]>([ANY_OPTION]);
@@ -104,6 +107,9 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
             setSelectedBookId(null);
             setSelectedChapterId(null);
             setSelectedPageId(null);
+            setSelectedBookTitle('');
+            setSelectedChapterName('');
+            setSelectedPageTitle('');
 
             const languageName = languages.find(lang => lang.code === selectedLanguage)?.name || selectedLanguage;
             const data = await fetchCategoriesAndFos(languageName);
@@ -281,6 +287,9 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         setSelectedBookId(null);
         setSelectedChapterId(null);
         setSelectedPageId(null);
+        setSelectedBookTitle('');
+        setSelectedChapterName('');
+        setSelectedPageTitle('');
 
         // Reset Level 2 state
         setGameLevel(1);
@@ -483,6 +492,9 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         selectedBookId,
         selectedChapterId,
         selectedPageId,
+        selectedBookTitle,
+        selectedChapterName,
+        selectedPageTitle,
         searchKeyword,
         objectCategories,
         fieldsOfStudy,
@@ -510,6 +522,9 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
         setSelectedBookId,
         setSelectedChapterId,
         setSelectedPageId,
+        setSelectedBookTitle,
+        setSelectedChapterName,
+        setSelectedPageTitle,
         setSearchKeyword,
 
         // Handlers

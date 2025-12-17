@@ -60,6 +60,9 @@ const App: React.FC = () => {
         setSelectedPageId,
         selectedPageId,
         setSearchKeyword,
+        selectedBookTitle,
+        selectedChapterName,
+        selectedPageTitle,
 
         // Handlers from useGame hook
         handleDrop,
@@ -82,6 +85,9 @@ const App: React.FC = () => {
 
         stopSpeech,
         startGameWithData,
+        setSelectedBookTitle,
+        setSelectedChapterName,
+        setSelectedPageTitle,
     } = useGame(isOrgChecked);
 
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
@@ -212,6 +218,7 @@ const App: React.FC = () => {
                     handleMatchedImageClick={handleMatchedImageClick}
                     languages={languages}
                     selectedLanguage={selectedLanguage}
+                    selectedLanguageName={currentLanguageName}
                     onSelectLanguage={setSelectedLanguage}
                     selectedCategory={selectedCategory}
                     onSelectCategory={handleSelectCategory}
@@ -235,7 +242,13 @@ const App: React.FC = () => {
                     onSelectBookId={setSelectedBookId}
                     onSelectChapterId={setSelectedChapterId}
                     onSelectPageId={setSelectedPageId}
+                    onSelectBookTitle={setSelectedBookTitle}
+                    onSelectChapterName={setSelectedChapterName}
+                    onSelectPageTitle={setSelectedPageTitle}
                     selectedPageId={selectedPageId}
+                    selectedBookTitle={selectedBookTitle}
+                    selectedChapterName={selectedChapterName}
+                    selectedPageTitle={selectedPageTitle}
                     userId={authService.getUsername()}
                 />
             )}
@@ -299,6 +312,9 @@ const App: React.FC = () => {
                     onSelectBookId={setSelectedBookId}
                     onSelectChapterId={setSelectedChapterId}
                     onSelectPageId={setSelectedPageId}
+                    onSelectBookTitle={setSelectedBookTitle}
+                    onSelectChapterName={setSelectedChapterName}
+                    onSelectPageTitle={setSelectedPageTitle}
                     selectedPageId={selectedPageId}
                 />
             )}
