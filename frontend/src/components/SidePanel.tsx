@@ -34,6 +34,8 @@ interface SidePanelProps {
     expandedSection: 'presets' | 'custom';
     onExpandedSectionChange: (section: 'presets' | 'custom') => void;
     arePresetsDisabled?: boolean;
+    isPlaylistDisabled?: boolean;
+    isSavedCardDisabled?: boolean;
 }
 
 const SidePanel: React.FC<SidePanelProps> = ({
@@ -65,7 +67,9 @@ const SidePanel: React.FC<SidePanelProps> = ({
     onPageSelect,
     expandedSection,
     onExpandedSectionChange,
-    arePresetsDisabled
+    arePresetsDisabled,
+    isPlaylistDisabled,
+    isSavedCardDisabled
 }) => {
     // const [expandedSection, setExpandedSection] = React.useState<'presets' | 'custom'>('presets');
 
@@ -192,7 +196,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                             <div className="flex-1 bg-slate-700/50 rounded-md p-2 border border-slate-600 overflow-hidden">
                                 <PlaylistBrowser
                                     onPageSelect={handlePageSelectWithClear}
-                                    disabled={areSettingsDisabled}
+                                    disabled={areSettingsDisabled || isPlaylistDisabled}
                                     selectedLanguage={selectedLanguage}
                                     languages={languages}
                                     selectedPageId={selectedPageId}
@@ -208,7 +212,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                                     id="savedcard-select"
                                     value={selectedTubSheet}
                                     onChange={(e) => handleTubSheetSelectWithClear(e.target.value)}
-                                    disabled={areSettingsDisabled}
+                                    disabled={areSettingsDisabled || isSavedCardDisabled}
                                     className="w-full appearance-none bg-slate-700 border border-slate-600 text-white py-2 pl-3 pr-8 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                                 >
                                     <option value="">Select a card...</option>

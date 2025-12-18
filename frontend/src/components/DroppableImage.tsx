@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTooltip } from '../context/TooltipContext';
+import { CrossIcon } from './Icons';
 
 
 interface CheckIconProps {
@@ -19,23 +20,6 @@ const CheckIcon: React.FC<CheckIconProps> = ({ className }) => (
   </svg>
 );
 
-interface CrossIconProps {
-  className?: string;
-}
-
-const CrossIcon: React.FC<CrossIconProps> = ({ className }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={3}
-    stroke="currentColor"
-    className={className}
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
 interface DroppableImageProps {
   id: string;
   imageUrl: string;
@@ -50,6 +34,7 @@ interface DroppableImageProps {
   isWrongDrop: boolean;
   isJustMatched: boolean;
   onMatchedImageClick: (imageName: string) => void;
+  onImageDoubleClick: (imageUrl: string, imageName: string) => void;
   label?: string;
 }
 
@@ -67,6 +52,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
   isWrongDrop,
   isJustMatched,
   onMatchedImageClick,
+  onImageDoubleClick,
   label
 }) => {
   const { showTooltip, hideTooltip } = useTooltip();
@@ -104,6 +90,11 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
     }
   };
 
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onImageDoubleClick(imageUrl, imageName);
+  };
+
   return (
     <div
       id={`img-${id}`}
@@ -114,7 +105,9 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
-      className={`relative group w-full h-36 md:h-44 lg:h-48 rounded-xl shadow-lg transition-all duration-300 border-2 bg-slate-100 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-slate-300'} ${isMatched ? 'border-green-500 cursor-pointer' : ''} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''} overflow-hidden`}
+      onDoubleClick={handleDoubleClick}
+      className={`relative group w-full h-36 md:h-44 lg:h-48 rounded-xl shadow-lg transition-all duration-300 border-2 bg-slate-100 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-slate-300'} ${isMatched ? 'border-green-500 cursor-pointer' : 'cursor-zoom-in'} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''} overflow-hidden`}
+      title="Double click to zoom"
     >
       {label && (
         <div className={`absolute top-2 left-2 w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10 ${isMatched ? 'bg-green-600' : 'bg-slate-500'}`}>

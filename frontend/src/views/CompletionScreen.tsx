@@ -19,6 +19,7 @@ interface CompletionScreenProps {
     currentLanguageBcp47: string;
     onLevel2?: () => void;
     isFromTubSheet?: boolean;
+    isFromPlaylist?: boolean;
     isLoggedIn: boolean;
 }
 
@@ -158,7 +159,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
                     <div className="flex-shrink-0 mt-4">
                         <div className="flex flex-wrap justify-center items-center gap-4">
-                            {!props.isFromTubSheet && (
+                            {!props.isFromTubSheet && !props.isFromPlaylist && (
                                 <button
                                     onClick={props.onSaveSheet}
                                     disabled={!props.isLoggedIn || props.sheetSaveState === 'saving' || props.sheetSaveState === 'success'}

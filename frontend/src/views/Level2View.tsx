@@ -5,6 +5,7 @@ import Confetti from '../components/Confetti';
 import LoadingScreen from './LoadingScreen';
 import { SpeakerIcon, MenuIcon } from '../components/Icons';
 import SidePanel from '../components/SidePanel';
+import { Organisation } from '../services/routingService';
 import type { Language, CategoryFosItem, Difficulty, PlaylistItem, TubSheetItem, GameObject } from '../types/types';
 
 interface Level2ViewProps {
@@ -40,6 +41,8 @@ interface Level2ViewProps {
   onSelectChapterName: (name: string) => void;
   onSelectPageTitle: (title: string) => void;
   selectedPageId: string | null;
+  userId: string | null;
+  orgData: Organisation | null;
 }
 
 const Level2View: React.FC<Level2ViewProps> = ({
@@ -73,6 +76,8 @@ const Level2View: React.FC<Level2ViewProps> = ({
   onSelectChapterName,
   onSelectPageTitle,
   selectedPageId,
+  userId,
+  orgData,
 }) => {
   const [draggedQuestion, setDraggedQuestion] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -179,12 +184,10 @@ const Level2View: React.FC<Level2ViewProps> = ({
     }
   }, [remainingQuestions.length, pictureData.matchedQuestions.size, onPictureComplete]);
 
-  // Auto-collapse panel when game starts
-  React.useEffect(() => {
-    if (gameState === 'playing') {
-      setIsLeftPanelOpen(false);
-    }
-  }, [gameState]);
+  // Filter disabling logic
+  const isPlaylistDisabled = !orgData;
+  const isSavedCardDisabled = !userId;
+  const arePresetsDisabled = isPlaylistDisabled && isSavedCardDisabled;
 
   // Handle page selection from playlist
   // Handle page selection from playlist
@@ -293,6 +296,9 @@ const Level2View: React.FC<Level2ViewProps> = ({
                 onPageSelect={handlePageSelect}
                 expandedSection={expandedSection}
                 onExpandedSectionChange={setExpandedSection}
+                arePresetsDisabled={arePresetsDisabled}
+                isPlaylistDisabled={isPlaylistDisabled}
+                isSavedCardDisabled={isSavedCardDisabled}
               />
             </div>
           )}

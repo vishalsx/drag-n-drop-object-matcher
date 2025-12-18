@@ -278,6 +278,7 @@ const App: React.FC = () => {
                     currentLanguageBcp47={currentLanguageBcp47}
                     onLevel2={handleStartLevel2}
                     isFromTubSheet={!!selectedTubSheet}
+                    isFromPlaylist={!!selectedPageId}
                     isLoggedIn={!!authService.getUsername()}
                 />
             )}
@@ -316,6 +317,8 @@ const App: React.FC = () => {
                     onSelectChapterName={setSelectedChapterName}
                     onSelectPageTitle={setSelectedPageTitle}
                     selectedPageId={selectedPageId}
+                    userId={authService.getUsername()}
+                    orgData={orgData}
                 />
             )}
 

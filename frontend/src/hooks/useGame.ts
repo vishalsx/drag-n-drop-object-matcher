@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { GameObject, Difficulty, Language, CategoryFosItem } from '../types/types';
 import type { Level2GameState, Level2PictureData } from '../types/level2Types';
 import { fetchGameData, uploadScore, voteOnImage, saveTranslationSet, fetchCategoriesAndFos, fetchActiveLanguages } from '../services/gameService';
@@ -53,7 +53,7 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
     const [level2State, setLevel2State] = useState<Level2GameState | null>(null);
     const [level2Timer, setLevel2Timer] = useState(0);
 
-    const { playCorrectSound, playWrongSound, playGameCompleteSound } = useSoundEffects();
+    const { playCorrectSound, playWrongSound, playGameCompleteSound, playYaySound } = useSoundEffects();
     const { speakText, stop } = useSpeech();
 
     // Get the token to trigger re-fetch when it changes (e.g. after login)
@@ -339,6 +339,27 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
             return () => clearInterval(interval);
         }
     }, [gameLevel, level2State]);
+
+    // Level 2 Milestone Sound Effect
+    const lastMilestoneRef = useRef<number>(0);
+
+    useEffect(() => {
+        if (gameLevel !== 2 || !level2State) {
+            lastMilestoneRef.current = 0;
+            return;
+        }
+
+        const currentScore = level2State.score;
+        const currentMilestone = Math.floor(currentScore / 50);
+
+        if (currentMilestone > lastMilestoneRef.current) {
+            playYaySound();
+            lastMilestoneRef.current = currentMilestone;
+        } else if (currentMilestone < lastMilestoneRef.current) {
+            // Update ref if score drops below last milestone reached
+            lastMilestoneRef.current = currentMilestone;
+        }
+    }, [level2State?.score, gameLevel, playYaySound]);
 
     // Level 2: Start Level 2 with data from Level 1
     const handleStartLevel2 = () => {

@@ -169,8 +169,13 @@ const PlaylistBrowser: React.FC<PlaylistBrowserProps> = ({ onPageSelect, disable
                 </button>
             </form>
 
-            {loading && <div className="text-center text-slate-400 text-sm py-2">Loading...</div>}
-            {error && <div className="text-center text-red-400 text-sm py-2">{error}</div>}
+            {loading && (
+                <div className="flex flex-col items-center justify-center py-6 animate-fadeIn">
+                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    <div className="text-slate-400 text-xs">Fetching books...</div>
+                </div>
+            )}
+            {error && <div className="text-center text-red-400 text-xs py-2 animate-bounce">{error}</div>}
 
             {/* Tree View */}
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
@@ -179,39 +184,42 @@ const PlaylistBrowser: React.FC<PlaylistBrowserProps> = ({ onPageSelect, disable
                         {/* Book Header */}
                         <button
                             onClick={() => toggleBook(book)}
-                            className="w-full text-left p-2 flex items-center justify-between hover:bg-slate-700 text-slate-200"
+                            className={`w-full text-left p-2 flex items-center justify-between hover:bg-slate-700/80 transition-colors duration-200 text-slate-200 ${expandedBookId === book._id ? 'bg-slate-700/50' : ''}`}
                         >
                             <span className="font-medium text-sm truncate" title={book.title}>📖 {book.title}</span>
-                            <span className="text-xs text-slate-500">{expandedBookId === book._id ? '▼' : '▶'}</span>
+                            <span className={`text-xs text-slate-500 transition-transform duration-300 ${expandedBookId === book._id ? 'rotate-180' : ''}`}>▼</span>
                         </button>
 
                         {/* Chapters List */}
                         {expandedBookId === book._id && book.chapters && (
                             <div className="pl-2 border-l-2 border-slate-600 ml-2 space-y-1 mb-2">
                                 {book.chapters.map(chapter => (
-                                    <div key={chapter.chapter_id || chapter.chapter_number} className="">
+                                    <div key={chapter.chapter_id || chapter.chapter_number} className="animate-fadeIn">
                                         <button
                                             onClick={() => toggleChapter(book._id, chapter)}
-                                            className="w-full text-left p-1 text-sm text-slate-300 hover:text-white flex items-center gap-2"
+                                            className={`w-full text-left p-1 text-sm text-slate-300 hover:text-white flex items-center gap-2 transition-all duration-200 ${expandedChapterId === chapter.chapter_id ? 'text-blue-300 pl-2' : ''}`}
                                         >
-                                            <span className="text-xs">{expandedChapterId === chapter.chapter_id ? '📂' : '📁'}</span>
+                                            <span className={`text-xs transition-transform duration-300 ${expandedChapterId === chapter.chapter_id ? 'scale-110' : ''}`}>
+                                                {expandedChapterId === chapter.chapter_id ? '📂' : '📁'}
+                                            </span>
                                             <span className="truncate">{chapter.chapter_name}</span>
                                         </button>
 
                                         {/* Pages List */}
                                         {expandedChapterId === chapter.chapter_id && chapter.pages && (
-                                            <div className="pl-6 space-y-1 mt-1">
-                                                {chapter.pages.map(page => (
+                                            <div className="pl-6 space-y-1 mt-1 border-l border-slate-700/50 ml-1">
+                                                {chapter.pages.map((page, pIdx) => (
                                                     <button
                                                         key={page.page_id || page.page_number}
                                                         onClick={() => handlePageClick(book, chapter, page)}
-                                                        className={`w-full text-left text-xs py-1 flex items-center gap-2 ${selectedPageId === (page.page_id || String(page.page_number))
-                                                            ? 'text-green-400 hover:text-green-300'
-                                                            : 'text-slate-400 hover:text-blue-400'
+                                                        className={`w-full text-left text-xs py-1.5 px-2 rounded flex items-center gap-2 transition-all duration-200 animate-fadeIn ${selectedPageId === (page.page_id || String(page.page_number))
+                                                            ? 'text-green-400 bg-green-500/10'
+                                                            : 'text-slate-400 hover:text-blue-400 hover:bg-slate-700/30'
                                                             }`}
+                                                        style={{ animationDelay: `${pIdx * 50}ms` }}
                                                     >
-                                                        <span>{selectedPageId === (page.page_id || String(page.page_number)) ? '✓' : '📄'}</span>
-                                                        <span>
+                                                        <span className="flex-shrink-0">{selectedPageId === (page.page_id || String(page.page_number)) ? '✓' : '📄'}</span>
+                                                        <span className="truncate">
                                                             Page {page.page_number}
                                                             {page.title && ` - ${page.title}`}
                                                         </span>

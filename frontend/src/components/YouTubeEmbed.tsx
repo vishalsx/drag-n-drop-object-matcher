@@ -11,9 +11,10 @@ interface YouTubeEmbedProps {
     videoId: string;
     onEnded: () => void;
     className?: string;
+    muted?: boolean;
 }
 
-const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({ videoId, onEnded, className }) => {
+const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({ videoId, onEnded, className, muted = false }) => {
     const playerRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +54,7 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({ videoId, onEnded, className
                         'modestbranding': 1,
                         'rel': 0,
                         'showinfo': 0,
-                        'mute': 0,
+                        'mute': muted ? 1 : 0,
                         'loop': 0
                     },
                     events: {
@@ -79,6 +80,17 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({ videoId, onEnded, className
             playerRef.current.loadVideoById(videoId);
         }
     }, [videoId]);
+
+    // Effect to handle muted changes
+    useEffect(() => {
+        if (playerRef.current && playerRef.current.mute) {
+            if (muted) {
+                playerRef.current.mute();
+            } else {
+                playerRef.current.unMute();
+            }
+        }
+    }, [muted]);
 
     const onPlayerStateChange = (event: any) => {
         // YT.PlayerState.ENDED is 0

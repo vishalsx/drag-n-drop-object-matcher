@@ -3,8 +3,10 @@ import DraggableDescription from '../components/DraggableDescription';
 import DroppableImage from '../components/DroppableImage';
 import SidePanel from '../components/SidePanel';
 import LoadingScreen from './LoadingScreen';
-import { MenuIcon, BookOpenIcon } from '../components/Icons';
+import { MenuIcon, BookOpenIcon, VolumeOffIcon, VolumeUpIcon } from '../components/Icons';
 import YouTubeEmbed from '../components/YouTubeEmbed';
+import ImageZoomModal from '../components/ImageZoomModal';
+
 // Fix: Import CategoryFosItem to resolve type errors.
 import type { GameObject, Difficulty, Language, CategoryFosItem, PlaylistItem, TubSheetItem } from '../types/types';
 import PacManChaseAnimation from '../components/PacManChaseAnimation';
@@ -67,6 +69,9 @@ const GameView: React.FC<GameViewProps> = (props) => {
     const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
     const [expandedSection, setExpandedSection] = useState<'presets' | 'custom'>('presets');
     const [showStory, setShowStory] = useState(false);
+    const [zoomedImage, setZoomedImage] = useState<{ url: string, name: string } | null>(null);
+    const [isVideoMuted, setIsVideoMuted] = useState(true); // Default to muted as per common web practices for autoplay
+
 
     // Video randomization logic
     const VIDEO_IDS = [
@@ -198,11 +203,16 @@ const GameView: React.FC<GameViewProps> = (props) => {
         setDropTargetId(null); // Clear highlight on drop
     };
 
-    // Check if we're on base URL (no path segment)
-    const pathSegments = window.location.pathname.split('/').filter(Boolean).filter(segment => segment.toLowerCase() !== 'index.html');
-    const isBaseUrl = pathSegments.length === 0;
+    const handleImageDoubleClick = (imageUrl: string, imageName: string) => {
+        setZoomedImage({ url: imageUrl, name: imageName });
+    };
 
-    const arePresetsDisabled = isBaseUrl || (!props.orgData && !props.userId);
+
+    const isPlaylistDisabled = !props.orgData;
+    const isSavedCardDisabled = !props.userId;
+
+    // Presets tab is disabled only if BOTH filters are disabled
+    const arePresetsDisabled = isPlaylistDisabled && isSavedCardDisabled;
 
     useEffect(() => {
         if (arePresetsDisabled) {
@@ -265,6 +275,8 @@ const GameView: React.FC<GameViewProps> = (props) => {
                             expandedSection={expandedSection}
                             onExpandedSectionChange={setExpandedSection}
                             arePresetsDisabled={arePresetsDisabled}
+                            isPlaylistDisabled={isPlaylistDisabled}
+                            isSavedCardDisabled={isSavedCardDisabled}
                         />
                     </div>
                 )}
@@ -275,59 +287,52 @@ const GameView: React.FC<GameViewProps> = (props) => {
                         {(props.gameState === 'playing' || props.gameState === 'complete') && (
                             <button
                                 onClick={() => setShowStory(!showStory)}
-                                className="absolute right-0 top-0 p-2 text-slate-400 hover:text-white transition-colors"
-                                title={showStory ? "Show Hints" : "Show Story"}
+                                disabled={!(props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral)}
+                                className={`absolute right-0 top-0 p-2 transition-colors ${(props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral)
+                                    ? 'text-slate-400 hover:text-white'
+                                    : 'text-slate-600 cursor-not-allowed opacity-40'
+                                    }`}
+                                title={(props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral) ? (showStory ? "Show Hints" : "Show Story") : "Story not available for this page"}
                             >
                                 <BookOpenIcon className="w-6 h-6" />
                             </button>
                         )}
-                        <h2 className="text-2xl font-bold text-slate-300">{showStory ? 'Story' : 'Hints'}</h2>
+                        <h2 className="text-2xl font-bold text-slate-300">{(showStory && props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral) ? 'Story' : 'Hints'}</h2>
                         <p className="text-slate-400 mt-1 text-sm">
-                            {showStory ? 'Read the story' : 'Drag a hint to the matching object'}
+                            {(showStory && props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral) ? 'Read the story' : 'Drag a hint to the matching object'}
                         </p>
                     </header>
                     <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
-                        {showStory ? (
+                        {showStory && props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral ? (
                             <div className="p-4 text-slate-300 text-lg leading-relaxed">
                                 <h3 className="text-xl font-semibold mb-4 text-teal-400">The Story</h3>
-                                {props.shuffledDescriptions[0]?.story ? (
-                                    <>
-                                        <p className="mb-4 whitespace-pre-wrap">{props.shuffledDescriptions[0].story}</p>
-                                        {props.shuffledDescriptions[0].moral && (
-                                            <div className="mt-6 p-4 bg-teal-900/30 rounded-lg border border-teal-700/50">
-                                                <span className="font-bold text-teal-300 text-xl block mb-2">Moral:</span>
-                                                <p className="italic text-slate-200 text-xl">{props.shuffledDescriptions[0].moral}</p>
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <>
-                                        <p className="mb-4">
-                                            Once upon a time, in a vibrant world full of wonders, a young adventurer set out on a journey of discovery.
-                                            Along the path, they encountered many fascinating objects, each with a unique story to tell.
-                                        </p>
-                                        <p className="mb-4">
-                                            "To understand the world," a wise old owl hooted, "you must learn the name of things and what they do."
-                                            And so, the adventurer began to match the clues they found with the objects around them.
-                                        </p>
-                                        <p>
-                                            Can you help them complete their journal? match the hints to the correct pictures to reveal the secrets of this land.
-                                        </p>
-                                    </>
-                                )}
+                                <p className="mb-4 whitespace-pre-wrap">{props.shuffledDescriptions[0].story}</p>
+                                <div className="mt-6 p-4 bg-teal-900/30 rounded-lg border border-teal-700/50">
+                                    <span className="font-bold text-teal-300 text-xl block mb-2">Moral:</span>
+                                    <p className="italic text-slate-200 text-xl">{props.shuffledDescriptions[0].moral}</p>
+                                </div>
                             </div>
                         ) : (
                             <>
                                 {props.gameState === 'idle' && (
                                     <div className="h-full flex flex-col items-center justify-between p-2">
                                         {/* Video Container */}
-                                        <div className="w-full flex-grow flex items-center justify-center mb-4 rounded-lg overflow-hidden bg-black/40 relative">
+                                        <div className="w-full flex-grow flex items-center justify-center mb-4 rounded-lg overflow-hidden bg-black/40 relative group/video">
                                             <div className="absolute inset-0 z-10" />
                                             <YouTubeEmbed
                                                 videoId={currentVideoId}
                                                 onEnded={handleVideoEnd}
+                                                muted={isVideoMuted}
                                                 className="aspect-[9/16] h-full w-full max-h-[50vh]"
                                             />
+                                            {/* Mute toggle button */}
+                                            <button
+                                                onClick={() => setIsVideoMuted(!isVideoMuted)}
+                                                className="absolute bottom-4 right-4 z-20 p-2 bg-black/60 hover:bg-black/80 rounded-full text-white transition-all opacity-0 group-hover/video:opacity-100 focus:opacity-100"
+                                                title={isVideoMuted ? "Unmute" : "Mute"}
+                                            >
+                                                {isVideoMuted ? <VolumeOffIcon className="w-6 h-6" /> : <VolumeUpIcon className="w-6 h-6" />}
+                                            </button>
                                         </div>
 
                                         {/* Instructions */}
@@ -339,13 +344,22 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                 {props.gameState === 'loading' && (
                                     <div className="h-full flex flex-col items-center justify-between p-2">
                                         {/* Video Container - Loading State (Using same video for continuity or random, using currentVideoId) */}
-                                        <div className="w-full flex-grow flex items-center justify-center mb-4 rounded-lg overflow-hidden bg-black/40 relative">
+                                        <div className="w-full flex-grow flex items-center justify-center mb-4 rounded-lg overflow-hidden bg-black/40 relative group/video">
                                             <div className="absolute inset-0 z-10" />
                                             <YouTubeEmbed
                                                 videoId={currentVideoId}
                                                 onEnded={handleVideoEnd}
+                                                muted={isVideoMuted}
                                                 className="aspect-[9/16] h-full w-full max-h-[50vh]"
                                             />
+                                            {/* Mute toggle button */}
+                                            <button
+                                                onClick={() => setIsVideoMuted(!isVideoMuted)}
+                                                className="absolute bottom-4 right-4 z-20 p-2 bg-black/60 hover:bg-black/80 rounded-full text-white transition-all opacity-0 group-hover/video:opacity-100 focus:opacity-100"
+                                                title={isVideoMuted ? "Unmute" : "Mute"}
+                                            >
+                                                {isVideoMuted ? <VolumeOffIcon className="w-6 h-6" /> : <VolumeUpIcon className="w-6 h-6" />}
+                                            </button>
                                         </div>
 
                                         {/* Loading Details */}
@@ -429,14 +443,23 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                         isWrongDrop={props.wrongDropTargetId === item.id}
                                         isJustMatched={props.justMatchedId === item.id}
                                         onMatchedImageClick={props.handleMatchedImageClick}
+                                        onImageDoubleClick={handleImageDoubleClick}
                                         label={String.fromCharCode(65 + index)}
                                     />
+
                                 ))}
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+            {zoomedImage && (
+                <ImageZoomModal
+                    imageUrl={zoomedImage.url}
+                    onClose={() => setZoomedImage(null)}
+                />
+            )}
+
         </div>
     );
 };
