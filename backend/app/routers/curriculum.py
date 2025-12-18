@@ -8,7 +8,7 @@ from app.database import objects_collection, translation_collection
 from app.models import PyObjectId, Book, Chapter, Page
 from bson import ObjectId
 from datetime import datetime, timezone
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_current_user_optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ async def search_books(
     request: Request,
     search_text: str = Query(..., description="Text to search across title, author, subject, etc."),
     language: Optional[str] = Query(None, description="Optional language filter"),
-    current_user: dict = Depends(get_current_user)
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     try:
         print(f"\n\n=== DEBUG: Curriculum Search Books Endpoint ===")
@@ -80,7 +80,7 @@ async def search_books(
 async def get_book_chapters(
     book_id: str,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     try:
         headers = {}
@@ -104,7 +104,7 @@ async def get_chapter_pages(
     book_id: str, 
     chapter_identifier: str,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     try:
         headers = {}

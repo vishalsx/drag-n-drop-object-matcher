@@ -10,12 +10,12 @@ from fastapi import Depends, Request
 
 async def get_current_user(request: Request):
     user = getattr(request.state, "user", None)
-    # If middleware didn't populate it (e.g. no header), usually we raise 401
-    # But for some flexible endpoints we might allow optional. 
-    # The user requirement implies "mandatory", so let's raise if missing.
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
+
+async def get_current_user_optional(request: Request):
+    return getattr(request.state, "user", None)
 
 import os
 from dotenv import load_dotenv  
