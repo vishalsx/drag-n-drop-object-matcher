@@ -15,8 +15,10 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, { ...options, headers });
 
     if (response.status === 401) {
-        authService.logout();
-        window.location.reload();
+        if (token) {
+            authService.logout();
+            window.location.reload();
+        }
         throw new Error('Unauthorized');
     }
 

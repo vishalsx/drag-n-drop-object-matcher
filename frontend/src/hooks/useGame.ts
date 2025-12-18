@@ -468,9 +468,6 @@ export const useGame = (shouldFetchLanguages: boolean = true) => {
 
     // Level 2: Close completion and return to idle
     const handleLevel2Complete = () => {
-        setGameLevel(1);
-        setLevel2State(null);
-        setLevel2Timer(0);
         handleResetGame();
     };
 

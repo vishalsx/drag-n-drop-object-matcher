@@ -67,7 +67,11 @@ const GameView: React.FC<GameViewProps> = (props) => {
     const [dropTargetId, setDropTargetId] = useState<string | null>(null);
     const [animationToShow, setAnimationToShow] = useState<'pacman' | 'snake'>('pacman');
     const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-    const [expandedSection, setExpandedSection] = useState<'presets' | 'custom'>('presets');
+    const isPlaylistDisabled = !props.orgData;
+    const isSavedCardDisabled = !props.userId;
+    const arePresetsDisabled = isPlaylistDisabled && isSavedCardDisabled;
+
+    const [expandedSection, setExpandedSection] = useState<'presets' | 'custom'>(arePresetsDisabled ? 'custom' : 'presets');
     const [showStory, setShowStory] = useState(false);
     const [zoomedImage, setZoomedImage] = useState<{ url: string, name: string } | null>(null);
     const [isVideoMuted, setIsVideoMuted] = useState(true); // Default to muted as per common web practices for autoplay
@@ -206,19 +210,6 @@ const GameView: React.FC<GameViewProps> = (props) => {
     const handleImageDoubleClick = (imageUrl: string, imageName: string) => {
         setZoomedImage({ url: imageUrl, name: imageName });
     };
-
-
-    const isPlaylistDisabled = !props.orgData;
-    const isSavedCardDisabled = !props.userId;
-
-    // Presets tab is disabled only if BOTH filters are disabled
-    const arePresetsDisabled = isPlaylistDisabled && isSavedCardDisabled;
-
-    useEffect(() => {
-        if (arePresetsDisabled) {
-            setExpandedSection('custom');
-        }
-    }, [arePresetsDisabled]);
 
     useEffect(() => {
         console.log('GameView orgData:', props.orgData);
