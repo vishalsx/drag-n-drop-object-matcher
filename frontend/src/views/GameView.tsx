@@ -278,30 +278,36 @@ const GameView: React.FC<GameViewProps> = (props) => {
                         {(props.gameState === 'playing' || props.gameState === 'complete') && (
                             <button
                                 onClick={() => setShowStory(!showStory)}
-                                disabled={!(props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral)}
-                                className={`absolute right-0 top-0 p-2 transition-colors ${(props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral)
+                                disabled={!(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)}
+                                className={`absolute right-0 top-0 p-2 transition-colors ${(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)
                                     ? 'text-slate-400 hover:text-white'
                                     : 'text-slate-600 cursor-not-allowed opacity-40'
                                     }`}
-                                title={(props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral) ? (showStory ? "Show Hints" : "Show Story") : "Story not available for this page"}
+                                title={(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral) ? (showStory ? "Show Hints" : "Show Story") : "Story not available for this page"}
                             >
                                 <BookOpenIcon className="w-6 h-6" />
                             </button>
                         )}
-                        <h2 className="text-2xl font-bold text-slate-300">{(showStory && props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral) ? 'Story' : 'Hints'}</h2>
+                        <h2 className="text-2xl font-bold text-slate-300">{(showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) ? 'Story' : 'Hints'}</h2>
                         <p className="text-slate-400 mt-1 text-sm">
-                            {(showStory && props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral) ? 'Read the story' : 'Drag a hint to the matching object'}
+                            {(showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) ? 'Read the story' : 'Drag a hint to the matching object'}
                         </p>
                     </header>
                     <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
-                        {showStory && props.shuffledDescriptions[0]?.story && props.shuffledDescriptions[0]?.moral ? (
+                        {showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral) ? (
                             <div className="p-4 text-slate-300 text-lg leading-relaxed">
-                                <h3 className="text-xl font-semibold mb-4 text-teal-400">The Story</h3>
-                                <p className="mb-4 whitespace-pre-wrap">{props.shuffledDescriptions[0].story}</p>
-                                <div className="mt-6 p-4 bg-teal-900/30 rounded-lg border border-teal-700/50">
-                                    <span className="font-bold text-teal-300 text-xl block mb-2">Moral:</span>
-                                    <p className="italic text-slate-200 text-xl">{props.shuffledDescriptions[0].moral}</p>
-                                </div>
+                                {props.shuffledDescriptions[0]?.story && (
+                                    <>
+                                        <h3 className="text-xl font-semibold mb-4 text-teal-400">The Story</h3>
+                                        <p className="mb-4 whitespace-pre-wrap">{props.shuffledDescriptions[0].story}</p>
+                                    </>
+                                )}
+                                {props.shuffledDescriptions[0]?.moral && (
+                                    <div className="mt-6 p-4 bg-teal-900/30 rounded-lg border border-teal-700/50">
+                                        <span className="font-bold text-teal-300 text-xl block mb-2">Moral:</span>
+                                        <p className="italic text-slate-200 text-xl">{props.shuffledDescriptions[0].moral}</p>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <>
