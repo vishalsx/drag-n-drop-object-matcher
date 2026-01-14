@@ -117,6 +117,7 @@ const App: React.FC = () => {
         handleLevel2QuestionDrop,
         handleLevel2NextPicture,
         handleLevel2Complete,
+        handleLevel2ImageLoaded,
         currentLanguageBcp47,
         handleSpeakHint,
 
@@ -470,7 +471,8 @@ const App: React.FC = () => {
             }
 
             authService.logout();
-            window.location.href = '/';
+            const redirectUrl = orgData ? `/${orgData.org_code}/contest` : '/';
+            window.location.href = redirectUrl;
         } else {
             handleResetGame();
         }
@@ -663,6 +665,7 @@ const App: React.FC = () => {
                     onQuestionDrop={handleLevel2QuestionDrop}
                     onPictureComplete={handleLevel2NextPicture}
                     onSpeakHint={handleSpeakHint}
+                    onImageLoaded={handleLevel2ImageLoaded}
 
                     // SidePanel Props
                     languages={languages}

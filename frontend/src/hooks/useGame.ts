@@ -69,6 +69,7 @@ export const useGame = (
     const [gameLevel, setGameLevel] = useState<GameLevel>(1);
     const [level2State, setLevel2State] = useState<Level2GameState | null>(null);
     const [level2Timer, setLevel2Timer] = useState(0);
+    const [isLevel2Paused, setIsLevel2Paused] = useState(true);
 
     // Contest State
     const [segmentQueue, setSegmentQueue] = useState<GameSegment[]>([]);
@@ -339,6 +340,7 @@ export const useGame = (
                 });
 
                 setLevel2Timer(segment.round.time_limit_seconds);
+                setIsLevel2Paused(true); // Pause until first image loads
                 setGameState('playing');
                 setTransitionMessage(null);
                 if (isContest) submitAnalytics(RoundStatus.STARTED, score);
@@ -775,9 +777,8 @@ export const useGame = (
         }
     };
 
-    // Level 2 Timer Effect
     useEffect(() => {
-        if (gameLevel === 2 && level2State && !level2State.isComplete) {
+        if (gameLevel === 2 && level2State && !level2State.isComplete && !isLevel2Paused) {
             const interval = setInterval(() => {
                 setLevel2Timer(prev => {
                     if (isContest) {
@@ -833,7 +834,7 @@ export const useGame = (
 
             return () => clearInterval(interval);
         }
-    }, [gameLevel, level2State?.isComplete, isContest, currentSegment, score]);
+    }, [gameLevel, level2State?.isComplete, isContest, currentSegment, score, isLevel2Paused]);
 
     // Level 2 Milestone Sound Effect
     const lastMilestoneRef = useRef<number>(0);
@@ -888,6 +889,7 @@ export const useGame = (
         });
 
         setLevel2Timer(0);
+        setIsLevel2Paused(true);
         setGameLevel(2);
         setGameState('playing');
     };
@@ -918,6 +920,12 @@ export const useGame = (
                 pictures: updatedPictures,
                 score: level2State.score + 15, // +15 for correct
             });
+
+            // Pause timer if all correct questions for this picture are matched
+            if (newMatched.size >= currentPicture.questions.length) {
+                console.log('[useGame] All questions matched for this picture. Pausing timer for transition.');
+                setIsLevel2Paused(true);
+            }
 
             playCorrectSound();
         } else {
@@ -955,11 +963,17 @@ export const useGame = (
             // If Level 2 View has a "Finish" button, it calls handleLevel2Complete
         } else {
             // Move to next picture
+            setIsLevel2Paused(true); // Pause while next image is loading
             setLevel2State({
                 ...level2State,
                 currentPictureIndex: nextIndex,
             });
         }
+    };
+
+    const handleLevel2ImageLoaded = () => {
+        console.log('[useGame] Level 2 Image Loaded. Resuming timer.');
+        setIsLevel2Paused(false);
     };
 
     // Level 2: Close completion and return to idle
@@ -1035,6 +1049,7 @@ export const useGame = (
         gameLevel,
         level2State,
         level2Timer,
+        isLevel2Paused,
 
         // Contest State
         currentSegment,
@@ -1074,6 +1089,7 @@ export const useGame = (
         handleLevel2QuestionDrop,
         handleLevel2NextPicture,
         handleLevel2Complete, // This needs to call handleSegmentComplete logic if queue not empty? Logic moved to handleSegmentComplete.
+        handleLevel2ImageLoaded,
         handleReplayInLanguage,
         handleMatchedImageClick,
         handleSelectCategory,

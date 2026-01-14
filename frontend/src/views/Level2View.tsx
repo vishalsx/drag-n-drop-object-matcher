@@ -15,6 +15,7 @@ interface Level2ViewProps {
   onQuestionDrop: (questionId: string, targetAnswerId: string) => void;
   onPictureComplete: () => void;
   onSpeakHint: (text: string, pictureId?: string) => void;
+  onImageLoaded?: () => void;
 
   // SidePanel Props
   languages: Language[];
@@ -80,6 +81,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
   userId,
   orgData,
   isContest,
+  onImageLoaded,
 }) => {
   const [draggedQuestion, setDraggedQuestion] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -437,6 +439,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
                 src={pictureData.imageUrl}
                 alt={pictureData.imageName}
                 className="max-w-full max-h-full object-contain rounded-lg shadow-md"
+                onLoad={onImageLoaded}
               />
             </div>
 
