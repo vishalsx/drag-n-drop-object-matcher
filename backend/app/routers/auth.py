@@ -1,11 +1,15 @@
-from fastapi import APIRouter, HTTPException, Form
+from fastapi import APIRouter, HTTPException, Form, Query
 from pydantic import BaseModel
 import requests
-from typing import Optional, List
-from app.database import organisations_collection
-
+from typing import Optional, List, Dict, Any
+from app.database import organisations_collection, participants_collection, contests_collection
+from app.contest_config import Contest
+from app.contest_participant import Participant, ParticipantCreate, ParticipantLogin, Contestant, ContestParticipation, ContestParticipantCreate, ContestParticipantUpdate, ContestScoreSubmission, RoundScore
+from bson import ObjectId
+from datetime import datetime, timezone
+from app.services.validateContest import validate_contest_for_login
 router = APIRouter()
-
+import hashlib
 from fastapi import Depends, Request
 
 async def get_current_user(request: Request):
@@ -25,6 +29,21 @@ load_dotenv()
 
 
 EXTERNAL_LOGIN_URL = os.getenv("EXTERNAL_LOGIN_URL", "http://localhost:8000/auth/login")
+EXTERNAL_CREATE_USER_URL = os.getenv("EXTERNAL_CREATE_USER_URL", "http://localhost:8000/auth/create-user")
+
+class CreateUserRequest(BaseModel):
+    username: str
+    email_id: Optional[str] = None
+    phone: Optional[str] = None
+    password: str
+    roles: List[str]
+    languages_allowed: List[str]
+    country: Optional[str] = None
+    organisation_id: Optional[str] = None
+
+class CreateUserResponse(BaseModel):
+    message: str
+    user_id: str
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -34,6 +53,9 @@ class LoginResponse(BaseModel):
     org_id: Optional[str] = None
     languages_allowed: Optional[List[str]] = None
     username: Optional[str] = None
+    contest_details: Optional[Dict[str, Any]] = None
+    search_text: Optional[str] = None
+    contest_error: Optional[str] = None
 
 async def validate_org(org_code: str, response: dict):
     org_coll = await organisations_collection.find_one({"org_code": org_code})
@@ -77,8 +99,83 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+@router.post("/auth/anonymous-login", response_model=LoginResponse)
+async def anonymous_login(org_code: str = Form(...)):
+    """
+    Authenticate anonymously for public organizations.
+    Uses org-specific anonymous credentials to obtain a token.
+    """
+    try:
+        # Find organization by org_code
+        org = await organisations_collection.find_one({"org_code": org_code})
+        
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        
+        # Verify it's a public organization
+        if org.get("org_type") != "Public":
+            raise HTTPException(status_code=403, detail="Anonymous login only available for public organizations")
+        
+        # Get anonymous credentials
+        anonymous_userid = org.get("anonymous_userid")
+        anonymous_password = org.get("anonymous_password")
+        
+        if not anonymous_userid or not anonymous_password:
+            raise HTTPException(status_code=500, detail="Anonymous credentials not configured for this organization")
+        
+        # Authenticate with external service using anonymous credentials
+        payload = {
+            "username": anonymous_userid,
+            "password": anonymous_password,
+            "org_code": org_code
+        }
+        
+        response = requests.post(EXTERNAL_LOGIN_URL, data=payload)
+        
+        if response.status_code != 200:
+            try:
+                error_detail = response.json()
+            except:
+                error_detail = response.text
+            raise HTTPException(status_code=response.status_code, detail=f"External authentication failed: {error_detail}")
+        
+        response_data = response.json()
+        
+        # Enrich token with org context
+        user_payload = {
+            "sub": anonymous_userid,
+            "username": anonymous_userid,
+            "languages_allowed": response_data.get("languages_allowed"),
+            "org_id": org.get("org_id"),
+            "organisation_id": org.get("org_id"),
+            "roles": response_data.get("roles", ["anonymous"]),
+            "permissions": response_data.get("permissions"),
+            "is_anonymous": True  # Flag to identify anonymous sessions
+        }
+        new_token = create_access_token(user_payload)
+        
+        return LoginResponse(
+            access_token=new_token,
+            token_type="bearer",
+            org_id=org.get("org_id"),
+            username=anonymous_userid
+        )
+        
+    except requests.RequestException as e:
+        raise HTTPException(status_code=503, detail=f"External authentication service unavailable: {str(e)}")
+
 @router.post("/auth/login", response_model=LoginResponse)
-async def login(username: str = Form(...), password: str = Form(...), org_code: Optional[str] = Form(None), param2: Optional[str] = Form(None), param3: Optional[str] = Form(None)):
+async def login(
+    username: str = Form(...), 
+    password: str = Form(...), 
+    org_code: Optional[str] = Form(None), 
+    param2: Optional[str] = Form(None), 
+    param3: Optional[str] = Form(None),
+    timezone: Optional[str] = Form(None)
+):
     try:
         payload = {
             "username": username,
@@ -90,21 +187,12 @@ async def login(username: str = Form(...), password: str = Form(...), org_code: 
             payload["param2"] = param2
         if param3:
             payload["param3"] = param3
-        print(f"\n\nPayload: {payload}\n\n")
+        print(f"\n\nparam2: {param2}, param3: {param3}, org_code: {org_code}, timezone: {timezone}, payload:{payload}\n")
 
         # The external service expects application/x-www-form-urlencoded
         response = requests.post(EXTERNAL_LOGIN_URL, data=payload)
-        print(f"\n\n=== DEBUG: External Login Status Code: {response.status_code} ===")
         if response.status_code == 200:
             response_data = response.json()
-            print(f"\n\n=== DEBUG: External Login Response Data ===")
-            print(f"username: {response_data.get('username')}")
-            print(f"org_id: {response_data.get('org_id')}")
-            print(f"roles: {response_data.get('roles')}")
-            print(f"languages_allowed: {response_data.get('languages_allowed')}")
-            print(f"permissions: {response_data.get('permissions')}")
-            print(f"Full response keys: {response_data.keys()}")
-            print(f"===\n\n")
             
             # Check for logical errors or missing data even with 200 OK
             if "error" in response_data:
@@ -125,17 +213,10 @@ async def login(username: str = Form(...), password: str = Form(...), org_code: 
                 "roles": response_data.get("roles"),
                 "permissions": response_data.get("permissions")
             }
-            print(f"\n\n=== DEBUG: Token Enrichment ===")
-            print(f"User Payload for JWT: {user_payload}")
             new_token = create_access_token(user_payload)
-            print(f"New Enriched Token: {new_token[:50]}...")
-            print(f"===\n\n")
             
             # Decode the token we just created to verify it contains org_id
             decoded_token = jwt.decode(new_token, SECRET_KEY, algorithms=[ALGORITHM])
-            print(f"\n\n=== DEBUG: Decoded Enriched Token ===")
-            print(f"Decoded payload: {decoded_token}")
-            print(f"===\n\n")
             
             response_data["access_token"] = new_token
             # --- ENRICH TOKEN END ---
@@ -144,6 +225,22 @@ async def login(username: str = Form(...), password: str = Form(...), org_code: 
                 is_org_valid = await validate_org(org_code, response_data)
                 if is_org_valid is False:
                      raise HTTPException(status_code=401, detail="Invalid access to organisation")
+            
+            # --- CONTEST VALIDATION START ---
+            if param2 and param3 and param2.lower() == "contest":
+                contest_doc, search_text, contest_error = await validate_contest_for_login(param3, timezone)
+                if contest_doc:
+                    # Convert ObjectId and datetime for JSON serialization
+                    contest_doc["_id"] = str(contest_doc["_id"])
+                    for key, val in contest_doc.items():
+                        if isinstance(val, datetime):
+                            contest_doc[key] = val.isoformat()
+                    response_data["contest_details"] = contest_doc
+                response_data["search_text"] = search_text
+                response_data["contest_error"] = contest_error
+                
+            # --- CONTEST VALIDATION END ---
+
             return response_data
         else:
             # Forward the error from the external service
@@ -156,4 +253,3 @@ async def login(username: str = Form(...), password: str = Form(...), org_code: 
             
     except requests.RequestException as e:
         raise HTTPException(status_code=503, detail=f"Login service unavailable: {str(e)}")
-

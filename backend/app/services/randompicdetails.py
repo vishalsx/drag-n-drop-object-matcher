@@ -11,15 +11,17 @@ async def get_random_picture_details(
     language: Optional[str] = None,
     category: Optional[str] = None,
     field_of_study: Optional[str] = None,
-    org_id: Optional[str] = None
+    org_id: Optional[str] = None,
+    object_ids: Optional[list] = None
 ) -> list:
     """
     Fetch random picture translations filtered by:
     - requested_language (if provided)
     - translation_status == 'Approved'
     - objects.metadata.image_status == 'Approved'
-    - objects.metadata.object_category OR objects.metadata.field_of_study (based on frontend input)
+    - objects.metadata.object_category OR objects.metadata.field_of_study
     - org_id (if provided)
+    - object_ids (if provided, filters to specific objects)
     Deduplication is done on object_name (not object_id).
     """
   
@@ -29,7 +31,7 @@ async def get_random_picture_details(
     # 1) Initialize base queries
     base_query = {"translation_status": "Approved"}
     object_filter = {"image_status": "Approved"}
-
+    print(f"\n⏰ Inside get_random_picture_details: Requested language: {language}, Org ID: {org_id}")
     # 2) Apply Org ID logic
     if org_id:
         # Case 1: org_id provided
@@ -66,7 +68,45 @@ async def get_random_picture_details(
     elif field_of_study:
         object_filter["metadata.field_of_study"] = field_of_study
 
+    # # 3) Get all matching object _ids (ObjectId type)
+    # matching_object_ids = await objects_collection.distinct("_id", object_filter)
+    # print(f"\nFound {len(matching_object_ids)} matching objects")
+
+    # if not matching_object_ids:
+    #     logger.warning("No objects found matching the provided filters.")
+    #     return []
+
+    # # 4) Restrict translation query to those object IDs (ObjectId type)
+    # base_query["object_id"] = {"$in": matching_object_ids}
+
+    # # 5) Count distinct object_names after filters
+    # distinct_names = await translation_collection.distinct("object_name", base_query)
+    # total = len(distinct_names)
+    # print("\nTotal distinct object_names after filters: ", total, distinct_names)
+    # logger.info(f"Total distinct object_names after filters: {total}")
+
+  
+  
+    # 2.5) Apply object_ids filter if provided
+    if object_ids:
+        base_query["object_id"] = {"$in": object_ids}
+        object_filter["_id"] = {"$in": object_ids}
+        logger.info(f"Filtering matching matching objects by explicit ID list: {len(object_ids)} IDs")
+    print("\n^^^^^^^^^^base_query: ", base_query)
+    print("\n^^^^^^^^^^object_filter: ", object_filter)
     # 3) Get all matching object _ids (ObjectId type)
+    # Retrieving translations based on either (org_id + language) or (no org_id + language) as per the base query
+    translations_object_ids = await translation_collection.distinct("object_id", base_query) 
+    print(f"\n----Found {len(translations_object_ids)} matching translations")
+ 
+    # 4) Get all objects collections _ids based on translation_object_ids
+    if object_ids:
+         object_filter["_id"] = {"$in": [oid for oid in translations_object_ids if oid in object_ids]}
+    else:
+         object_filter["_id"] = {"$in": translations_object_ids}
+    
+    print(f"\n----Filtering objects based on translation_object_ids: {object_filter}")
+
     matching_object_ids = await objects_collection.distinct("_id", object_filter)
     print(f"\nFound {len(matching_object_ids)} matching objects")
 
@@ -76,12 +116,22 @@ async def get_random_picture_details(
 
     # 4) Restrict translation query to those object IDs (ObjectId type)
     base_query["object_id"] = {"$in": matching_object_ids}
+    print(f"\n----Restricting translation query to those object IDs: {base_query}")
 
-    # 5) Count distinct object_names after filters
-    distinct_names = await translation_collection.distinct("object_name", base_query)
-    total = len(distinct_names)
-    print("\nTotal distinct object_names after filters: ", total, distinct_names)
-    logger.info(f"Total distinct object_names after filters: {total}")
+    # 5) Count distinct items after filters
+    if object_ids:
+        # When specific IDs are requested, we deduplicate by object_id to ensure we get exactly what was asked for
+        distinct_items = await translation_collection.distinct("object_id", base_query)
+    else:
+        # For random matching, we still deduplicate by object_name to provide variety
+        distinct_items = await translation_collection.distinct("object_name", base_query)
+
+    total = len(distinct_items)
+    print("\nTotal distinct items after filters: ", total)
+    logger.info(f"Total distinct items after filters: {total}")
+
+
+
 
     if total == 0:
         logger.warning("No translation documents found for given filters.")
@@ -91,11 +141,14 @@ async def get_random_picture_details(
         logger.info(f"Requested {count} but only {total} available. Reducing count.")
         count = total
 
-    # 6) Aggregation: deduplicate by object_name → sample randomly
+    # 6) Aggregation: deduplicate → sample randomly
+    # Grouping key depends on whether we are replaying specific objects or fetching random ones
+    group_key = "$object_id" if object_ids else "$object_name"
+
     pipeline = [
         {"$match": base_query},
         {"$group": {
-            "_id": "$object_name",               # deduplicate by object_name
+            "_id": group_key,               # deduplicate by object_id if replaying, else by object_name
             "object_id": {"$first": "$object_id"},
             "object_name": {"$first": "$object_name"},
             "object_description": {"$first": "$object_description"},

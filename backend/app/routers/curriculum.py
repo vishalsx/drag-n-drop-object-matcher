@@ -88,7 +88,20 @@ async def get_book_chapters(
         if auth_header:
             headers["Authorization"] = auth_header
 
+        auth_available = "YES" if auth_header else "NO"
+        print(f"DEBUG: get_book_chapters - Auth Header Present: {auth_available}")
+        if auth_header:
+             print(f"DEBUG: Auth Header Length: {len(auth_header)}")
+             
         response = requests.get(f"{EXTERNAL_API_URL}/books/{book_id}/chapters", headers=headers)
+        
+        print(f"DEBUG: External API URL: {EXTERNAL_API_URL}/books/{book_id}/chapters")
+        print(f"DEBUG: Status Code: {response.status_code}")
+        print(f"DEBUG: Response Text (first 200 chars): {response.text[:200]}")
+        
+        print(f"DEBUG: External API URL: {EXTERNAL_API_URL}/books/{book_id}/chapters")
+        print(f"DEBUG: Status Code: {response.status_code}")
+        print(f"DEBUG: Response Text: {response.text}")
         
         if response.status_code == 200:
             data = response.json()

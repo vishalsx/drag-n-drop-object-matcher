@@ -20,3 +20,7 @@ translation_set_collection = db["translation_sets"]
 languages_collection = db["languages"]
 organisations_collection = db["organisations"]
 counters_collection = db["counters"]
+contests_collection = db["contests"]
+contest_analytics_collection = db["contest_analytics"]
+participants_collection = db["participants"]
+

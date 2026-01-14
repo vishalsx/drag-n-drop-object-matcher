@@ -2,10 +2,14 @@ import random
 import logging
 from fastapi import APIRouter, Query, Request
 from typing import List, Optional
-from app.database import objects_collection, translation_set_collection, translation_collection
+from app.database import objects_collection, translation_set_collection, translation_collection, contests_collection
 from app.models import ApiPicture, ResultObject, ResultTranslation, ResultVoting
+from app.contest_config import Contest
+from bson import ObjectId
+from datetime import datetime, timezone
 import os
 import httpx
+from fastapi import HTTPException
 from app.storage.imagestore import retrieve_image  
 from app.services.TScarddetails import get_TS_card_details
 from app.services.randompicdetails import get_random_picture_details
@@ -19,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pictures", tags=["pictures"])
 
+
 @router.get("/random", response_model=List[ApiPicture])
 async def get_random_pictures(
     request: Request,
@@ -31,9 +36,10 @@ async def get_random_pictures(
     chapter_id: Optional[str] = Query(None, description="Chapter ID for playlist"),
     page_id: Optional[str] = Query(None, description="Page ID for playlist"),
     search_text: Optional[str] = Query(None, description="Search text for pool recommendations"),
-    org_code: Optional[str] = Query(None, description="Organization code from URL path")
+    org_code: Optional[str] = Query(None, description="Organization code from URL path"),
+    hints_used: Optional[str] = Query(None, description="Hint type for contest mode: 'Long Hints', 'Short Hints', or 'Object Name'"),
+    object_ids: Optional[str] = Query(None, description="Comma-separated set of object IDs to fetch translations for")
 ):
-
     # Extract org_id from request state (set by AuthMiddleware)
     org = getattr(request.state, "org", None)
     org_id = org["org_id"] if org else None
@@ -45,7 +51,15 @@ async def get_random_pictures(
     user = getattr(request.state, "user", None)
     username = user["username"] if user else None
     
-    print(f"\n♥️♥️♥️Requested API call with count={count}, language={language}, username={username}, org_id={org_id}, TS={translation_set_id}, Book={book_id}, Chapter={chapter_id}, Page={page_id}, Search Text={search_text}")
+    # 📝 Explicit logging for language debugging
+    print(f"\n[Backend API] Request language parameter: '{language}'")
+    logger.info(f"Requested language: {language}")
+    
+    print(f"\n♥️♥️♥️Requested API call with count={count}, language={language}, username={username}, org_id={org_id}, TS={translation_set_id}, Book={book_id}, Chapter={chapter_id}, Page={page_id}, Search Text={search_text}, org_code={org_code}")
+    
+    # Contest mode is now handled during login, but we keep the parameters for logging/auditing.
+    # The frontend is expected to pass the contest-provided search_text.
+
     # Use the same service to either choose random pictures or select a Card based on translation_set_id if provided
    
     # ts_coll = await translation_set_collection.find_one(
@@ -69,8 +83,9 @@ async def get_random_pictures(
             org_id=org_id
         )
     else:
-        print("No specific source provided. Fetching random pictures.")
-        translation_docs = await get_random_picture_details(count, language, category, field_of_study, org_id)
+        print(f"No specific source provided. Fetching random pictures. Object IDs filter: {object_ids}")
+        parsed_object_ids = [ObjectId(oid.strip()) for oid in object_ids.split(",") if oid.strip()] if object_ids else None
+        translation_docs = await get_random_picture_details(count, language, category, field_of_study, org_id, object_ids=parsed_object_ids)
 
     # continue rest of the processing from here
     logger.info(f"Retrieved {len(translation_docs)} documents from DB")
@@ -109,19 +124,34 @@ async def get_random_pictures(
             except Exception as e:
                 logger.error(f"Error updating quiz_qa for translation {translation_id}: {str(e)}")
 
-    # 🔀 Randomized field mapping logic (extensible for future fields)
-    # Suppose later you add more source fields, just extend this list
-    candidate_fields = ["object_hint", "object_short_hint"]
+    # 🔀 Hint field mapping logic - Contest mode vs Normal mode
+    if hints_used:
+        # Contest mode: deterministic mapping based on hints_used value
+        if hints_used == "Long Hints":
+            mapping = {"object_hint": "object_hint", "object_short_hint": "object_hint"}
+        elif hints_used == "Short Hints":
+            mapping = {"object_hint": "object_short_hint", "object_short_hint": "object_short_hint"}
+        elif hints_used == "Object Name":
+            mapping = {"object_hint": "object_name", "object_short_hint": "object_name"}
+        else:
+            # Fallback to default if invalid value
+            logger.warning(f"Invalid hints_used value: {hints_used}. Using Long Hints as default.")
+            mapping = {"object_hint": "object_hint", "object_short_hint": "object_hint"}
+        logger.info(f"Contest mode - Hint field mapping: {mapping} (hints_used={hints_used})")
+    else:
+        # Normal mode: randomized field mapping (extensible for future fields)
+        # Suppose later you add more source fields, just extend this list
+        candidate_fields = ["object_hint", "object_short_hint"]
 
-    # Randomly pick 2 distinct source fields from candidates
-    selected_fields = random.sample(candidate_fields, 2)
+        # Randomly pick 2 distinct source fields from candidates
+        selected_fields = random.sample(candidate_fields, 2)
 
-    # Fixed target slots
-    target_fields = ["object_hint", "object_short_hint"]
+        # Fixed target slots
+        target_fields = ["object_hint", "object_short_hint"]
 
-    # Build mapping dictionary: target_field -> chosen_source_field
-    mapping = dict(zip(target_fields, selected_fields))
-    logger.info(f"Hint field mapping for this request: {mapping}")
+        # Build mapping dictionary: target_field -> chosen_source_field
+        mapping = dict(zip(target_fields, selected_fields))
+        logger.info(f"Normal mode - Hint field mapping: {mapping}")
 
     # 4) Normalize response
     return_result = []

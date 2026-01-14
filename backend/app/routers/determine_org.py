@@ -11,7 +11,7 @@ import re
 async def determine_org(path_segment: str):
     # Case-insensitive search
     org = await organisations_collection.find_one({"org_code": {"$regex": f"^{re.escape(path_segment)}$", "$options": "i"}})
-    print(f"\n\nOrg data for {path_segment}: {org}\n\n")
+    # print(f"\n\nOrg data for {path_segment}: {org}\n\n")
     if org:
         # Extract logo_url from settings if it exists
         if "settings" in org and "logo_url" in org["settings"]:

@@ -10,6 +10,9 @@ from app.routers import getlanguages
 from app.routers import savecards
 from app.routers import determine_org
 from app.routers import auth
+from app.routers import analytics
+from app.routers import contest
+from app.routers import game_play
 from app.routers import curriculum
 import uvicorn
 
@@ -35,8 +38,11 @@ app.include_router(TTS_service.router)
 app.include_router(getlanguages.router)
 app.include_router(savecards.router)
 app.include_router(determine_org.router)
-app.include_router(auth.router)
+app.include_router(auth.router, tags=["auth"])
+app.include_router(contest.router, tags=["contest"])
 app.include_router(curriculum.router)
+app.include_router(analytics.router)
+app.include_router(game_play.router, tags=["game_play"])
 
 @app.get("/health")
 async def health():

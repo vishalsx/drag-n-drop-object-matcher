@@ -42,6 +42,9 @@ async def get_pool_recommendations(
             "language": language
         }
         
+        if org_id:
+            params["org_id"] = org_id
+        
         logger.info(f"Fetching pool recommendations from: {url} with params: {params}")
         
         response = requests.post(url, params=params, headers=headers)

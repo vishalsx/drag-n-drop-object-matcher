@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field, GetJsonSchemaHandler
 from pydantic.json_schema import JsonSchemaValue
 from bson import ObjectId
 from datetime import datetime, timezone
+from typing import List, Optional, Dict, Any
+import hashlib
 
 class PyObjectId(ObjectId):
     @classmethod
@@ -20,7 +22,6 @@ class PyObjectId(ObjectId):
         cls, core_schema: Any, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         return {"type": "string"}
-
 
 
 
@@ -78,6 +79,9 @@ class Organisation(BaseModel):
     org_name: Optional[str] = None
     logo_url: Optional[str] = None
     languages_allowed: Optional[List[str]] = None
+    anonymous_userid: Optional[str] = None
+    anonymous_password: Optional[str] = None
+
 
 
 
