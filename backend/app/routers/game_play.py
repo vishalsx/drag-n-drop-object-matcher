@@ -81,6 +81,9 @@ async def get_level_round_content(
 
     # 4. Fetch Content
     try:
+        print(f"\n[DEBUG] game_play.py - Contest ID: {contest_id}")
+        print(f"[DEBUG] game_play.py - Areas of Interest in Contest: {contest.areas_of_interest}")
+        
         # User specified: No persistence needed between matching and quiz modes.
         # Every round and level should be completely random.
         content = await fetch_level_content(
@@ -90,7 +93,8 @@ async def get_level_round_content(
             org_id=contest.org_id,
             category=category,
             field_of_study=field_of_study,
-            assigned_object_ids=None
+            assigned_object_ids=None,
+            areas_of_interest=contest.areas_of_interest
         )
         
         # 5. Add No-Cache headers to ensure browser fetches fresh random content every time

@@ -93,6 +93,10 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
     contestant = await participants_collection.find_one({"username": data.username})
     
     if contestant:
+        # NEW: Verify password for existing user
+        if contestant.get("password") != hash_password(data.password):
+            raise HTTPException(status_code=401, detail="Incorrect password for existing username. Please verify your credentials.")
+
         # Check if already registered for THIS contest
         if any(p.get("contest_id") == data.contest_id for p in contestant.get("participations", [])):
              raise HTTPException(status_code=400, detail="Username already registered for this contest")

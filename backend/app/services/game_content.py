@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any
 from app.contest_config import RoundStructure
 from bson import ObjectId
 import math
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +17,8 @@ async def fetch_level_content(
     org_id: Optional[str] = None,
     category: Optional[str] = None,
     field_of_study: Optional[str] = None,
-    assigned_object_ids: Optional[List[str]] = None
+    assigned_object_ids: Optional[List[str]] = None,
+    areas_of_interest: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Orchestrator to fetch content based on game type (matching vs quiz).
@@ -33,7 +35,8 @@ async def fetch_level_content(
             org_id=org_id,
             category=category,
             field_of_study=field_of_study,
-            assigned_object_ids=assigned_object_ids
+            assigned_object_ids=assigned_object_ids,
+            areas_of_interest=areas_of_interest
         )
     
     elif level_game_type == "quiz":
@@ -43,7 +46,8 @@ async def fetch_level_content(
             org_id=org_id,
             category=category,
             field_of_study=field_of_study,
-            assigned_object_ids=assigned_object_ids
+            assigned_object_ids=assigned_object_ids,
+            areas_of_interest=areas_of_interest
         )
     
     else:
@@ -54,7 +58,8 @@ async def _get_valid_object_ids(
     language: Optional[str] = None,
     org_id: Optional[str] = None,
     category: Optional[str] = None,
-    field_of_study: Optional[str] = None
+    field_of_study: Optional[str] = None,
+    areas_of_interest: Optional[List[str]] = None
 ) -> List[Any]:
     """
     Helper to get valid object IDs based on Org ID and Category/FOS filters.
@@ -94,11 +99,32 @@ async def _get_valid_object_ids(
         object_filter["metadata.object_category"] = category
     elif field_of_study:
         object_filter["metadata.field_of_study"] = field_of_study
+    
+    if areas_of_interest:
+        # Create a case-insensitive regex that matches any of the interests with simple stemming
+        def simple_stem(word):
+            # Basic stemming: remove trailing 's', 'es', 'ies'
+            word = word.lower().strip()
+            if not word: return word
+            if word.endswith('ies') and len(word) > 4: return word[:-3] + 'i'
+            if word.endswith('es') and len(word) > 4: return word[:-2]
+            if word.endswith('s') and len(word) > 3: return word[:-1]
+            return word
+
+        stems = {simple_stem(interest) for interest in areas_of_interest if interest}
+        escaped_stems = [re.escape(stem) for stem in stems if stem]
+        if escaped_stems:
+            pattern = "|".join(escaped_stems)
+            object_filter["embedding_text"] = {"$regex": pattern, "$options": "i"}
+    
+    print(f"\n[DEBUG] game_content.py - _get_valid_object_ids")
+    print(f"[DEBUG] game_content.py - areas_of_interest input: {areas_of_interest}")
+    print(f"[DEBUG] game_content.py - Constructed object_filter: {object_filter}")
 
     # 5) Get matching Translations first
     # We only want objects that have a valid translation for the requested language/org
     translations_object_ids = await translation_collection.distinct("object_id", base_query)
-    
+    print(f"[DEBUG] game_content.py - Found {len(translations_object_ids)} translations for language/org: {language}/{org_id}")
     if not translations_object_ids:
         # No translations found, so no valid objects
         return []
@@ -109,6 +135,10 @@ async def _get_valid_object_ids(
     # 7) Get final matching Object IDs
     matching_object_ids = await objects_collection.distinct("_id", object_filter)
     
+    print(f"[DEBUG] game_content.py - Found {len(matching_object_ids)} matching object IDs")
+    if len(matching_object_ids) > 0:
+        print(f"[DEBUG] game_content.py - Sample object IDs: {matching_object_ids[:5]}")
+    
     return matching_object_ids
 
 async def _fetch_matching_objects(
@@ -117,7 +147,8 @@ async def _fetch_matching_objects(
     org_id: Optional[str] = None,
     category: Optional[str] = None,
     field_of_study: Optional[str] = None,
-    assigned_object_ids: Optional[List[str]] = None
+    assigned_object_ids: Optional[List[str]] = None,
+    areas_of_interest: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Fetches objects for matching game.
@@ -129,7 +160,7 @@ async def _fetch_matching_objects(
     if assigned_object_ids:
         valid_object_ids = [ObjectId(oid) if isinstance(oid, str) else oid for oid in assigned_object_ids]
     else:
-        valid_object_ids = await _get_valid_object_ids(language, org_id, category, field_of_study)
+        valid_object_ids = await _get_valid_object_ids(language, org_id, category, field_of_study, areas_of_interest)
     
     if not valid_object_ids:
         return []
@@ -254,7 +285,8 @@ async def _fetch_quiz_questions(
     org_id: Optional[str] = None,
     category: Optional[str] = None,
     field_of_study: Optional[str] = None,
-    assigned_object_ids: Optional[List[str]] = None
+    assigned_object_ids: Optional[List[str]] = None,
+    areas_of_interest: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Fetches questions for quiz game based on difficulty distribution.
@@ -311,7 +343,7 @@ async def _fetch_quiz_questions(
     else:
         # Otherwise, pick random objects
         # Get pool of valid IDs
-        pool_ids = await _get_valid_object_ids(language, org_id, category, field_of_study)
+        pool_ids = await _get_valid_object_ids(language, org_id, category, field_of_study, areas_of_interest)
         
         if not pool_ids:
             logger.warning("No valid object pool found")
