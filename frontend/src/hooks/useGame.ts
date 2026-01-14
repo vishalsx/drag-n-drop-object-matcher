@@ -716,12 +716,12 @@ export const useGame = (
                 if (isContest) startRound(newData.map(d => d.id));
             } else {
                 setGameStartError(`Could not find translations for ${newLanguage}`);
-                setGameState('idle');
+                handleResetGame();
             }
         } catch (error) {
             console.error('[useGame] Failed to replay in language:', error);
             setGameStartError('Failed to load new language');
-            setGameState('idle');
+            handleResetGame();
         } finally {
             setTransitionMessage(null);
         }

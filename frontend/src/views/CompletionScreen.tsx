@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { GameObject, Language } from '../types/types';
 import { useTooltip } from '../context/TooltipContext';
-import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon, SpeakerIcon } from '../components/Icons';
+import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon, SpeakerIcon, RefreshIcon } from '../components/Icons';
 import { useSpeech } from '../hooks/useSpeech';
 
 interface CompletionScreenProps {
@@ -32,6 +32,27 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
     const [selectedGridInfo, setSelectedGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
     const { speakText, stop: stopSpeech } = useSpeech();
     const { showTooltip, hideTooltip } = useTooltip();
+
+    const getRandomLanguages = useCallback(() => {
+        if (!props.availableLanguages) return [];
+        const otherLangs = props.availableLanguages.filter(lang => lang.name !== props.currentLanguageName);
+        const shuffled = [...otherLangs];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled.slice(0, 5);
+    }, [props.availableLanguages, props.currentLanguageName]);
+
+    const [displayLangs, setDisplayLangs] = useState<Language[]>([]);
+
+    useEffect(() => {
+        setDisplayLangs(getRandomLanguages());
+    }, [getRandomLanguages]);
+
+    const handleRefreshLanguages = () => {
+        setDisplayLangs(getRandomLanguages());
+    };
 
     useEffect(() => {
         // Cleanup function to stop any playing audio when the component unmounts (modal is closed)
@@ -200,29 +221,30 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                         {/* Play in another language section */}
                         {props.availableLanguages && props.availableLanguages.length > 0 && (
                             <div className="mt-8 pt-6 border-t border-slate-700/50">
-                                <h3 className="text-xl font-bold text-teal-400 mb-4">Play in another language?</h3>
+                                <div className="flex items-center justify-center gap-3 mb-4">
+                                    <h3 className="text-xl font-bold text-teal-400">Play in another language?</h3>
+                                    {props.availableLanguages.length > 6 && (
+                                        <button
+                                            onClick={handleRefreshLanguages}
+                                            className="p-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-full transition-colors shadow-sm"
+                                            title="Refresh language suggestions"
+                                            aria-label="Refresh languages"
+                                        >
+                                            <RefreshIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
                                 <div className="flex flex-wrap justify-center gap-3">
-                                    {(() => {
-                                        // Filter current language, shuffle, and slice to 5
-                                        const otherLangs = props.availableLanguages
-                                            .filter(lang => lang.name !== props.currentLanguageName);
-                                        // Fisher-Yates shuffle
-                                        const shuffled = [...otherLangs];
-                                        for (let i = shuffled.length - 1; i > 0; i--) {
-                                            const j = Math.floor(Math.random() * (i + 1));
-                                            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-                                        }
-                                        return shuffled.slice(0, 5).map(lang => (
-                                            <button
-                                                key={lang.code}
-                                                onClick={() => props.onReplayInLanguage(lang.name)}
-                                                className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-blue-600 text-white rounded-full transition-all hover:scale-105 shadow-md group"
-                                            >
-                                                <img src={lang.imageUrl} alt={lang.name} className="w-6 h-4 object-cover rounded shadow-sm" />
-                                                <span className="font-semibold">{lang.name}</span>
-                                            </button>
-                                        ));
-                                    })()}
+                                    {displayLangs.map(lang => (
+                                        <button
+                                            key={lang.code}
+                                            onClick={() => props.onReplayInLanguage(lang.name)}
+                                            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-blue-600 text-white rounded-full transition-all hover:scale-105 shadow-md group"
+                                        >
+                                            <img src={lang.imageUrl} alt={lang.name} className="w-6 h-4 object-cover rounded shadow-sm" />
+                                            <span className="font-semibold">{lang.name}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         )}
