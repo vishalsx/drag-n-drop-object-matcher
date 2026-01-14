@@ -341,6 +341,18 @@ const App: React.FC = () => {
         }
     }, [contestScores, param2, contestDetails]);
 
+    // Contest: Auto-submit FINAL scores when contest ends
+    useEffect(() => {
+        if (param2 === 'contest' && gameState === 'complete') {
+            const contestId = contestDetails?._id || contestDetails?.id;
+            const username = authService.getUsername();
+            if (contestId && username && contestScores.length > 0) {
+                console.log('[App] Auto-FINALIZING contest scores:', contestScores);
+                contestService.submitContestScores(contestId, username, contestScores, true);
+            }
+        }
+    }, [gameState, param2, contestDetails, contestScores]);
+
     const handleConfirmNextLevel = () => {
         if (transitionNextLangCode) {
             setSelectedLanguage(transitionNextLangCode);
