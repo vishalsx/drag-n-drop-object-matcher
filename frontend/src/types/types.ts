@@ -1,5 +1,6 @@
 export interface GameObject {
-  id: string;
+  id: string; // Translation ID
+  objectId: string; // Object ID
   description: string;
   // Fix: Add missing 'short_hint' property to the GameObject interface.
   short_hint: string;

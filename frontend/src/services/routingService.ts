@@ -8,6 +8,7 @@ export interface Organisation {
     org_id: string;
     org_name?: string;
     logo_url?: string;
+    anonymous_userid?: string;
 }
 
 export const determineOrg = async (pathSegment: string): Promise<Organisation | null> => {

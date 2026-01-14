@@ -19,6 +19,7 @@ interface DraggableDescriptionProps {
   onSpeakHint?: (text: string) => void;
   languageBcp47?: string;
   label?: string;
+  allowFlip?: boolean; // Controls whether flip hints button is shown
 }
 
 const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
@@ -80,14 +81,16 @@ const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
       <p key={hintType} className={`text-sm text-slate-300 flex-grow pr-2 animate-fadeIn ${props.label ? 'pl-8' : ''}`}>{displayText}</p>
       {!props.isMatched && (
         <div className="flex-shrink-0 ml-2 flex flex-col gap-1">
-          <button
-            onClick={handleFlip}
-            onMouseDown={(e) => e.stopPropagation()} // Prevents drag start on button click
-            className="p-1 rounded-full text-slate-400 hover:bg-slate-500/50 hover:text-white transition-colors"
-            aria-label="Cycle hint type"
-          >
-            <CycleIcon className="w-5 h-5" />
-          </button>
+          {props.allowFlip !== false && (
+            <button
+              onClick={handleFlip}
+              onMouseDown={(e) => e.stopPropagation()} // Prevents drag start on button click
+              className="p-1 rounded-full text-slate-400 hover:bg-slate-500/50 hover:text-white transition-colors"
+              aria-label="Cycle hint type"
+            >
+              <CycleIcon className="w-5 h-5" />
+            </button>
+          )}
           {props.onSpeakHint && (
             <button
               type="button"

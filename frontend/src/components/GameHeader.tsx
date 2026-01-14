@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Organisation } from '../services/routingService';
-import { UserIcon, ChartBarIcon, CogIcon, LogoutIcon } from './Icons'; // Assuming these exist, will check next
+import { UserIcon, ChartBarIcon, CogIcon, LogoutIcon, CrossIcon } from './Icons'; // Assuming these exist, will check next
 
 interface GameHeaderProps {
     orgData?: Organisation | null;
@@ -8,9 +8,13 @@ interface GameHeaderProps {
     gameState?: 'idle' | 'loading' | 'playing' | 'complete';
     username?: string | null;
     onLogout?: () => void;
+    contestDetails?: any;
+    currentLanguage?: string;
+    languages?: any[];
+    contestNameOverride?: string;
 }
 
-const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, username, onLogout }) => {
+const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, username, onLogout, contestDetails, currentLanguage, languages = [], contestNameOverride }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -32,10 +36,44 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
         return name.slice(0, 2).toUpperCase();
     };
 
+    const getContestName = () => {
+        console.log('[GameHeader] getContestName start:', { contestNameOverride, contestDetailsName: contestDetails?.name });
+        if (contestNameOverride) return contestNameOverride;
+        if (!contestDetails?.name) return 'Contest';
+
+        if (typeof contestDetails.name === 'string') return contestDetails.name;
+
+        // 1. Try direct match with currentLanguage (e.g. "English")
+        if (currentLanguage && contestDetails.name[currentLanguage]) {
+            return contestDetails.name[currentLanguage];
+        }
+
+        // 2. Case-insensitive search of keys for currentLanguage
+        if (currentLanguage) {
+            const lowerLang = currentLanguage.toLowerCase();
+            const foundKey = Object.keys(contestDetails.name).find(k => k.toLowerCase() === lowerLang);
+            if (foundKey) return contestDetails.name[foundKey];
+        }
+
+        // 3. Try lookup via langCode (e.g. "en")
+        const langObj = languages.find(l =>
+            l.name?.trim().toLowerCase() === currentLanguage?.trim().toLowerCase() ||
+            l.code?.trim().toLowerCase() === currentLanguage?.trim().toLowerCase()
+        );
+        const langCode = langObj?.code?.toLowerCase();
+        if (langCode && contestDetails.name[langCode]) {
+            return contestDetails.name[langCode];
+        }
+
+        // 4. Fallback to English common keys
+        return contestDetails.name['English'] || contestDetails.name['en'] || 'Contest';
+    };
+
     return (
         <div className="w-full bg-slate-800/70 border-b border-slate-700 px-8 py-4 flex items-center justify-between gap-4 z-20 relative">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 w-1/3">
                 {orgData?.org_name ? (
+                    // Organization Header
                     <>
                         {orgData.logo_url ? (
                             <img
@@ -48,25 +86,58 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                                 <span className="text-white font-bold text-lg">{orgData.org_name.charAt(0)}</span>
                             </div>
                         )}
-                        <h1 className="text-2xl font-bold text-slate-200">
-                            {orgData.org_name}
-                        </h1>
+                        <div className="flex flex-col">
+                            <h1 className="text-xl font-bold text-slate-200 leading-tight">
+                                {orgData.org_name}
+                            </h1>
+                        </div>
                     </>
                 ) : (
+                    // Default Header
                     <>
                         <img
                             src="/alphatub-logo.png"
                             alt="alphaTUB logo"
                             className="h-12 w-12 object-contain rounded-md"
                         />
-                        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-orange-500">
-                            Welcome to the multilingual language learning platform!
+                        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-orange-500 leading-tight">
+                            alphaTUB Matches
                         </h1>
                     </>
                 )}
             </div>
 
-            <div className="flex items-center gap-4">
+            {/* Center: Contest Info */}
+            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-1/3 text-center">
+                {contestDetails ? (
+                    <>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-bold text-yellow-400 whitespace-nowrap">
+                                {getContestName()}
+                            </h1>
+                            {currentLanguage && (
+                                <span className="px-3 py-0.5 bg-teal-900/50 border border-teal-500/30 text-teal-300 text-xs font-semibold rounded-full uppercase tracking-wide">
+                                    {currentLanguage}
+                                </span>
+                            )}
+                        </div>
+                        {contestDetails.description?.en && (
+                            <p className="text-slate-400 text-xs max-w-md truncate">
+                                {contestDetails.description.en}
+                            </p>
+                        )}
+                    </>
+                ) : (
+                    // Show welcome text if not in contest mode and no specific org name (or just leave blank to reduce noise)
+                    // Replicating original "Welcome" text here if desired, but user asked to keep Org Logo/Name "as it was".
+                    // The original code had Org Name OR "Welcome...".
+                    // I put Org Name on Left. "Welcome" text might be too long for left.
+                    // I condensed default left to "alphaTUB Matches".
+                    null
+                )}
+            </div>
+
+            <div className="flex items-center gap-4 w-1/3 justify-end">
                 {gameState && gameState !== 'idle' && (
                     <div className="px-4 py-1 bg-slate-700 rounded-full border border-slate-600">
                         <span className="text-slate-300 font-semibold">Level {gameLevel}</span>

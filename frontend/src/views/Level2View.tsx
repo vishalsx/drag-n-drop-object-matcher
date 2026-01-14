@@ -14,7 +14,7 @@ interface Level2ViewProps {
   elapsedTime: number;
   onQuestionDrop: (questionId: string, targetAnswerId: string) => void;
   onPictureComplete: () => void;
-  onSpeakHint: (text: string) => void;
+  onSpeakHint: (text: string, pictureId?: string) => void;
 
   // SidePanel Props
   languages: Language[];
@@ -43,6 +43,7 @@ interface Level2ViewProps {
   selectedPageId: string | null;
   userId: string | null;
   orgData: Organisation | null;
+  isContest?: boolean;
 }
 
 const Level2View: React.FC<Level2ViewProps> = ({
@@ -78,6 +79,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
   selectedPageId,
   userId,
   orgData,
+  isContest,
 }) => {
   const [draggedQuestion, setDraggedQuestion] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -239,6 +241,13 @@ const Level2View: React.FC<Level2ViewProps> = ({
   };
 
   const formatTime = (seconds: number): string => {
+    // If contest, just show seconds if < 60 maybe? Or standard "Time: XXs"
+    // The requirement says "similar to the way it is shown in the 'matching' mode".
+    // Matching mode (Level 1) shows "Time: XXs"
+    if (isContest) {
+      return `${seconds}s`; // Simplified for countdown
+    }
+    // Default elapsed time formatting
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')} `;
@@ -417,7 +426,9 @@ const Level2View: React.FC<Level2ViewProps> = ({
               <h2 className="text-xl font-bold text-slate-300">Picture</h2>
               <div className="mt-2 flex justify-center gap-4 text-sm">
                 <div className="text-yellow-400 font-bold">Score: {score}</div>
-                <div className="text-blue-400 font-bold">Time: {formatTime(elapsedTime)}</div>
+                <div className={`${isContest && elapsedTime < 10 ? 'text-red-500 animate-pulse' : 'text-blue-400'} font-bold`}>
+                  Time: {formatTime(elapsedTime)}
+                </div>
               </div>
             </header>
 

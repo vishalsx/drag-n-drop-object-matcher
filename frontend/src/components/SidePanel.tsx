@@ -1,5 +1,4 @@
 import React from 'react';
-import { UserIcon, ChartBarIcon, QuestionMarkCircleIcon, InformationCircleIcon } from './Icons';
 import { DIFFICULTY_LEVELS } from '../constants/gameConstants';
 import type { Language, Difficulty, CategoryFosItem, PlaylistItem, TubSheetItem, GameObject } from '../types/types';
 import PlaylistBrowser from './PlaylistBrowser';

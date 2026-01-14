@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import type { Level2PictureData } from '../types/level2Types';
-import { SpeakerIcon } from '../components/Icons';
+import { SpeakerIcon } from '../components/Icons.tsx';
 
 interface Level2CompletionScreenProps {
     pictures: Level2PictureData[];
     finalScore: number;
     totalTime: number;
     onClose: () => void;
-    onSpeakHint: (text: string) => void;
+    onSpeakHint: (text: string, pictureId?: string) => void;
 }
 
 const Level2CompletionScreen: React.FC<Level2CompletionScreenProps> = ({
@@ -36,7 +36,7 @@ const Level2CompletionScreen: React.FC<Level2CompletionScreenProps> = ({
 
     const handleSpeak = (e: React.MouseEvent, text: string) => {
         e.stopPropagation();
-        onSpeakHint(text);
+        onSpeakHint(text, currentPicture.pictureId);
     };
 
     const formatTime = (seconds: number): string => {

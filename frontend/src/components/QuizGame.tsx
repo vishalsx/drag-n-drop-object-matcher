@@ -1,0 +1,124 @@
+import React, { useState, useEffect } from 'react';
+
+interface QuizQuestion {
+    translation_id: string;
+    object_id: string;
+    object_name: string;
+    question: string;
+    answer: string;
+    difficulty: string;
+}
+
+interface QuizGameProps {
+    questions: QuizQuestion[];
+    onComplete: (score: number, correctCount: number) => void;
+    timeLimitSeconds: number;
+    onTimeUpdate?: (secondsLeft: number) => void;
+}
+
+const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSeconds, onTimeUpdate }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [timeLeft, setTimeLeft] = useState(timeLimitSeconds);
+    const [score, setScore] = useState(0);
+    const [correctCount, setCorrectCount] = useState(0);
+    const [userAnswer, setUserAnswer] = useState('');
+    const [showFeedback, setShowFeedback] = useState(false);
+    const [isCorrect, setIsCorrect] = useState(false);
+    const [gameActive, setGameActive] = useState(true);
+
+    useEffect(() => {
+        if (!gameActive) return;
+
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => {
+                if (prev <= 0) {
+                    clearInterval(timer);
+                    handleComplete();
+                    return 0;
+                }
+                if (onTimeUpdate) onTimeUpdate(prev - 1);
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [gameActive, onTimeUpdate]);
+
+    const handleComplete = () => {
+        setGameActive(false);
+        onComplete(score, correctCount);
+    };
+
+    const submitAnswer = () => {
+        if (!userAnswer.trim()) return;
+
+        const currentQ = questions[currentIndex];
+        // Simple case-insensitive string match for now. 
+        // Enhance with fuzzy matching if needed later.
+        const correct = userAnswer.trim().toLowerCase() === currentQ.answer.toLowerCase();
+
+        setIsCorrect(correct);
+        setShowFeedback(true);
+
+        if (correct) {
+            setScore(prev => prev + 10); // Standard score per question
+            setCorrectCount(prev => prev + 1);
+        }
+
+        setTimeout(() => {
+            setShowFeedback(false);
+            setUserAnswer('');
+            if (currentIndex < questions.length - 1) {
+                setCurrentIndex(prev => prev + 1);
+            } else {
+                handleComplete();
+            }
+        }, 1500);
+    };
+
+    if (!gameActive) {
+        return <div className="text-white text-center text-2xl">Quiz Complete! Score: {score}</div>;
+    }
+
+    const currentQ = questions[currentIndex];
+
+    return (
+        <div className="flex flex-col items-center justify-center w-full h-full p-8 text-slate-200">
+            <div className="mb-4 text-xl font-bold flex justify-between w-full max-w-2xl">
+                <span>Question {currentIndex + 1}/{questions.length}</span>
+                <span className={timeLeft < 10 ? "text-red-500" : "text-teal-400"}>Time: {timeLeft}s</span>
+            </div>
+
+            <div className="bg-slate-800 p-8 rounded-xl shadow-lg w-full max-w-2xl border border-slate-700">
+                <div className="mb-2 text-sm text-slate-400 uppercase tracking-wider">Difficulty: {currentQ.difficulty}</div>
+                <h3 className="text-2xl font-semibold mb-6 text-white">{currentQ.question}</h3>
+
+                {showFeedback ? (
+                    <div className={`p-4 rounded-lg text-center text-xl font-bold ${isCorrect ? 'bg-green-900/50 text-green-400 border border-green-700' : 'bg-red-900/50 text-red-400 border border-red-700'}`}>
+                        {isCorrect ? 'Correct!' : `Incorrect! Answer: ${currentQ.answer}`}
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-4">
+                        <input
+                            type="text"
+                            value={userAnswer}
+                            onChange={(e) => setUserAnswer(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && submitAnswer()}
+                            placeholder="Type your answer..."
+                            className="p-4 rounded-lg bg-slate-900 border border-slate-600 text-white focus:border-teal-500 focus:outline-none transition-colors"
+                            autoFocus
+                        />
+                        <button
+                            onClick={submitAnswer}
+                            className="bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg"
+                        >
+                            Submit Answer
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default QuizGame;

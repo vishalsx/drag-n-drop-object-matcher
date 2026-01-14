@@ -27,19 +27,37 @@ import { authService } from './authService';
 const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
   const token = authService.getToken();
   const orgId = authService.getOrgId();
-  const headers = {
-    ...options.headers,
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    ...(orgId ? { 'X-Org-ID': orgId } : {}),
+
+  // Ensure we don't send "null" or "undefined" strings
+  const validToken = token && token !== 'null' && token !== 'undefined' ? token : null;
+  const validOrgId = orgId && orgId !== 'null' && orgId !== 'undefined' ? orgId : null;
+
+  const headers: Record<string, string> = {
+    ...options.headers as Record<string, string>,
   };
+
+  if (validToken) {
+    headers['Authorization'] = `Bearer ${validToken}`;
+  }
+  if (validOrgId) {
+    headers['X-Org-ID'] = validOrgId;
+  }
+
   const response = await fetch(url, { ...options, headers });
 
   if (response.status === 401) {
-    if (token) {
-      authService.logout();
+    console.warn(`401 Unauthorized received from ${url}. Token present: ${!!validToken}`);
+
+    // Always clear session on 401 to prevent sticky invalid states
+    authService.logout();
+
+    // Only reload if we had a token (to avoid infinite reload loops on public pages if they return 401)
+    // However, since base URL should work without token, a 401 here is weird. 
+    // We'll reload only if we are not already on the landing page or login page to try and recover.
+    if (validToken) {
       window.location.reload();
     }
-    // Throwing an error ensures that the calling function doesn't try to process the response
+
     throw new Error('Unauthorized');
   }
 
@@ -50,9 +68,14 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
   return response;
 };
 
-export const fetchActiveLanguages = async (): Promise<Language[]> => {
+export const fetchActiveLanguages = async (orgId?: string | null): Promise<Language[]> => {
   // Allow errors to propagate to the caller
-  const response = await authenticatedFetch(`${API_BASE_URL}/active/languages`);
+  const headers: Record<string, string> = {};
+  if (orgId) {
+    headers['X-Org-ID'] = orgId;
+  }
+
+  const response = await authenticatedFetch(`${API_BASE_URL}/active/languages`, { headers });
   if (!response.ok) {
     throw new Error(`Network response was not ok: ${response.statusText}`);
   }
@@ -88,9 +111,14 @@ export const fetchActiveLanguages = async (): Promise<Language[]> => {
 //     };
 //   }
 // };
-export const fetchCategoriesAndFos = async (language: string): Promise<{ object_categories: CategoryFosItem[]; fields_of_study: CategoryFosItem[] }> => {
+export const fetchCategoriesAndFos = async (language: string, orgId?: string | null): Promise<{ object_categories: CategoryFosItem[]; fields_of_study: CategoryFosItem[] }> => {
   try {
-    const response = await authenticatedFetch(`${API_BASE_URL}/active/object-categories-FOS/${language}`);
+    const headers: Record<string, string> = {};
+    if (orgId) {
+      headers['X-Org-ID'] = orgId;
+    }
+
+    const response = await authenticatedFetch(`${API_BASE_URL}/active/object-categories-FOS/${language}`, { headers });
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }
@@ -118,13 +146,18 @@ export const fetchGameData = async (
   bookId?: string,
   chapterId?: string,
   pageId?: string,
-  orgCode?: string
+  orgCode?: string,
+  objectIds?: string[]
 ): Promise<GameObject[]> => {
-  console.log(`Fetching game data from API for language: ${language}, count: ${count}, category: ${category}, FOS: ${fieldOfStudy}, TS: ${translationSetId}, searchText: ${searchText}, Book: ${bookId}, Chapter: ${chapterId}, Page: ${pageId}, OrgCode: ${orgCode}`);
+  console.log(`Fetching game data from API for language: ${language}, count: ${count}, category: ${category}, FOS: ${fieldOfStudy}, TS: ${translationSetId}, searchText: ${searchText}, Book: ${bookId}, Chapter: ${chapterId}, Page: ${pageId}, OrgCode: ${orgCode}, ObjectIds: ${objectIds}`);
   try {
     // Assuming the backend endpoint is available at '/pictures/random'
     // Pass language and count as query parameters to the backend endpoint (default count 6)
     let url = `${API_BASE_URL}/pictures/random?language=${language}&count=${count}`;
+
+    if (objectIds && objectIds.length > 0) {
+      url += `&object_ids=${encodeURIComponent(objectIds.join(','))}`;
+    }
 
     if (orgCode) {
       url += `&org_code=${encodeURIComponent(orgCode)}`;
@@ -152,6 +185,7 @@ export const fetchGameData = async (
 
     const gameData: GameObject[] = data.map((item: ApiPicture) => ({
       id: item.translations.translation_id,
+      objectId: item.object.object_id,
       description: item.translations.object_hint,
       short_hint: item.translations.object_short_hint,
       imageUrl: `data:image/png;base64,${item.object.image_base64}`,
@@ -258,5 +292,30 @@ export const saveTranslationSet = async (name: string, language: string, transla
     console.error('Failed to save Translation Set:', error);
     const message = error instanceof Error ? error.message : 'An unknown error occurred.';
     return { success: false, message };
+  }
+};
+
+export const fetchContestLevelContent = async (
+  contestId: string,
+  levelSeq: number,
+  roundSeq: number,
+  language: string,
+  category?: string,
+  fieldOfStudy?: string
+): Promise<any[]> => {
+  try {
+    const timestamp = Date.now();
+    let url = `${API_BASE_URL}/contest/${contestId}/play/level/${levelSeq}/round/${roundSeq}?language=${encodeURIComponent(language)}&_t=${timestamp}`;
+    if (category) url += `&category=${encodeURIComponent(category)}`;
+    if (fieldOfStudy) url += `&field_of_study=${encodeURIComponent(fieldOfStudy)}`;
+
+    const response = await authenticatedFetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch level content: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching contest level content:`, error);
+    throw error;
   }
 };

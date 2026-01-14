@@ -36,6 +36,7 @@ interface DroppableImageProps {
   onMatchedImageClick: (imageName: string) => void;
   onImageDoubleClick: (imageUrl: string, imageName: string) => void;
   label?: string;
+  isContestMode?: boolean;
 }
 
 const DroppableImage: React.FC<DroppableImageProps> = ({
@@ -53,7 +54,8 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
   isJustMatched,
   onMatchedImageClick,
   onImageDoubleClick,
-  label
+  label,
+  isContestMode
 }) => {
   const { showTooltip, hideTooltip } = useTooltip();
 
@@ -75,7 +77,7 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
     onDragEnter(id);
   }
   const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isMatched) {
+    if (isMatched && !isContestMode) {
       showTooltip(tooltipText, e.currentTarget.getBoundingClientRect());
     }
   };

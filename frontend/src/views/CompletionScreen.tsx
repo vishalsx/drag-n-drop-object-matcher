@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { GameObject } from '../types/types';
+import type { GameObject, Language } from '../types/types';
 import { useTooltip } from '../context/TooltipContext';
 import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon, SpeakerIcon } from '../components/Icons';
 import { useSpeech } from '../hooks/useSpeech';
@@ -21,6 +21,10 @@ interface CompletionScreenProps {
     isFromTubSheet?: boolean;
     isFromPlaylist?: boolean;
     isLoggedIn: boolean;
+    isPublicOrg?: boolean;
+    availableLanguages: Language[];
+    onReplayInLanguage: (language: string) => void;
+    currentLanguageName: string;
 }
 
 const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
@@ -48,9 +52,11 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
         <>
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4" role="dialog" aria-modal="true" aria-labelledby="completion-title">
                 <div className="text-center w-full max-w-6xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
-                    <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>
-                    <p className="mt-2 text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{props.score}</span></p>
-                    <p className="mt-2 text-md text-slate-400">Review your matches, vote, and save.</p>
+                    <div className="mt-4 w-full">
+                        <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>
+                        <p className="mt-2 text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{props.score}</span></p>
+                        <p className="mt-2 text-md text-slate-400">Review your matches, vote, and save.</p>
+                    </div>
 
                     <div className="flex flex-col flex-grow my-2 overflow-hidden">
                         <div className="flex justify-end gap-2 mb-4 flex-shrink-0">
@@ -159,7 +165,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
                     <div className="flex-shrink-0 mt-4">
                         <div className="flex flex-wrap justify-center items-center gap-4">
-                            {!props.isFromTubSheet && !props.isFromPlaylist && (
+                            {!props.isFromTubSheet && !props.isFromPlaylist && !props.isPublicOrg && (
                                 <button
                                     onClick={props.onSaveSheet}
                                     disabled={!props.isLoggedIn || props.sheetSaveState === 'saving' || props.sheetSaveState === 'success'}
@@ -190,6 +196,36 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                 Close
                             </button>
                         </div>
+
+                        {/* Play in another language section */}
+                        {props.availableLanguages && props.availableLanguages.length > 0 && (
+                            <div className="mt-8 pt-6 border-t border-slate-700/50">
+                                <h3 className="text-xl font-bold text-teal-400 mb-4">Play in another language?</h3>
+                                <div className="flex flex-wrap justify-center gap-3">
+                                    {(() => {
+                                        // Filter current language, shuffle, and slice to 5
+                                        const otherLangs = props.availableLanguages
+                                            .filter(lang => lang.name !== props.currentLanguageName);
+                                        // Fisher-Yates shuffle
+                                        const shuffled = [...otherLangs];
+                                        for (let i = shuffled.length - 1; i > 0; i--) {
+                                            const j = Math.floor(Math.random() * (i + 1));
+                                            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                                        }
+                                        return shuffled.slice(0, 5).map(lang => (
+                                            <button
+                                                key={lang.code}
+                                                onClick={() => props.onReplayInLanguage(lang.name)}
+                                                className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-blue-600 text-white rounded-full transition-all hover:scale-105 shadow-md group"
+                                            >
+                                                <img src={lang.imageUrl} alt={lang.name} className="w-6 h-4 object-cover rounded shadow-sm" />
+                                                <span className="font-semibold">{lang.name}</span>
+                                            </button>
+                                        ));
+                                    })()}
+                                </div>
+                            </div>
+                        )}
                         {props.sheetSaveError && <p className="text-red-400 text-sm mt-3" role="alert">{props.sheetSaveError}</p>}
                     </div>
                 </div>

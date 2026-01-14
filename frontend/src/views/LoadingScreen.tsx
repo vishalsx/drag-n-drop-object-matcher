@@ -7,9 +7,10 @@ interface LoadingScreenProps {
     selectedLanguageName: string;
     selectedCategory: string;
     selectedFos: string;
+    customMessage?: string | null;
 }
 
-const LoadingScreen: React.FC<LoadingScreenProps> = ({ difficulty, selectedLanguageName, selectedCategory, selectedFos }) => {
+const LoadingScreen: React.FC<LoadingScreenProps> = ({ difficulty, selectedLanguageName, selectedCategory, selectedFos, customMessage }) => {
     const categoryText = selectedCategory !== 'Any' ? ` (${selectedCategory})` : '';
     const fosText = selectedFos !== 'Any' ? ` (${selectedFos})` : '';
     const detailText = categoryText || fosText;
@@ -18,9 +19,15 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ difficulty, selectedLangu
     return (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4" role="dialog" aria-modal="true" aria-live="assertive">
             <div className="text-center w-full max-w-md p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
-                <h2 className="text-2xl font-bold text-teal-300">Loading Game...</h2>
+                <h2 className="text-2xl font-bold text-teal-300">{customMessage ? 'One Moment...' : 'Loading Game...'}</h2>
                 <p className="mt-2 text-slate-400">
-                    Preparing a <span className="font-semibold text-white">{difficulty}</span> game in <span className="font-semibold text-white">{selectedLanguageName}</span>{detailText}.
+                    {customMessage ? (
+                        <span className="font-semibold text-white text-lg">{customMessage}</span>
+                    ) : (
+                        <>
+                            Preparing a <span className="font-semibold text-white">{difficulty}</span> game in <span className="font-semibold text-white">{selectedLanguageName}</span>{detailText}.
+                        </>
+                    )}
                 </p>
                 <div className="mt-8 flex justify-center">
                     <PacManLoader />
