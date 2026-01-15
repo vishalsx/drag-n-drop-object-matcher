@@ -122,5 +122,12 @@ export interface LeaderboardEntry {
     rank: number;
     username: string;
     total_score: number;
+    language_scores: { [key: string]: number };
+    language_times: { [key: string]: number };
     is_current_user: boolean;
+}
+
+export interface LeaderboardResponse {
+    entries: LeaderboardEntry[];
+    average_time_all_participants: number;
 }

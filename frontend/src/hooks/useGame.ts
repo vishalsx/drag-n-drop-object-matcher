@@ -77,6 +77,7 @@ export const useGame = (
     const [level1Objects, setLevel1Objects] = useState<GameObject[]>([]);
     const [level1Timer, setLevel1Timer] = useState(0);
     const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
+    const segmentStartTimeRef = useRef<number | null>(null);
 
     // Round Completion Modal State
     const [showRoundCompletionModal, setShowRoundCompletionModal] = useState(false);
@@ -242,6 +243,7 @@ export const useGame = (
 
         // specific transition message
         setTransitionMessage(`Loading Level ${segment.level.level_seq} - ${segment.round.round_name || 'Round ' + segment.round.round_seq}...`);
+        segmentStartTimeRef.current = Date.now();
 
         if (segment.level.game_type === 'matching') {
             setGameLevel(1);
@@ -567,7 +569,7 @@ export const useGame = (
                         roundName: currentSegment.round.round_name,
                         language: currentSegment.language,
                         score: score,
-                        timeElapsed: currentSegment.round.time_limit_seconds - timeAtCompletion
+                        timeElapsed: segmentStartTimeRef.current ? Math.round((Date.now() - segmentStartTimeRef.current) / 1000) : currentSegment.round.time_limit_seconds - timeAtCompletion
                     });
                     setShowRoundCompletionModal(true);
                 } else {
@@ -810,7 +812,7 @@ export const useGame = (
                                     roundName: currentSegment.round.round_name,
                                     language: currentSegment.language,
                                     score: score, // Use current accumulated score
-                                    timeElapsed: currentSegment.round.time_limit_seconds // Full time used
+                                    timeElapsed: segmentStartTimeRef.current ? Math.round((Date.now() - segmentStartTimeRef.current) / 1000) : currentSegment.round.time_limit_seconds // Full time used
                                 });
                                 setShowRoundCompletionModal(true);
                             }

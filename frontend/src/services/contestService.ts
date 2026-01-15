@@ -3,12 +3,7 @@ import { authService } from './authService';
 
 const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8081';
 
-interface LeaderboardEntry {
-    rank: number;
-    username: string;
-    total_score: number;
-    is_current_user: boolean;
-}
+import { Contest, LeaderboardEntry, LeaderboardResponse } from '../types/contestTypes';
 
 const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const token = authService.getToken();
@@ -108,7 +103,7 @@ export const contestService = {
     submitContestScores: async (
         contestId: string,
         username: string,
-        scores: { language: string; score: number }[],
+        scores: { language: string; score: number; time_taken?: number }[],
         isFinal: boolean = false
     ): Promise<void> => {
         try {
@@ -131,7 +126,7 @@ export const contestService = {
         }
     },
 
-    getContestLeaderboard: async (contestId: string, limit: number = 20): Promise<LeaderboardEntry[]> => {
+    getContestLeaderboard: async (contestId: string, limit: number = 20): Promise<LeaderboardResponse> => {
         try {
             const username = authService.getUsername();
             const response = await authenticatedFetch(
@@ -145,7 +140,7 @@ export const contestService = {
             return response.json();
         } catch (error) {
             console.error('Failed to fetch contest leaderboard:', error);
-            return [];
+            return { entries: [], average_time_all_participants: 0 };
         }
     },
 

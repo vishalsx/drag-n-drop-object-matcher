@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useGame } from './hooks/useGame';
 import LoadingScreen from './views/LoadingScreen';
 import GameView from './views/GameView';
@@ -148,7 +148,9 @@ const App: React.FC = () => {
     const [transitionNextLangCode, setTransitionNextLangCode] = useState<string | null>(null);
     const [transitionNextLangName, setTransitionNextLangName] = useState<string | null>(null);
     const [showTransitionModal, setShowTransitionModal] = useState(false);
-    const [contestScores, setContestScores] = useState<{ language: string; score: number }[]>([]);
+    const [transitionShowTime, setTransitionShowTime] = useState<number>(0);
+    const [contestScores, setContestScores] = useState<{ language: string; score: number; time_taken?: number }[]>([]);
+    const lastTotalScoreRef = useRef<number>(0);
 
     React.useEffect(() => {
         // Check if we just completed an anonymous login (indicated by flag)
@@ -280,40 +282,55 @@ const App: React.FC = () => {
         }
     }, [contestDetails, gameState, selectedLanguage, pendingContestStart, gameStartError, setSelectedLanguage, param2]);
 
-    // Contest: Capture intermediate scores when Round/Level 1 completes (Modal Shows)
     useEffect(() => {
-        if (param2 === 'contest' && showRoundCompletionModal) {
+        if (param2 === 'contest' && showRoundCompletionModal && roundCompletionData) {
             const currentLangName = selectedLanguage;
-            console.log(`[Contest Score] Round Modal Showing. Updating score for ${currentLangName}: ${score}`);
+            const roundScore = roundCompletionData.score;
+            const roundTime = roundCompletionData.timeElapsed;
+            console.log(`[Contest Score] Round Modal Showing. Updating score for ${currentLangName}: ${roundScore}, Time: ${roundTime}`);
 
             setContestScores(prev => {
+                const roundContribution = roundScore - lastTotalScoreRef.current;
+                lastTotalScoreRef.current = roundScore;
+
                 const exists = prev.findIndex(p => p.language === currentLangName);
                 if (exists !== -1) {
-                    if (prev[exists].score === score) return prev;
                     const newScores = [...prev];
-                    newScores[exists] = { language: currentLangName, score: score };
+                    newScores[exists] = {
+                        language: currentLangName,
+                        score: (prev[exists].score || 0) + roundContribution,
+                        time_taken: (prev[exists].time_taken || 0) + roundTime
+                    };
                     return newScores;
                 }
-                return [...prev, { language: currentLangName, score: score }];
+                return [...prev, { language: currentLangName, score: roundContribution, time_taken: roundTime }];
             });
         }
-    }, [showRoundCompletionModal, param2, selectedLanguage, score]);
+    }, [showRoundCompletionModal, roundCompletionData, param2, selectedLanguage]);
 
     // Contest: Capture intermediate scores when Level 2 completes
     useEffect(() => {
-        if (param2 === 'contest' && gameLevel === 2 && level2State && level2State.isComplete) {
+        if (param2 === 'contest' && gameLevel === 2 && level2State && level2State.isComplete && currentSegment) {
             const currentLangName = selectedLanguage;
-            console.log(`[Contest Score] Level 2 Complete. Updating score for ${currentLangName}: ${level2State.score}`);
+            const roundScore = level2State.score;
+            const roundTime = currentSegment.round.time_limit_seconds - level2Timer;
+            console.log(`[Contest Score] Level 2 Complete. Updating score for ${currentLangName}: ${roundScore}, Time: ${roundTime}`);
 
             setContestScores(prev => {
+                const roundContribution = roundScore - lastTotalScoreRef.current;
+                lastTotalScoreRef.current = roundScore;
+
                 const exists = prev.findIndex(p => p.language === currentLangName);
                 if (exists !== -1) {
-                    if (prev[exists].score === level2State.score) return prev;
                     const newScores = [...prev];
-                    newScores[exists] = { language: currentLangName, score: level2State.score };
+                    newScores[exists] = {
+                        language: currentLangName,
+                        score: (prev[exists].score || 0) + roundContribution,
+                        time_taken: (prev[exists].time_taken || 0) + roundTime
+                    };
                     return newScores;
                 }
-                return [...prev, { language: currentLangName, score: level2State.score }];
+                return [...prev, { language: currentLangName, score: roundContribution, time_taken: roundTime }];
             });
 
             // Auto-advance for contest mode (since summary screen is hidden)
@@ -373,6 +390,8 @@ const App: React.FC = () => {
 
         if (pendingContestStart && selectedLanguage) {
             console.log('[Contest Start] Triggering handleStartGame with contestDetails:', !!contestDetails);
+            lastTotalScoreRef.current = 0;
+            setContestScores([]);
             handleStartGame();
             setPendingContestStart(false);
         }
