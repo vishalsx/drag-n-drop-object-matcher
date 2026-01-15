@@ -2,16 +2,11 @@ import React, { useMemo, useState, useEffect } from 'react';
 import Confetti from '../components/Confetti';
 import { contestService } from '../services/contestService';
 
+import { LeaderboardEntry, LeaderboardResponse } from '../types/contestTypes';
+
 interface ContestScore {
     language: string;
     score: number;
-}
-
-interface LeaderboardEntry {
-    rank: number;
-    username: string;
-    total_score: number;
-    is_current_user: boolean;
 }
 
 interface ContestSummaryScreenProps {
@@ -42,8 +37,8 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
             if (contestId) {
                 setIsLoadingLeaderboard(true);
                 try {
-                    const data = await contestService.getContestLeaderboard(contestId, 20);
-                    setLeaderboard(data);
+                    const data: LeaderboardResponse = await contestService.getContestLeaderboard(contestId, 20);
+                    setLeaderboard(data.entries);
                 } catch (error) {
                     console.error('Failed to load leaderboard:', error);
                 } finally {
