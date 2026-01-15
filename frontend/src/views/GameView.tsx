@@ -75,6 +75,7 @@ interface GameViewProps {
 }
 
 const GameView: React.FC<GameViewProps> = (props) => {
+    const [selectedDescriptionId, setSelectedDescriptionId] = useState<string | null>(null);
     const [dropTargetId, setDropTargetId] = useState<string | null>(null);
     const [animationToShow, setAnimationToShow] = useState<'pacman' | 'snake'>('pacman');
     const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
@@ -246,6 +247,21 @@ const GameView: React.FC<GameViewProps> = (props) => {
     // 4. Replace `pictureData.pictureId` with a placeholder `pictureId` argument for `handleSpeak` to make it compile.
     // This makes the file syntactically correct and incorporates the user's snippet.
 
+    const handleSelectDescription = (id: string) => {
+        if (selectedDescriptionId === id) {
+            setSelectedDescriptionId(null);
+        } else {
+            setSelectedDescriptionId(id);
+        }
+    };
+
+    const handleTargetClick = (imageId: string) => {
+        if (selectedDescriptionId) {
+            props.handleDrop(imageId, selectedDescriptionId);
+            setSelectedDescriptionId(null);
+        }
+    };
+
     const handleSpeak = (e: React.MouseEvent, text: string, pictureId: string) => { // Added pictureId parameter
         e.stopPropagation();
         props.handleSpeakHint(text, pictureId); // Changed to props.handleSpeakHint and used pictureId
@@ -297,6 +313,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
     useEffect(() => {
         if (props.gameState === 'playing') {
             setIsLeftPanelOpen(false);
+            setSelectedDescriptionId(null);
         }
     }, [props.gameState]);
 
@@ -586,6 +603,8 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                             isMatched={props.correctlyMatchedIds.has(item.id)}
                                             isWrongDrop={props.wrongDropSourceId === item.id}
                                             isJustMatched={props.justMatchedId === item.id}
+                                            isSelected={selectedDescriptionId === item.id}
+                                            onSelect={() => handleSelectDescription(item.id)}
                                             onSpeakHint={(text) => props.handleSpeakHint(text, item.id)}
                                             languageBcp47={props.languageBcp47}
                                             label={(index + 1).toString()}
@@ -643,6 +662,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                             onImageDoubleClick={handleImageDoubleClick}
                                             label={String.fromCharCode(65 + index)}
                                             isContestMode={!!props.contestDetails}
+                                            onSelectTarget={handleTargetClick}
                                         />
 
                                     )))}

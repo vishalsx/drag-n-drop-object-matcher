@@ -20,6 +20,8 @@ interface DraggableDescriptionProps {
   languageBcp47?: string;
   label?: string;
   allowFlip?: boolean; // Controls whether flip hints button is shown
+  isSelected?: boolean;
+  onSelect?: () => void;
 }
 
 const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
@@ -71,14 +73,15 @@ const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
       id={`desc-${props.id}`}
       draggable={!props.isMatched}
       onDragStart={handleDragStart}
-      className={`relative px-4 py-2 rounded-lg border border-slate-600 shadow-md transition-all duration-300 flex items-center justify-between group ${props.isMatched ? matchedStyles : defaultStyles} ${props.isWrongDrop ? wrongDropStyles : ''} ${props.isJustMatched ? justMatchedStyles : ''}`}
+      onClick={() => !props.isMatched && props.onSelect?.()}
+      className={`relative px-4 py-2 rounded-lg border shadow-md transition-all duration-300 flex items-center justify-between group ${props.isMatched ? matchedStyles : defaultStyles} ${props.isWrongDrop ? wrongDropStyles : ''} ${props.isJustMatched ? justMatchedStyles : ''} ${props.isSelected ? 'ring-4 ring-yellow-400 bg-blue-600/30 border-yellow-500 scale-105 shadow-[0_0_20px_rgba(250,204,21,0.5)] z-20' : 'border-slate-600'}`}
     >
       {props.label && (
         <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10">
           {props.label}
         </div>
       )}
-      <p key={hintType} className={`text-sm text-slate-300 flex-grow pr-2 animate-fadeIn ${props.label ? 'pl-8' : ''}`}>{displayText}</p>
+      <p key={hintType} className={`flex-grow pr-2 animate-fadeIn ${props.label ? 'pl-8' : ''} ${props.isSelected ? 'font-extrabold text-white text-lg' : 'text-slate-300 text-sm'}`}>{displayText}</p>
       {!props.isMatched && (
         <div className="flex-shrink-0 ml-2 flex flex-col gap-1">
           {props.allowFlip !== false && (

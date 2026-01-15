@@ -84,6 +84,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
   onImageLoaded,
 }) => {
   const [draggedQuestion, setDraggedQuestion] = useState<string | null>(null);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [wrongDropId, setWrongDropId] = useState<string | null>(null);
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
@@ -237,6 +238,28 @@ const Level2View: React.FC<Level2ViewProps> = ({
     setDraggedQuestion(null);
   };
 
+  const handleSelectQuestion = (id: string) => {
+    if (selectedQuestionId === id) {
+      setSelectedQuestionId(null);
+    } else {
+      setSelectedQuestionId(id);
+    }
+  };
+
+  const handleAnswerClick = (answerId: string) => {
+    if (selectedQuestionId) {
+      onQuestionDrop(selectedQuestionId, answerId);
+
+      // Check for wrong drop
+      if (selectedQuestionId !== answerId) {
+        setWrongDropId(selectedQuestionId);
+        setTimeout(() => setWrongDropId(null), 1000);
+      }
+
+      setSelectedQuestionId(null);
+    }
+  };
+
   const handleSpeak = (e: React.MouseEvent, text: string) => {
     e.stopPropagation();
     onSpeakHint(text);
@@ -335,11 +358,14 @@ const Level2View: React.FC<Level2ViewProps> = ({
                     key={question.id}
                     draggable={true}
                     onDragStart={(e) => handleDragStart(e, question.id)}
+                    onClick={() => handleSelectQuestion(question.id)}
                     className={`relative px-3 py-2 rounded-xl border shadow-sm transition-all duration-200 text-sm flex items-center justify-between gap-2 group ${isDragging
                       ? 'opacity-50 border-blue-500 bg-slate-300'
                       : isWrong
                         ? 'border-red-500 bg-red-200 animate-shake'
-                        : 'bg-slate-200 hover:bg-slate-300 border-slate-300 cursor-grab active:cursor-grabbing hover:scale-105'
+                        : selectedQuestionId === question.id
+                          ? 'ring-4 ring-yellow-400 bg-blue-100 border-yellow-500 scale-105 shadow-[0_0_20px_rgba(250,204,21,0.5)] z-20'
+                          : 'bg-slate-200 hover:bg-slate-300 border-slate-300 cursor-grab active:cursor-grabbing hover:scale-105'
                       } `}
                   >
                     {/* Number Label */}
@@ -347,7 +373,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
                     <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10">
                       {index + 1}
                     </div>
-                    <p className="text-slate-800 font-medium flex-grow pl-8">{question.question}</p>
+                    <p className={`flex-grow pl-8 ${selectedQuestionId === question.id ? 'font-extrabold text-blue-900 text-base' : 'font-medium text-slate-800'}`}>{question.question}</p>
                     <button
                       onClick={(e) => handleSpeak(e, question.question)}
                       className="p-1.5 rounded-full text-slate-500 hover:bg-slate-400/50 hover:text-slate-900 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
@@ -377,9 +403,10 @@ const Level2View: React.FC<Level2ViewProps> = ({
                     key={answer.id}
                     onDragOver={!isMatched ? handleDragOver : undefined}
                     onDrop={!isMatched ? (e) => handleDropOnAnswer(e, answer.id) : undefined}
+                    onClick={() => !isMatched && handleAnswerClick(answer.id)}
                     className={`relative px-3 py-3 rounded-xl border shadow-sm transition-all duration-200 min-h-[60px] flex items-center justify-center text-center group ${isMatched
                       ? 'bg-green-200 border-green-500'
-                      : 'bg-blue-100 border-blue-200 border-dashed hover:bg-blue-200 hover:border-blue-400'
+                      : 'bg-blue-100 border-blue-200 border-dashed hover:bg-blue-200 hover:border-blue-400 cursor-pointer'
                       } `}
                   >
                     {isMatched ? (
