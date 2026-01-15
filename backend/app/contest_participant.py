@@ -35,6 +35,7 @@ class ParticipationTimeline(BaseModel):
 class RoundScore(BaseModel):
     language: str
     score: int
+    time_taken: float = 0 # In seconds
     completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class FlagsControls(BaseModel):

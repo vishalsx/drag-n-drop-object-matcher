@@ -48,7 +48,13 @@ class LeaderboardEntry(BaseModel):
     rank: int
     username: str
     total_score: int
+    language_scores: Dict[str, int] = {}
+    language_times: Dict[str, float] = {}
     is_current_user: bool = False
+
+class LeaderboardResponse(BaseModel):
+    entries: List[LeaderboardEntry]
+    average_time_all_participants: float = 0
 
 @router.get("/contest/check-participant/{username}")
 async def check_participant(username: str):
@@ -313,6 +319,7 @@ async def submit_contest_scores(data: ContestScoreSubmission):
         round_score = RoundScore(
             language=score_data.get("language"),
             score=score_data.get("score", 0),
+            time_taken=score_data.get("time_taken", 0),
             completed_at=datetime.now(timezone.utc)
         )
         round_scores.append(round_score.model_dump())
@@ -354,7 +361,7 @@ async def submit_contest_scores(data: ContestScoreSubmission):
         "rounds_completed": len(round_scores)
     }
 
-@router.get("/contest/{contest_id}/leaderboard", response_model=List[LeaderboardEntry])
+@router.get("/contest/{contest_id}/leaderboard", response_model=LeaderboardResponse)
 async def get_contest_leaderboard(
     contest_id: str, 
     limit: int = Query(20, ge=1, le=100),
@@ -362,44 +369,75 @@ async def get_contest_leaderboard(
 ):
     """
     Get leaderboard for a contest showing top participants ranked by total score.
+    Includes language-wise breakdown and global average time.
     """
     # Validate contest exists
     contest = await contests_collection.find_one({"_id": ObjectId(contest_id)})
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
     
-    # Aggregate participants for this contest
+    # 1. Pipeline for entries
     pipeline = [
-        # Unwind participations array
         {"$unwind": "$participations"},
-        # Filter for this contest
         {"$match": {"participations.contest_id": contest_id}},
-        # Project needed fields
         {"$project": {
             "username": 1,
             "total_score": "$participations.total_score",
-            "contest_completed": "$participations.contest_completed"
+            "round_scores": "$participations.round_scores"
         }},
-        # Sort by score descending
         {"$sort": {"total_score": -1}},
-        # Limit results
         {"$limit": limit}
     ]
     
     cursor = participants_collection.aggregate(pipeline)
     results = await cursor.to_list(length=limit)
     
-    # Build leaderboard with ranks
+    # 2. Pipeline for global average time (only from completed participations)
+    avg_pipeline = [
+        {"$unwind": "$participations"},
+        {"$match": {
+            "participations.contest_id": contest_id,
+            "participations.contest_completed": True
+        }},
+        {"$unwind": "$participations.round_scores"},
+        {"$group": {
+            "_id": "$_id",
+            "total_participant_time": {"$sum": "$participations.round_scores.time_taken"}
+        }},
+        {"$group": {
+            "_id": None,
+            "global_avg_time": {"$avg": "$total_participant_time"}
+        }}
+    ]
+    
+    avg_result = await participants_collection.aggregate(avg_pipeline).to_list(length=1)
+    global_avg_time = avg_result[0].get("global_avg_time", 0) if avg_result else 0
+
+    # Build leaderboard with ranks and language split
     leaderboard = []
     for idx, entry in enumerate(results):
+        # Aggregate scores and times by language for this participant
+        language_scores = {}
+        language_times = {}
+        for rs in entry.get("round_scores", []):
+            lang = rs.get("language")
+            if lang:
+                language_scores[lang] = language_scores.get(lang, 0) + rs.get("score", 0)
+                language_times[lang] = language_times.get(lang, 0) + rs.get("time_taken", 0)
+
         leaderboard.append(LeaderboardEntry(
             rank=idx + 1,
             username=entry["username"],
             total_score=entry["total_score"],
+            language_scores=language_scores,
+            language_times=language_times,
             is_current_user=(entry["username"] == current_username if current_username else False)
         ))
     
-    return leaderboard
+    return LeaderboardResponse(
+        entries=leaderboard,
+        average_time_all_participants=global_avg_time
+    )
 
 @router.get("/contest/list/{org_id}", response_model=List[Dict[str, Any]])
 async def list_org_contests(org_id: str):
