@@ -143,7 +143,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                 />
             </div>
 
-            <div className="flex-grow p-4 space-y-4 overflow-y-auto">
+            <div className="flex-grow p-4 space-y-1 overflow-y-auto">
                 {/* Language Selector - Always visible */}
                 <div>
                     <label htmlFor="language-select" className="block text-sm font-medium text-slate-300 mb-1">
@@ -298,7 +298,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-2">Difficulty</label>
                             <div className="px-2">
-                                <div className="relative h-8 mb-6 select-none">
+                                <div className="relative h-8 mb-4 select-none">
                                     {/* Track */}
                                     <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-600 rounded-full -translate-y-1/2"></div>
 
@@ -352,7 +352,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
 
             </div>
 
-            <div className="p-4 border-t border-slate-700 mt-auto flex-shrink-0">
+            <div className="p-4 pt-16 border-t border-slate-700 mt-auto flex-shrink-0">
                 <button
                     type="button"
                     onClick={isInteractive ? onWithdrawRequest : onStartGame}

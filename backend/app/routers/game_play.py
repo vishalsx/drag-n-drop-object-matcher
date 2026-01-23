@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Path, Depends, Response
+from fastapi import APIRouter, HTTPException, Query, Path, Depends, Response, BackgroundTasks
 from typing import Optional, List, Dict, Any
 from app.database import contests_collection, participants_collection
 from app.contest_config import Contest
@@ -7,6 +7,7 @@ from app.routers.auth import get_current_user
 from app.contest_participant import Contestant
 from bson import ObjectId
 import logging
+from app.utils.external_api import trigger_embeddings_update
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +21,7 @@ async def get_level_round_content(
     contest_id: str = Path(..., description="The ID of the contest"),
     level_seq: int = Path(..., description="Sequence number of the level"),
     round_seq: int = Path(..., description="Sequence number of the round"),
+    background_tasks: BackgroundTasks = None,
     language: str = Query(..., description="Language for the content"),
     category: Optional[str] = Query(None, description="Object category filter"),
     field_of_study: Optional[str] = Query(None, description="Field of study filter"),
@@ -86,6 +88,15 @@ async def get_level_round_content(
         
         # User specified: No persistence needed between matching and quiz modes.
         # Every round and level should be completely random.
+        areas_of_interest = None
+        theme_type = (contest.generic_theme_type or "").lower()
+        if theme_type == "category":
+           category = contest.areas_of_interest[0] if contest.areas_of_interest else None
+        elif theme_type == "field_of_study":
+           field_of_study = contest.areas_of_interest[0] if contest.areas_of_interest else None
+        else:
+           areas_of_interest = contest.areas_of_interest
+        
         content = await fetch_level_content(
             level_game_type=level_structure.game_type,
             round_structure=round_structure,
@@ -94,13 +105,21 @@ async def get_level_round_content(
             category=category,
             field_of_study=field_of_study,
             assigned_object_ids=None,
-            areas_of_interest=contest.areas_of_interest
+            areas_of_interest= areas_of_interest
         )
         
         # 5. Add No-Cache headers to ensure browser fetches fresh random content every time
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+
+        # 6. Trigger embeddings update in the background for each selected object
+        # if background_tasks:
+        #     for item in content:
+        #         oid = item.get("object_id")
+        #         tid = item.get("translation_id")
+        #         if oid:
+        #             background_tasks.add_task(trigger_embeddings_update, str(oid), str(tid) if tid else None)
 
         return content
         

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import pictures
 from app.routers import voting
 from app.routers import TTS_service
-from app.routers import getlanguages
+from app.routers import languages
 from app.routers import savecards
 from app.routers import determine_org
 from app.routers import auth
@@ -35,7 +35,7 @@ app.add_middleware(AuthMiddleware)
 app.include_router(pictures.router)
 app.include_router(voting.router)
 app.include_router(TTS_service.router)
-app.include_router(getlanguages.router)
+app.include_router(languages.router)
 app.include_router(savecards.router)
 app.include_router(determine_org.router)
 app.include_router(auth.router, tags=["auth"])

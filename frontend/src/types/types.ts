@@ -13,6 +13,7 @@ export interface GameObject {
   quiz_qa?: QuizQA[];
   story?: string;
   moral?: string;
+  userVote?: 'up' | 'down' | null;
 }
 
 export interface QuizQA {

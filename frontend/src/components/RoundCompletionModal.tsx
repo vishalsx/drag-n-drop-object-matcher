@@ -43,7 +43,13 @@ const RoundCompletionModal: React.FC<RoundCompletionModalProps> = ({
                     </div>
                     <div className="border-t border-slate-600 pt-4">
                         <p className="text-slate-400 text-sm uppercase tracking-wider mb-1">Time Taken</p>
-                        <p className="text-2xl font-semibold text-blue-400">{timeElapsed}s</p>
+                        <p className="text-2xl font-semibold text-blue-400">
+                            {(() => {
+                                const mins = Math.floor(timeElapsed / 60);
+                                const secs = Math.round(timeElapsed % 60);
+                                return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                            })()}
+                        </p>
                     </div>
                 </div>
 

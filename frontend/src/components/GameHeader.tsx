@@ -70,7 +70,7 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
     };
 
     return (
-        <div className="w-full bg-slate-800/70 border-b border-slate-700 px-8 py-4 flex items-center justify-between gap-4 z-20 relative">
+        <div className="w-full bg-slate-800/70 border-b border-slate-700 px-8 py-3 flex items-center justify-between gap-4 z-20 relative">
             <div className="flex items-center gap-4 w-1/3">
                 {orgData?.org_name ? (
                     // Organization Header
@@ -88,7 +88,7 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                         )}
                         <div className="flex flex-col">
                             <h1 className="text-xl font-bold text-slate-200 leading-tight">
-                                {orgData.org_name}
+                                {orgData.org_name} {contestDetails ? "- Active Contest" : "- Learner's Mode"}
                             </h1>
                         </div>
                     </>
@@ -101,7 +101,7 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                             className="h-12 w-12 object-contain rounded-md"
                         />
                         <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-orange-500 leading-tight">
-                            alphaTUB Matches
+                            alphaTUB {contestDetails ? "- Active Contest" : "- Learner's Mode"}
                         </h1>
                     </>
                 )}

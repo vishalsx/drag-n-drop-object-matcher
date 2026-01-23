@@ -8,14 +8,14 @@ export const SpinnerIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export const ThumbsUpIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.729 0 1.416.446 1.743 1.132 1.05 2.203 2.924 3.864 5.346 4.606a11.97 11.97 0 002.502.261l5.502-1.62c.501-.148.868-.584" />
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2 10v10h3V10H2zm5 10h11l3-7V10h-7L14 3h-1l-3 7" />
     </svg>
 );
 
 export const ThumbsDownIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7.498 15.25H4.372c-1.026 0-1.945-.694-2.054-1.715a12.137 12.137 0 01-.068-1.285c0-2.848.992-5.464 2.649-7.521C5.287 4.247 5.886 4 6.504 4h4.016a4.5 4.5 0 011.423.23l3.114 1.04a4.5 4.5 0 001.423.23h1.294M7.498 15.25c.719 0 1.393.18 1.992.512a4.5 4.5 0 001.523.633L12.5 16.5m0 0a4.501 4.501 0 01-4.002.992m4.002-.992l1.62.486c.66.198 1.348.337 2.05.412a9.01 9.01 0 002.83-2.614c.73-.807.666-2.028-.15-2.738a9.013 9.013 0 01-1.35-1.464l-.99-1.39c-.198-.277-.487-.49-.817-.584l-2.05-.615a4.5 4.5 0 00-1.285-.192H12.5" />
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M22 14V4h-3v10h3zm-5-10H6L3 11v3h7l-1 7h1l3-7" />
     </svg>
 );
 
@@ -115,5 +115,24 @@ export const VolumeUpIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+    </svg>
+);
+
+export const ThumbsUpSolidIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M2 10v10h3V10H2zm5 10h11l3-7V10h-7L14 3h-1l-3 7" />
+    </svg>
+);
+
+export const ThumbsDownSolidIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M22 14V4h-3v10h3zm-5-10H6L3 11v3h7l-1 7h1l3-7" />
+    </svg>
+);
+
+export const SpeakerSolidIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.5A2.25 2.25 0 002.25 9.75v4.5a2.25 2.25 0 002.25 2.25h1.94l4.5 4.5c.944.945 2.56.276 2.56-1.06V4.06zM18.563 6.697a.75.75 0 011.061-.011 9.75 9.75 0 010 13.628.75.75 0 01-1.06-1.062 8.25 8.25 0 000-11.504.75.75 0 01-.001-1.051z" />
+        <path d="M15.914 9.346a.75.75 0 011.06 0 5.25 5.25 0 010 7.308.75.75 0 01-1.06-1.06 3.75 3.75 0 000-5.188.75.75 0 010-1.06z" />
     </svg>
 );

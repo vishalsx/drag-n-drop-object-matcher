@@ -86,6 +86,7 @@ class Contest(BaseModel):
     contest_type: str = "Global" # "Global" or "Local". For Local contests, it will be tagged under an existing org 
     supported_languages: List[str] = Field(default_factory=list) #comes from selected languages available in the private or Public org.
     areas_of_interest: Optional[List[str]] = Field(default_factory=list) #tags to search for the contest. Can match with field_of_study, object_category or tags
+    generic_theme_type: Optional[str] = None # "Generic", "Category", or "Field of Study"
     org_id : Optional[str] = None #if contest_type is "Global" else its tagged under an existing org
     
     #Specilization of content as per the contest theme

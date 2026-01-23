@@ -111,19 +111,24 @@ export const fetchActiveLanguages = async (orgId?: string | null): Promise<Langu
 //     };
 //   }
 // };
-export const fetchCategoriesAndFos = async (language: string, orgId?: string | null): Promise<{ object_categories: CategoryFosItem[]; fields_of_study: CategoryFosItem[] }> => {
+export const fetchCategoriesAndFos = async (language: string, orgId?: string | null, refresh: boolean = false): Promise<{ object_categories: CategoryFosItem[]; fields_of_study: CategoryFosItem[] }> => {
   try {
     const headers: Record<string, string> = {};
     if (orgId) {
       headers['X-Org-ID'] = orgId;
     }
 
-    const response = await authenticatedFetch(`${API_BASE_URL}/active/object-categories-FOS/${language}`, { headers });
+    let url = `${API_BASE_URL}/active/object-categories-FOS/${language}`;
+    if (refresh) {
+      url += `?refresh=true`;
+    }
+
+    const response = await authenticatedFetch(url, { headers });
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);
     }
     const data = await response.json();
-    console.log(`Categories and FOS for ${language} fetched successfully.`, data);
+    console.log(`Categories and FOS for ${language} fetched successfully. (refresh=${refresh})`, data);
     return data;
   } catch (error) {
     console.error(`Failed to fetch categories and FOS for ${language}:`, error);

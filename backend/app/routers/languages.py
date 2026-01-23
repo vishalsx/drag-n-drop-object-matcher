@@ -3,11 +3,14 @@ from fastapi.responses import JSONResponse
 from app.database import translation_collection, languages_collection, objects_collection
 from bson import ObjectId
 # from googletrans import Translator
-from deep_translator import GoogleTranslator
+# from deep_translator import GoogleTranslator
 from app.database import organisations_collection
 import json
+import os
 from app.redis_connection import redis_client, TTS_CACHE_TTL  # ✅ reuse TTL for cache
 import logging
+from googleapiclient.discovery import build
+from starlette.concurrency import run_in_threadpool
 
 
 logger = logging.getLogger(__name__)
@@ -15,6 +18,53 @@ logger = logging.getLogger(__name__)
 # ---------- Initialize FastAPI ----------
 router = APIRouter(prefix="/active", tags=["Language, Objects category and Field of Study Services"])
 # translator = Translator()
+
+async def get_language_code(language_name: str) -> str:
+    """Map language names to ISO 639-1 codes using the languages collection."""
+    if not language_name:
+        return "en"
+    
+    clean_name = language_name.strip().title() # DB uses Title Case (e.g., "Hindi")
+    try:
+        lang_doc = await languages_collection.find_one({"language_name": clean_name})
+        if lang_doc and lang_doc.get("isoCode"):
+            return lang_doc["isoCode"]
+        
+        # Fallback to first 2 letters if not found in DB
+        return language_name.strip().lower()[:2]
+    except Exception as e:
+        logger.warning(f"⚠️ Error fetching language code for {language_name}: {e}")
+        return language_name.strip().lower()[:2]
+
+async def translate_text(text: str, target_language: str) -> str:
+    """Translate text to target language using Google Translate API."""
+    if not text or not target_language:
+        return text
+    
+    try:
+        api_key = os.getenv("GOOGLE_API_KEY") # Use the same key as others
+        if not api_key:
+            logger.error("❌ GOOGLE_API_KEY not found in environment.")
+            return text
+            
+        service = build('translate', 'v2', developerKey=api_key,cache_discovery=False)
+        
+        target_code = await get_language_code(target_language)
+        
+        result = await run_in_threadpool(
+            service.translations().list(
+                q=[text],
+                target=target_code
+            ).execute
+        )
+        
+        if result and 'translations' in result:
+            return result['translations'][0]['translatedText']
+        
+        return text
+    except Exception as e:
+        logger.warning(f"⚠️ Google Translation failed for '{text}' to {target_language}: {e}")
+        return text
 
 # ---------- API endpoint ----------
 @router.get("/languages")
@@ -109,23 +159,22 @@ async def get_languages(request: Request):
         ]
 
         print("\nLanguages details fetched:", languages)
-        return JSONResponse(content=languages)
+        # Sort languages alphabetically by name
+        sorted_languages = sorted(languages, key=lambda x: x['name'] if x['name'] else "")
+        return JSONResponse(content=sorted_languages)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch languages: {str(e)}")
 
 @router.get("/object-categories-FOS/{language_name}") #FOS - field of study
-async def get_object_categories_FOS(language_name: str, request: Request):
+async def get_object_categories_FOS(language_name: str, request: Request, refresh: bool = False):
     try:
         # 1️⃣ Get ISO code for the requested language
         language_doc = await languages_collection.find_one(
             {"language_name": {"$regex": f"^{language_name}$", "$options": "i"}},
             {"_id": 0, "isoCode": 1}
         )
-        if not language_doc:
-            raise HTTPException(status_code=404, detail=f"Language '{language_name}' not found in database.")
-
-        lang_code = language_doc.get("isoCode", "en")
+        lang_code = language_doc.get("isoCode", "en") if language_doc else "en"
 
         # Get Org ID
         org = getattr(request.state, "org", None)
@@ -135,14 +184,17 @@ async def get_object_categories_FOS(language_name: str, request: Request):
         org_suffix = f"org:{org_id}" if org_id else "public"
         cache_key = f"categories_fos:{lang_code.lower()}:{org_suffix}"
 
-        # 2️⃣ Try fetching cached translation from Redis (Upstash is sync)
-        try:
-            cached_data = redis_client.get(cache_key)
-            if cached_data:
-                logger.info(f"✅ Cache hit for {lang_code} ({org_suffix})")
-                return JSONResponse(content=json.loads(cached_data))
-        except Exception as e:
-            logger.warning(f"Redis fetch failed: {e}")
+        # 2️⃣ Try fetching cached translation from Redis if not refreshing
+        if not refresh:
+            try:
+                cached_data = redis_client.get(cache_key)
+                if cached_data:
+                    logger.info(f"✅ Cache hit for {lang_code} ({org_suffix})")
+                    return JSONResponse(content=json.loads(cached_data))
+            except Exception as e:
+                logger.warning(f"Redis fetch failed: {e}")
+        else:
+            logger.info(f"🔄 Refresh requested for {lang_code} ({org_suffix}). Bypassing cache.")
 
         # 3️⃣ Fetch all approved translation object_ids
         query = {"requested_language": language_name.title(), "translation_status": "Approved"}
@@ -155,77 +207,66 @@ async def get_object_categories_FOS(language_name: str, request: Request):
 
         object_ids = await translation_collection.distinct("object_id", query)
 
+        object_categories = []
+        fields_of_study = []
+
         if not object_ids:
-            return JSONResponse(content={"object_categories": [], "fields_of_study": []})
+            # Fallback Logic: Fetch categories and FOS from all approved objects for this org/public
+            obj_query = {"image_status": "Approved"}
+            if org_id:
+                obj_query["org_id"] = org_id
+            else:
+                obj_query["$or"] = [{"org_id": {"$exists": False}}, {"org_id": None}]
+            
+            raw_categories = await objects_collection.distinct("metadata.object_category", obj_query)
+            raw_fos = await objects_collection.distinct("metadata.field_of_study", obj_query)
+            
+            object_categories = sorted([c for c in raw_categories if c])
+            fields_of_study = sorted([f for f in raw_fos if f])
+        else:
+            valid_object_ids = [ObjectId(obj_id) for obj_id in object_ids if ObjectId.is_valid(obj_id)]
 
-        valid_object_ids = [ObjectId(obj_id) for obj_id in object_ids if ObjectId.is_valid(obj_id)]
+            # 4️⃣ Query MongoDB objects
+            cursor = objects_collection.find(
+                {
+                    "_id": {"$in": valid_object_ids},
+                    "image_status": "Approved"
+                },
+                {
+                    "_id": 0,
+                    "metadata.object_category": 1,
+                    "metadata.field_of_study": 1
+                }
+            )
+            raw_objects = await cursor.to_list(length=None)
 
-        # 4️⃣ Query MongoDB objects
-        cursor = objects_collection.find(
-            {
-                "_id": {"$in": valid_object_ids},
-                "image_status": "Approved"
-            },
-            {
-                "_id": 0,
-                "metadata.object_category": 1,
-                "metadata.field_of_study": 1
-            }
-        )
-        raw_objects = await cursor.to_list(length=None)
+            # 5️⃣ Extract unique categories and fields
+            object_categories = sorted({
+                obj.get("metadata", {}).get("object_category")
+                for obj in raw_objects
+                if obj.get("metadata", {}).get("object_category")
+            })
 
-        # 5️⃣ Extract unique categories and fields
-        object_categories = sorted({
-            obj.get("metadata", {}).get("object_category")
-            for obj in raw_objects
-            if obj.get("metadata", {}).get("object_category")
-        })
+            fields_of_study = sorted({
+                obj.get("metadata", {}).get("field_of_study")
+                for obj in raw_objects
+                if obj.get("metadata", {}).get("field_of_study")
+            })
 
-        fields_of_study = sorted({
-            obj.get("metadata", {}).get("field_of_study")
-            for obj in raw_objects
-            if obj.get("metadata", {}).get("field_of_study")
-        })
+        translated_object_categories = []
+        translated_fields_of_study = []
 
         # 6️⃣ If English, no translation needed
         if lang_code.lower() in ["en", "eng"]:
             translated_object_categories = [{"en": cat, "translated": cat} for cat in object_categories]
             translated_fields_of_study = [{"en": field, "translated": field} for field in fields_of_study]
         else:
-            translated_object_categories = []
-            translated_fields_of_study = []
-
-
-            try:
-                translator = GoogleTranslator(source='en', target=lang_code)
-                translation_supported = True
-            except Exception as e:
-                logger.warning(f"⚠️ Language '{lang_code}' not supported. Using English only.")
-                translation_supported = False
-
-            translated_object_categories = []
-            translated_fields_of_study = []
-
             for cat in object_categories:
-                if translation_supported:
-                    try:
-                        translated_text = translator.translate(cat)
-                    except Exception as e:
-                        logger.warning(f"⚠️ Translation failed for category '{cat}': {e}")
-                        translated_text = cat
-                else:
-                    translated_text = cat
+                translated_text = await translate_text(cat, language_name)
                 translated_object_categories.append({"en": cat, "translated": translated_text})
 
             for field in fields_of_study:
-                if translation_supported:
-                    try:
-                        translated_text = translator.translate(field)
-                    except Exception as e:
-                        logger.warning(f"⚠️ Translation failed for field '{field}': {e}")
-                        translated_text = field
-                else:
-                    translated_text = field
+                translated_text = await translate_text(field, language_name)
                 translated_fields_of_study.append({"en": field, "translated": translated_text})
 
         response_data = {

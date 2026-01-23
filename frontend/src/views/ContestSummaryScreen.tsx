@@ -28,7 +28,7 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
     nextLanguageName,
     onNextRound
 }) => {
-    const totalScore = contestScores.reduce((acc, curr) => acc + curr.score, 0);
+    const totalScore = (contestScores || []).reduce((acc, curr) => acc + (curr.score || 0), 0);
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
 
@@ -74,14 +74,14 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
                         <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">Your Performance</h3>
 
                         <div className="space-y-4">
-                            {contestScores.map((item, idx) => (
+                            {(contestScores || []).map((item, idx) => (
                                 <div key={idx} className="flex items-center justify-between group">
                                     <div className="flex items-center gap-3">
                                         <div className="w-2 h-2 rounded-full bg-teal-500 group-hover:scale-150 transition-transform"></div>
                                         <span className="text-lg text-slate-200 font-medium">{item.language}</span>
                                     </div>
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-2xl font-bold text-teal-400">{item.score}</span>
+                                        <span className="text-2xl font-bold text-teal-400">{item.score || 0}</span>
                                         <span className="text-slate-500 text-xs">pts</span>
                                     </div>
                                 </div>

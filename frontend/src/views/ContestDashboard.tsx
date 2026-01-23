@@ -69,15 +69,25 @@ const ContestDashboard: React.FC<ContestDashboardProps> = ({ orgData }) => {
         fetchLeaderboard();
     }, [selectedContest]);
 
+    const formatTime = (seconds: number): string => {
+        if (!seconds || seconds <= 0) return '0s';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        if (mins > 0) {
+            return `${mins}m ${secs}s`;
+        }
+        return `${secs}s`;
+    };
+
     const handlePlayContest = (contest: Contest) => {
         const contestId = contest.id || contest._id;
         window.location.href = `/${orgData.org_code}/contest/${contestId}`;
     };
 
     return (
-        <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+        <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans overflow-x-hidden overflow-y-auto">
             {/* Top Row: Organisation Info */}
-            <div className="flex-shrink-0 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-6 flex items-center justify-between">
+            <div className="flex-shrink-0 bg-slate-900 border-b border-slate-800 p-4 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     {orgData.logo_url && (
                         <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center p-2 shadow-inner overflow-hidden">
@@ -96,12 +106,12 @@ const ContestDashboard: React.FC<ContestDashboardProps> = ({ orgData }) => {
                 </div>
             </div>
 
-            {/* Main Content: 2-Panel Layout */}
-            <div className="flex flex-1 overflow-hidden p-6 gap-6">
+            {/* Main Content: Responsive Layout */}
+            <div className="flex flex-col lg:flex-row flex-1 p-4 md:p-6 gap-6 overflow-visible lg:overflow-hidden">
                 {/* Left Panel: Contest List */}
-                <div className="w-[45%] flex flex-col bg-slate-900/40 rounded-3xl border border-slate-800 overflow-hidden">
-                    <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-                        <h2 className="text-xl font-bold uppercase tracking-tight">Active Contests</h2>
+                <div className="w-full lg:w-[45%] flex flex-col bg-slate-900/80 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+                    <div className="p-6 bg-blue-600/10 border-b border-slate-800 flex items-center justify-between">
+                        <h2 className="text-xl font-bold uppercase tracking-tight text-blue-400">Active Contests</h2>
                         <span className="bg-slate-800 text-slate-400 px-3 py-1 rounded-full text-xs font-bold">
                             {contests.length} {contests.length === 1 ? 'Contest' : 'Contests'}
                         </span>
@@ -164,9 +174,9 @@ const ContestDashboard: React.FC<ContestDashboardProps> = ({ orgData }) => {
                 </div>
 
                 {/* Right Panel: Leaderboard */}
-                <div className="flex-1 flex flex-col bg-slate-900/40 rounded-3xl border border-slate-800 overflow-hidden">
-                    <div className="p-6 border-b border-slate-800">
-                        <h2 className="text-xl font-bold flex items-center gap-2 uppercase tracking-tight">
+                <div className="flex-1 flex flex-col bg-slate-900/80 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+                    <div className="p-6 bg-emerald-600/10 border-b border-slate-800">
+                        <h2 className="text-xl font-bold flex items-center gap-2 uppercase tracking-tight text-emerald-400">
                             🏆 Leaderboard
                             {selectedContest && (
                                 <span className="text-slate-500 text-sm font-normal lowercase tracking-normal bg-slate-800 px-3 py-0.5 rounded-full ml-2">
@@ -178,7 +188,7 @@ const ContestDashboard: React.FC<ContestDashboardProps> = ({ orgData }) => {
                             <div className="mt-3 flex items-center gap-4">
                                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-2 flex items-center gap-3">
                                     <span className="text-blue-400 text-sm font-bold uppercase tracking-wider">Avg Time</span>
-                                    <span className="text-white text-lg font-black">{Math.round(averageTime)}s</span>
+                                    <span className="text-white text-lg font-black">{formatTime(averageTime)}</span>
                                 </div>
                             </div>
                         )}
@@ -235,7 +245,7 @@ const ContestDashboard: React.FC<ContestDashboardProps> = ({ orgData }) => {
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="text-slate-100 font-bold">{score} pts</span>
                                                             <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                                                            <span className="text-blue-400 text-[9px]">{Math.round(entry.language_times?.[lang] || 0)}s</span>
+                                                            <span className="text-blue-400 text-[9px]">{formatTime(entry.language_times?.[lang] || 0)}</span>
                                                         </div>
                                                     </span>
                                                 ))}

@@ -112,15 +112,15 @@ const DroppableImage: React.FC<DroppableImageProps> = ({
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
-      className={`relative group w-full h-36 md:h-44 lg:h-48 rounded-xl shadow-lg transition-all duration-300 border-2 bg-slate-100 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-slate-300'} ${isMatched ? 'border-green-500 cursor-pointer' : 'cursor-zoom-in'} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''} overflow-hidden`}
+      className={`relative group w-full aspect-[3/4] rounded-xl shadow-lg transition-all duration-300 border-2 bg-slate-100 ${isDropTarget ? 'border-blue-500 scale-105' : 'border-slate-300'} ${isMatched ? 'border-green-500 cursor-pointer' : 'cursor-zoom-in'} ${isWrongDrop ? 'border-red-500 animate-shake' : ''} ${isJustMatched ? 'animate-success-pulse' : ''} overflow-hidden`}
       title="Double click to zoom"
     >
       {label && (
-        <div className={`absolute top-2 left-2 w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10 ${isMatched ? 'bg-green-600' : 'bg-slate-500'}`}>
+        <div className={`absolute top-2 left-2 w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-20 ${isMatched ? 'bg-green-600' : 'bg-slate-500'}`}>
           {label}
         </div>
       )}
-      <img src={imageUrl} alt={description} className="w-full h-full object-contain p-2 pointer-events-none" />
+      <img src={imageUrl} alt={description} className="w-full h-full object-cover pointer-events-none" />
       {isMatched && (
         <div className="absolute inset-0 bg-green-500 bg-opacity-30 flex flex-col items-center justify-center text-center p-2 pointer-events-none rounded-xl">
           <CheckIcon className="w-16 h-16 text-white" />

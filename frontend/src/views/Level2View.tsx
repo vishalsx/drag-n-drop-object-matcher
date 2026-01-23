@@ -350,37 +350,38 @@ const Level2View: React.FC<Level2ViewProps> = ({
                 const isDragging = draggedQuestion === question.id;
                 const isWrong = wrongDropId === question.id;
 
-                // Hide matched questions from the list
-                if (isMatched) return null;
 
                 return (
                   <div
                     key={question.id}
-                    draggable={true}
-                    onDragStart={(e) => handleDragStart(e, question.id)}
-                    onClick={() => handleSelectQuestion(question.id)}
-                    className={`relative px-3 py-2 rounded-xl border shadow-sm transition-all duration-200 text-sm flex items-center justify-between gap-2 group ${isDragging
-                      ? 'opacity-50 border-blue-500 bg-slate-300'
-                      : isWrong
-                        ? 'border-red-500 bg-red-200 animate-shake'
-                        : selectedQuestionId === question.id
-                          ? 'ring-4 ring-yellow-400 bg-blue-100 border-yellow-500 scale-105 shadow-[0_0_20px_rgba(250,204,21,0.5)] z-20'
-                          : 'bg-slate-200 hover:bg-slate-300 border-slate-300 cursor-grab active:cursor-grabbing hover:scale-105'
+                    draggable={!isMatched}
+                    onDragStart={(e) => !isMatched && handleDragStart(e, question.id)}
+                    onClick={() => !isMatched && handleSelectQuestion(question.id)}
+                    className={`relative px-3 py-3 rounded-xl border shadow-sm transition-all duration-200 text-sm flex items-center justify-between gap-2 min-h-[60px] group ${isMatched
+                      ? 'opacity-40 bg-green-100 border-green-500 cursor-not-allowed scale-95'
+                      : isDragging
+                        ? 'opacity-50 border-blue-500 bg-slate-300'
+                        : isWrong
+                          ? 'border-red-500 bg-red-200 animate-shake'
+                          : selectedQuestionId === question.id
+                            ? 'ring-4 ring-yellow-400 bg-blue-100 border-yellow-500 scale-105 shadow-[0_0_20px_rgba(250,204,21,0.5)] z-20'
+                            : 'bg-slate-200 hover:bg-slate-300 border-slate-300 cursor-grab active:cursor-grabbing hover:scale-105'
                       } `}
                   >
                     {/* Number Label */}
-                    {/* Number Label */}
-                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10">
+                    <div className={`absolute top-2 left-2 w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10 ${isMatched ? 'bg-green-600' : 'bg-blue-500'}`}>
                       {index + 1}
                     </div>
-                    <p className={`flex-grow pl-8 ${selectedQuestionId === question.id ? 'font-extrabold text-blue-900 text-base' : 'font-medium text-slate-800'}`}>{question.question}</p>
-                    <button
-                      onClick={(e) => handleSpeak(e, question.question)}
-                      className="p-1.5 rounded-full text-slate-500 hover:bg-slate-400/50 hover:text-slate-900 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
-                      aria-label="Speak question"
-                    >
-                      <SpeakerIcon className="w-4 h-4" />
-                    </button>
+                    <p className={`flex-grow pl-8 ${isMatched ? 'text-green-800 italic' : selectedQuestionId === question.id ? 'font-extrabold text-blue-900 text-base' : 'font-medium text-slate-800'}`}>{question.question}</p>
+                    {!isMatched && (
+                      <button
+                        onClick={(e) => handleSpeak(e, question.question)}
+                        className="p-1.5 rounded-full text-slate-500 hover:bg-slate-400/50 hover:text-slate-900 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+                        aria-label="Speak question"
+                      >
+                        <SpeakerIcon className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -416,11 +417,11 @@ const Level2View: React.FC<Level2ViewProps> = ({
                           {String.fromCharCode(65 + index)}
                         </div>
                         <p className="text-xs text-green-700 mb-1 font-semibold">Matched!</p>
-                        <div className="flex items-center justify-center gap-2">
-                          <p className="text-slate-800 font-bold text-sm">{answer.answer}</p>
+                        <div className="flex items-center justify-between gap-2 w-full px-1">
+                          <p className="text-slate-800 font-bold text-sm pl-8">{answer.answer}</p>
                           <button
                             onClick={(e) => handleSpeak(e, answer.answer)}
-                            className="p-1 rounded-full text-green-700 hover:bg-green-300/50 hover:text-green-900 transition-colors"
+                            className="p-1 rounded-full text-green-700 hover:bg-green-300/50 hover:text-green-900 transition-colors flex-shrink-0"
                             aria-label="Speak answer"
                           >
                             <SpeakerIcon className="w-4 h-4" />
@@ -428,15 +429,15 @@ const Level2View: React.FC<Level2ViewProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center gap-2 w-full">
+                      <div className="flex items-center justify-between gap-2 w-full px-1">
                         {/* Letter Label (Unmatched) */}
                         <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-slate-500 text-white flex items-center justify-center text-xs font-bold shadow-md border border-white z-10">
                           {String.fromCharCode(65 + index)}
                         </div>
-                        <p className="text-slate-800 font-medium text-sm">{answer.answer}</p>
+                        <p className="text-slate-800 font-medium text-sm pl-8">{answer.answer}</p>
                         <button
                           onClick={(e) => handleSpeak(e, answer.answer)}
-                          className="p-1 rounded-full text-slate-500 hover:bg-slate-400/50 hover:text-slate-900 transition-colors opacity-0 group-hover:opacity-100"
+                          className="p-1 rounded-full text-slate-500 hover:bg-slate-400/50 hover:text-slate-900 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
                           aria-label="Speak answer"
                         >
                           <SpeakerIcon className="w-4 h-4" />
@@ -465,7 +466,7 @@ const Level2View: React.FC<Level2ViewProps> = ({
               <img
                 src={pictureData.imageUrl}
                 alt={pictureData.imageName}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-md"
+                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md"
                 onLoad={onImageLoaded}
               />
             </div>

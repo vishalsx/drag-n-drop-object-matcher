@@ -43,7 +43,29 @@ export const useGame = (
     const [wrongDropTargetId, setWrongDropTargetId] = useState<string | null>(null);
     const [wrongDropSourceId, setWrongDropSourceId] = useState<string | null>(null);
     const [justMatchedId, setJustMatchedId] = useState<string | null>(null);
-    const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
+    const [selectedLanguage, setSelectedLanguageState] = useState<string>(() => {
+        return localStorage.getItem('last_selected_language') || 'en';
+    });
+
+    const setSelectedLanguage = useCallback((langOrCode: string) => {
+        // We want to store the CODE. Let's try to map it.
+        // If languages are not yet loaded, we might just store it.
+        // But the dropdown and most interactions pass codes.
+        setSelectedLanguageState(prevState => {
+            let code = langOrCode;
+            // Best effort mapping if languages are available and we suspect a name was passed
+            if (languages.length > 0) {
+                const found = languages.find(l =>
+                    l.code.toLowerCase() === langOrCode.toLowerCase() ||
+                    l.name.toLowerCase() === langOrCode.toLowerCase()
+                );
+                if (found) code = found.code;
+            }
+            localStorage.setItem('last_selected_language', code);
+            return code;
+        });
+    }, [languages]);
+
     const [selectedCategory, setSelectedCategory] = useState<string>('Any');
     const [selectedTubSheet, setSelectedTubSheet] = useState<string>('');
     const [selectedFos, setSelectedFos] = useState<string>('Any');
@@ -78,6 +100,7 @@ export const useGame = (
     const [level1Timer, setLevel1Timer] = useState(0);
     const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
     const segmentStartTimeRef = useRef<number | null>(null);
+    const shouldForceRefreshRef = useRef<boolean>(true);
 
     // Round Completion Modal State
     const [showRoundCompletionModal, setShowRoundCompletionModal] = useState(false);
@@ -93,6 +116,8 @@ export const useGame = (
     const { speakText, stop } = useSpeech();
     const [username, setUsername] = useState<string | null>(null);
 
+    const objectIds = useMemo(() => gameData.map(d => d.id), [gameData]);
+
     // Initialize Analytics tracking
     const {
         startRound,
@@ -105,7 +130,7 @@ export const useGame = (
         contestId,
         userId: authService.getUsername(), // Get directly from storage to avoid state sync lag
         languageName: selectedLanguage,
-        objectIds: gameData.map(d => d.id),
+        objectIds,
         authToken
     });
 
@@ -131,14 +156,21 @@ export const useGame = (
                 setLanguages(activeLanguages);
 
                 if (activeLanguages.length > 0) {
-                    const isDefaultLanguageValid = activeLanguages.some(lang => lang.code === 'English');
+                    // Check if current/persisted language is still valid for this org
+                    const isCurrentValid = activeLanguages.some(lang => lang.code === selectedLanguage);
 
-                    if (!isDefaultLanguageValid) {
-                        setSelectedLanguage(activeLanguages[0].code);
+                    if (!isCurrentValid) {
+                        const englishLang = activeLanguages.find(lang =>
+                            lang.code.toLowerCase() === 'en' ||
+                            lang.name.toLowerCase() === 'english'
+                        );
+                        if (englishLang) {
+                            setSelectedLanguage(englishLang.code);
+                        } else {
+                            setSelectedLanguage(activeLanguages[0].code);
+                        }
                     }
                 } else {
-                    // If there are no languages, we can't play the game. Stop the main loading spinner.
-                    // This case assumes fetch succeeded but returned empty list.
                     setIsAppLoading(false);
                 }
             } catch (error) {
@@ -150,6 +182,14 @@ export const useGame = (
 
         loadInitialData();
     }, [token, orgId, isOrgChecked, isContest]);
+
+    // Track token changes to force a refresh on login
+    useEffect(() => {
+        if (token) {
+            console.log("[useGame] Token detected (login/refresh). Marking for categories refresh.");
+            shouldForceRefreshRef.current = true;
+        }
+    }, [token]);
 
     // Effect to load categories whenever the language changes. This is the single source of truth.
     useEffect(() => {
@@ -173,12 +213,19 @@ export const useGame = (
             setSelectedPageTitle('');
 
             const currentLangObj = languages.find(l =>
-                l.code.trim().toLowerCase() === selectedLanguage.trim().toLowerCase() ||
-                l.name.trim().toLowerCase() === selectedLanguage.trim().toLowerCase()
+                l.code.toLowerCase() === selectedLanguage.toLowerCase() ||
+                l.name.toLowerCase() === selectedLanguage.toLowerCase()
             );
             const languageName = currentLangObj?.name || selectedLanguage;
             const effectiveOrgId = explicitOrgId || orgId;
-            const data = await fetchCategoriesAndFos(languageName, effectiveOrgId);
+
+            const refresh = shouldForceRefreshRef.current;
+            const data = await fetchCategoriesAndFos(languageName, effectiveOrgId, refresh);
+
+            if (refresh) {
+                console.log("[useGame] Categories refresh completed. Resetting force refresh flag.");
+                shouldForceRefreshRef.current = false;
+            }
 
             setObjectCategories([ANY_OPTION, ...data.object_categories]);
             setFieldsOfStudy([ANY_OPTION, ...data.fields_of_study]);
@@ -232,8 +279,8 @@ export const useGame = (
 
         // Find language name
         const currentLangObj = languages.find(l =>
-            l.code.trim().toLowerCase() === segment.language.trim().toLowerCase() ||
-            l.name.trim().toLowerCase() === segment.language.trim().toLowerCase()
+            l.code.toLowerCase() === segment.language.toLowerCase() ||
+            l.name.toLowerCase() === segment.language.toLowerCase()
         );
         // If not found, use code itself
         const languageName = currentLangObj?.name || segment.language;
@@ -243,7 +290,6 @@ export const useGame = (
 
         // specific transition message
         setTransitionMessage(`Loading Level ${segment.level.level_seq} - ${segment.round.round_name || 'Round ' + segment.round.round_seq}...`);
-        segmentStartTimeRef.current = Date.now();
 
         if (segment.level.game_type === 'matching') {
             setGameLevel(1);
@@ -261,8 +307,17 @@ export const useGame = (
                 );
 
                 if (data.length > 0) {
+                    // Filter out objects without quiz questions for learners mode
+                    const validData = data.filter((item: any) => item.quiz_qa && item.quiz_qa.length > 0);
+
+                    if (validData.length === 0) {
+                        console.warn("No Level 1 data with valid quiz questions found for segment, skipping...");
+                        handleSegmentComplete(true);
+                        return;
+                    }
+
                     // Transform contest API response to GameObject format
-                    const gameData: GameObject[] = data.map((item: any) => ({
+                    const gameData: GameObject[] = validData.map((item: any) => ({
                         id: item.translation_id,
                         objectId: item.object_id,
                         description: item.object_hint,
@@ -282,7 +337,10 @@ export const useGame = (
                     setShuffledDescriptions(shuffleArray(gameData));
                     setShuffledImages(shuffleArray(gameData));
 
-                    if (isContest) startRound(gameData.map(d => d.id));
+                    if (isContest) {
+                        segmentStartTimeRef.current = Date.now();
+                        startRound(gameData.map(d => d.id));
+                    }
                     setGameState('playing');
                     setTransitionMessage(null);
                 } else {
@@ -312,26 +370,28 @@ export const useGame = (
                     return;
                 }
 
-                // Map Backend Data to Level2PictureData
-                const picturesData: Level2PictureData[] = data.map((item: any) => {
-                    // Map Questions
-                    const questions: any[] = (item.questions || []).map((q: any, idx: number) => ({
-                        id: `${item.object_id}_q_${idx}`, // Generate unique-ish ID
-                        question: q.question,
-                        answer: q.answer,
-                        isCorrect: true
-                    }));
+                // Map Backend Data to Level2PictureData and filter out items without questions
+                const picturesData: Level2PictureData[] = data
+                    .filter((item: any) => item.questions && item.questions.length > 0)
+                    .map((item: any) => {
+                        // Map Questions
+                        const questions: any[] = (item.questions || []).map((q: any, idx: number) => ({
+                            id: `${item.object_id}_q_${idx}`, // Generate unique-ish ID
+                            question: q.question,
+                            answer: q.answer,
+                            isCorrect: true
+                        }));
 
-                    return {
-                        pictureId: item.object_id,
-                        imageName: item.imageName,
-                        imageUrl: item.image_base64 ? `data:image/png;base64,${item.image_base64}` : '', // Handle base64
-                        questions: questions,
-                        answers: shuffleArray([...questions]), // Answers are the same set, shuffled
-                        matchedQuestions: new Set(),
-                        wrongAttempts: 0
-                    };
-                });
+                        return {
+                            pictureId: item.object_id,
+                            imageName: item.imageName,
+                            imageUrl: item.image_base64 ? `data:image/png;base64,${item.image_base64}` : '', // Handle base64
+                            questions: questions,
+                            answers: shuffleArray([...questions]), // Answers are the same set, shuffled
+                            matchedQuestions: new Set(),
+                            wrongAttempts: 0
+                        };
+                    });
 
                 setLevel2State({
                     currentPictureIndex: 0,
@@ -343,9 +403,13 @@ export const useGame = (
 
                 setLevel2Timer(segment.round.time_limit_seconds);
                 setIsLevel2Paused(true); // Pause until first image loads
+                if (isContest) {
+                    segmentStartTimeRef.current = Date.now();
+                    startRound(picturesData.map(d => d.pictureId));
+                    submitAnalytics(RoundStatus.STARTED, score);
+                }
                 setGameState('playing');
                 setTransitionMessage(null);
-                if (isContest) submitAnalytics(RoundStatus.STARTED, score);
 
             } catch (error) {
                 console.error("Error starting quiz segment:", error);
@@ -357,8 +421,10 @@ export const useGame = (
     const handleSegmentComplete = useCallback(async (isFullTimerExpired: boolean) => {
         console.log('[useGame] Segment Complete. Full Timer Expired:', isFullTimerExpired);
 
-        // Submit analytics for this round
-        await submitAnalytics(RoundStatus.COMPLETED, score);
+        // Submit analytics for this round - NON-BLOCKING
+        submitAnalytics(RoundStatus.COMPLETED, score).catch(err =>
+            console.error('[useGame] Analytics submission failed (background):', err)
+        );
 
         // Add current round objects to level1Objects array for Level 2
         setLevel1Objects(prev => [...prev, ...gameData]);
@@ -396,12 +462,15 @@ export const useGame = (
     }, [handleSegmentComplete]);
 
     const currentLanguageBcp47 = useMemo(() => {
+        // In contest mode, always use the language of the current segment if available
+        const langToResolve = (isContest && currentSegment) ? currentSegment.language : selectedLanguage;
+
         const currentLangObj = languages.find(l =>
-            l.code.trim().toLowerCase() === selectedLanguage.trim().toLowerCase() ||
-            l.name.trim().toLowerCase() === selectedLanguage.trim().toLowerCase()
+            l.code.toLowerCase() === langToResolve.toLowerCase() ||
+            l.name.toLowerCase() === langToResolve.toLowerCase()
         );
         return currentLangObj?.bcp47 || 'en-US';
-    }, [selectedLanguage, languages]);
+    }, [selectedLanguage, languages, isContest, currentSegment]);
 
     const handleStartGame = useCallback(async () => {
         setGameStartError(null);
@@ -487,8 +556,8 @@ export const useGame = (
         console.log(`[useGame] handleStartGame: isContest=${isContest}. Analytics will start after fetch.`);
 
         const currentLangObj = languages.find(l =>
-            l.code.trim().toLowerCase() === selectedLanguage.trim().toLowerCase() ||
-            l.name.trim().toLowerCase() === selectedLanguage.trim().toLowerCase()
+            l.code.toLowerCase() === selectedLanguage.toLowerCase() ||
+            l.name.toLowerCase() === selectedLanguage.toLowerCase()
         );
         const languageName = currentLangObj?.name || selectedLanguage;
         console.log(`[useGame] Starting game. Selected: ${selectedLanguage}, Resolved Name: ${languageName}`);
@@ -510,16 +579,27 @@ export const useGame = (
             orgCode
         );
         if (data.length > 0) {
-            setGameData(data);
-            setShuffledDescriptions(shuffleArray(data));
-            setShuffledImages(shuffleArray(data));
-            setGameState('playing');
+            // Filter out objects without quiz questions for learners mode
+            const validData = data.filter(item => item.quiz_qa && item.quiz_qa.length > 0);
 
-            // Start analytics tracking with the actual fetched IDs
-            // Note: Standard game analytics might differ, but existing code had this:
-            if (isContest) {
-                // This block is unreachable now due to early return
-                startRound(data.map(d => d.id));
+            if (validData.length > 0) {
+                setGameData(validData);
+                setShuffledDescriptions(shuffleArray(validData));
+                setShuffledImages(shuffleArray(validData));
+                setGameState('playing');
+
+                // Start analytics tracking with the actual fetched IDs
+                // Note: Standard game analytics might differ, but existing code had this:
+                if (isContest) {
+                    // This block is unreachable now due to early return
+                    startRound(validData.map(d => d.id));
+                }
+            } else {
+                setGameData([]);
+                setShuffledDescriptions([]);
+                setShuffledImages([]);
+                setGameStartError('All objects found lack quiz questions for this language and category. Please try different settings.');
+                setGameState('idle');
             }
         } else {
             setGameData([]);
@@ -569,7 +649,7 @@ export const useGame = (
                         roundName: currentSegment.round.round_name,
                         language: currentSegment.language,
                         score: score,
-                        timeElapsed: segmentStartTimeRef.current ? Math.round((Date.now() - segmentStartTimeRef.current) / 1000) : currentSegment.round.time_limit_seconds - timeAtCompletion
+                        timeElapsed: gameLevel === 1 ? (currentSegment.round.time_limit_seconds - level1Timer) : (currentSegment.round.time_limit_seconds - level2Timer)
                     });
                     setShowRoundCompletionModal(true);
                 } else {
@@ -620,7 +700,7 @@ export const useGame = (
 
         setGameData(prevData => prevData.map(item =>
             item.id === translationId
-                ? { ...item, upvotes: voteType === 'up' ? item.upvotes + 1 : item.upvotes, downvotes: voteType === 'down' ? item.downvotes + 1 : item.downvotes }
+                ? { ...item, upvotes: voteType === 'up' ? item.upvotes + 1 : item.upvotes, downvotes: voteType === 'down' ? item.downvotes + 1 : item.downvotes, userVote: voteType }
                 : item
         ));
 
@@ -662,8 +742,8 @@ export const useGame = (
 
         const translationIds = gameData.map(item => item.id);
         const currentLangObj = languages.find(l =>
-            l.code.trim().toLowerCase() === selectedLanguage.trim().toLowerCase() ||
-            l.name.trim().toLowerCase() === selectedLanguage.trim().toLowerCase()
+            l.code.toLowerCase() === selectedLanguage.toLowerCase() ||
+            l.name.toLowerCase() === selectedLanguage.toLowerCase()
         );
         const languageName = currentLangObj?.name || selectedLanguage;
         const result = await saveTranslationSet(name, languageName, translationIds, selectedCategory);
@@ -705,19 +785,27 @@ export const useGame = (
             );
 
             if (newData.length > 0) {
-                // Ensure the order of objects is preserved or matched correctly
-                // The backend should return the translations for the provided IDs.
-                setSelectedLanguage(newLanguage);
-                setGameData(newData);
-                setShuffledDescriptions(shuffleArray(newData));
-                setShuffledImages(shuffleArray(newData));
-                setCorrectlyMatchedIds(new Set());
-                setScore(0);
-                setGameState('playing');
-                setTransitionMessage(null);
+                // Filter out objects without quiz questions
+                const validNewData = newData.filter(item => item.quiz_qa && item.quiz_qa.length > 0);
 
-                // Track start for analytics if needed
-                if (isContest) startRound(newData.map(d => d.id));
+                if (validNewData.length > 0) {
+                    // Ensure the order of objects is preserved or matched correctly
+                    // The backend should return the translations for the provided IDs.
+                    setSelectedLanguage(newLanguage);
+                    setGameData(validNewData);
+                    setShuffledDescriptions(shuffleArray(validNewData));
+                    setShuffledImages(shuffleArray(validNewData));
+                    setCorrectlyMatchedIds(new Set());
+                    setScore(0);
+                    setGameState('playing');
+                    setTransitionMessage(null);
+
+                    // Track start for analytics if needed
+                    if (isContest) startRound(validNewData.map(d => d.id));
+                } else {
+                    setGameStartError(`Could not find translations with quiz questions for ${newLanguage}`);
+                    handleResetGame();
+                }
             } else {
                 setGameStartError(`Could not find translations for ${newLanguage}`);
                 handleResetGame();
@@ -750,6 +838,10 @@ export const useGame = (
         setSelectedBookTitle('');
         setSelectedChapterName('');
         setSelectedPageTitle('');
+
+        // Reset to default or last saved language
+        const lastLang = localStorage.getItem('last_selected_language') || 'en';
+        setSelectedLanguageState(lastLang);
 
         // Reset Level 2 state
         setGameLevel(1);
@@ -961,8 +1053,13 @@ export const useGame = (
                 isComplete: true,
             });
 
-            // Wait for user to dismiss completion screen
-            // If Level 2 View has a "Finish" button, it calls handleLevel2Complete
+            // For contests, automatically proceed to segment completion after a brief delay
+            if (isContest) {
+                console.log('[useGame] Level 2 (Quiz) complete in contest mode. Proceeding...');
+                setTimeout(() => {
+                    handleLevel2Complete();
+                }, 1500);
+            }
         } else {
             // Move to next picture
             setIsLevel2Paused(true); // Pause while next image is loading
@@ -979,16 +1076,26 @@ export const useGame = (
     };
 
     // Level 2: Close completion and return to idle
-    const handleLevel2Complete = () => {
+    const handleLevel2Complete = useCallback(() => {
         if (level2State) {
             setScore(level2State.score); // Sync score before completing segment
         }
-        if (isContest) {
+
+        if (isContest && currentSegment) {
+            setRoundCompletionData({
+                levelName: currentSegment.level.level_name,
+                roundName: currentSegment.round.round_name,
+                language: currentSegment.language,
+                score: level2State ? level2State.score : score,
+                timeElapsed: currentSegment.round.time_limit_seconds - level2Timer
+            });
+            setShowRoundCompletionModal(true);
+        } else if (isContest) {
             handleSegmentComplete(false);
         } else {
             handleResetGame();
         }
-    };
+    }, [level2State, isContest, currentSegment, score, level2Timer, handleSegmentComplete, handleResetGame]);
 
     const startGameWithData = useCallback((data: GameObject[]) => {
         setGameState('loading');

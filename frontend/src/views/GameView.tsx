@@ -420,8 +420,8 @@ const GameView: React.FC<GameViewProps> = (props) => {
                 )}
 
                 {/* Hints Panel: 45% width when open, 55% when closed */}
-                <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[45%]' : 'lg:w-[55%]'} p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
-                    <header className="text-center mb-6 flex-shrink-0 relative">
+                <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[45%]' : 'lg:w-[65%]'} p-4 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
+                    <header className="text-left mb-2 flex-shrink-0 relative">
                         {/* Only show story toggle for matching game or if story exists */}
                         {(props.gameState === 'playing' || props.gameState === 'complete') &&
                             (!props.contestDetails || props.contestDetails.game_structure?.levels[0]?.game_type === 'matching') && (
@@ -444,11 +444,12 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                 ((showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) ? 'Story' : 'Hints')}
                         </h2>
 
-                        {/* Subtitle Logic */}
-                        <p className="text-slate-400 mt-1 text-sm">
-                            {props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz' ? 'Answer the questions correctly' :
-                                ((showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) ? 'Read the story' : 'Drag a hint to the matching object')}
-                        </p>
+                        {/* Subtitle Logic - Only show for Quiz or Story, remove instruction text for Matching as requested */}
+                        {((showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) || props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz') && (
+                            <p className="text-slate-400 mt-1 text-sm">
+                                {props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz' ? 'Answer the questions correctly' : 'Read the story'}
+                            </p>
+                        )}
 
                         {/* Contest Status Display */}
                         {props.isContest && props.gameState === 'playing' && (
@@ -617,10 +618,10 @@ const GameView: React.FC<GameViewProps> = (props) => {
                 </div>
 
                 {/* Objects Panel: 40% width when open, 45% when closed */}
-                <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[40%]' : 'lg:w-[45%]'} p-6 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
-                    <header className="text-center mb-6 flex-shrink-0">
+                <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[40%]' : 'lg:w-[35%]'} p-4 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
+                    <header className="flex items-center justify-between mb-4 flex-shrink-0">
                         <h2 className="text-2xl font-bold text-slate-300">Objects</h2>
-                        <div className="mt-1 text-2xl font-bold text-yellow-400">Score: {props.score}</div>
+                        <div className="text-2xl font-bold text-yellow-400">Score: {props.score}</div>
                     </header>
                     <div className="flex-grow overflow-y-auto pr-2 flex items-start">
                         {props.gameState === 'idle' || props.gameState === 'loading' ? (
@@ -628,7 +629,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                 {animationToShow === 'pacman' ? <PacManChaseAnimation /> : <SnakeGameAnimation />}
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 { /* If Quiz Mode, maybe hide objects or show them differently? 
                                      The requirement implies "Level 1 has objects... Level 2 has questions".
                                      In Quiz mode, the "Objects" panel might not be needed or could show progress/decor.

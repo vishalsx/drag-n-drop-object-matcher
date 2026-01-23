@@ -1,4 +1,6 @@
 from app.database import translation_collection, objects_collection
+from app.services.randompicdetails import get_random_picture_details
+from app.routers.languages import translate_text
 import logging
 from typing import Optional, List, Dict, Any
 from app.contest_config import RoundStructure
@@ -9,6 +11,8 @@ import re
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
 
 async def fetch_level_content(
     level_game_type: str,
@@ -54,92 +58,84 @@ async def fetch_level_content(
         logger.warning(f"Unknown game_type: {level_game_type}")
         return []
 
-async def _get_valid_object_ids(
-    language: Optional[str] = None,
-    org_id: Optional[str] = None,
-    category: Optional[str] = None,
-    field_of_study: Optional[str] = None,
-    areas_of_interest: Optional[List[str]] = None
-) -> List[Any]:
-    """
-    Helper to get valid object IDs based on Org ID and Category/FOS filters.
-    Aligns with randompicdetails.py: Check translations availability FIRST.
-    """
-    # 1) Initialize base queries
-    base_query = {"translation_status": "Approved"}
-    object_filter = {"image_status": "Approved"}
+# async def _get_valid_object_ids(
+#     language: Optional[str] = None,
+#     org_id: Optional[str] = None,
+#     category: Optional[str] = None,
+#     field_of_study: Optional[str] = None,
+#     areas_of_interest: Optional[List[str]] = None
+# ) -> List[Any]:
+#     """
+#     Helper to get valid object IDs based on Org ID and Category/FOS filters.
+#     Optimized to use translation collection's embedding_text and vector search.
+#     """
+#     # 1) Initialize base query for translations
+#     base_query = {"translation_status": "Approved"}
 
-    # 2) Apply Org ID logic
-    if org_id:
-        object_filter["$or"] = [
-            {"org_id": org_id},
-            {"org_id": {"$exists": False}},
-            {"org_id": None},
-            {"org_id": ""},
-        ]
-        base_query["org_id"] = org_id
-    else:
-        object_filter["$or"] = [
-            {"org_id": {"$exists": False}},
-            {"org_id": None},
-            {"org_id": ""},
-        ]
-        base_query["$or"] = [
-            {"org_id": {"$exists": False}},
-            {"org_id": None},
-            {"org_id": ""},
-        ]
+#     # 2) Apply Org ID logic
+#     if org_id:
+#         base_query["org_id"] = org_id
+#     else:
+#         base_query["$or"] = [
+#             {"org_id": {"$exists": False}},
+#             {"org_id": None},
+#             {"org_id": ""},
+#         ]
 
-    # 3) Apply Language filter
-    if language:
-        base_query["requested_language"] = language
+#     # 3) Apply Language filter
+#     if language:
+#         base_query["requested_language"] = language
 
-    # 4) Apply Category/FOS filter on Objects
-    if category:
-        object_filter["metadata.object_category"] = category
-    elif field_of_study:
-        object_filter["metadata.field_of_study"] = field_of_study
+#     # 4) Apply Area of Interest (Vector Search)
+#     if areas_of_interest:
+#         search_query = " ".join([i for i in areas_of_interest if i])
+#         if search_query:
+#             logger.info(f"Performing vector search for areas_of_interest: {search_query}")
+#             # Use a reasonably large count for the pool
+#             # get_vector_search_results now handles translation to requested language internally
+#             vector_results = await get_vector_search_results(
+#                 count=100, 
+#                 search_text=search_query, 
+#                 language=language, 
+#                 org_id=org_id
+#             )
+#             aoi_object_ids = [r["object_id"] for r in vector_results if "object_id" in r]
+#             if aoi_object_ids:
+#                 base_query["object_id"] = {"$in": aoi_object_ids}
+#             else:
+#                 # If vector search specifically returns nothing, return empty
+#                 return []
+
+#     # 5) Apply Category/FOS filter on Translations (embedding_text)
+#     if category:
+#         base_query["embedding_text"] = {"$regex": re.escape(category), "$options": "i"}
+#         logger.info(f"Filtering by category: {category}")
+#     elif field_of_study:
+#         base_query["embedding_text"] = {"$regex": re.escape(field_of_study), "$options": "i"}
+#         logger.info(f"Filtering by field_of_study: {field_of_study}")
+
+#     print(f"\n[DEBUG] game_content.py - _get_valid_object_ids")
+#     print(f"[DEBUG] game_content.py - Constructed base_query: {base_query}")
+
+#     # 6) Get final matching Translation Object IDs
+#     matching_object_ids = await translation_collection.distinct("object_id", base_query)
     
-    if areas_of_interest:
-        # Create a case-insensitive regex that matches any of the interests with simple stemming
-        def simple_stem(word):
-            # Basic stemming: remove trailing 's', 'es', 'ies'
-            word = word.lower().strip()
-            if not word: return word
-            if word.endswith('ies') and len(word) > 4: return word[:-3] + 'i'
-            if word.endswith('es') and len(word) > 4: return word[:-2]
-            if word.endswith('s') and len(word) > 3: return word[:-1]
-            return word
+#     # Optional: We might still want to ensure image_status is Approved on the Objects collection
+#     # but the user specifically asked to avoid going to object_collection for filters.
+#     # However, to be extra safe and ensure we return valid object IDs (and filter out deleted ones if any),
+#     # we can do one final distinct on objects_collection filtered by these IDs.
+    
+#     if not matching_object_ids:
+#         return []
 
-        stems = {simple_stem(interest) for interest in areas_of_interest if interest}
-        escaped_stems = [re.escape(stem) for stem in stems if stem]
-        if escaped_stems:
-            pattern = "|".join(escaped_stems)
-            object_filter["embedding_text"] = {"$regex": pattern, "$options": "i"}
+#     final_ids = await objects_collection.distinct("_id", {
+#         "_id": {"$in": matching_object_ids},
+#         "image_status": "Approved"
+#     })
     
-    print(f"\n[DEBUG] game_content.py - _get_valid_object_ids")
-    print(f"[DEBUG] game_content.py - areas_of_interest input: {areas_of_interest}")
-    print(f"[DEBUG] game_content.py - Constructed object_filter: {object_filter}")
-
-    # 5) Get matching Translations first
-    # We only want objects that have a valid translation for the requested language/org
-    translations_object_ids = await translation_collection.distinct("object_id", base_query)
-    print(f"[DEBUG] game_content.py - Found {len(translations_object_ids)} translations for language/org: {language}/{org_id}")
-    if not translations_object_ids:
-        # No translations found, so no valid objects
-        return []
-
-    # 6) Filter Objects based on valid Translation Object IDs
-    object_filter["_id"] = {"$in": translations_object_ids}
+#     print(f"[DEBUG] game_content.py - Found {len(final_ids)} matching object IDs after image_status check")
     
-    # 7) Get final matching Object IDs
-    matching_object_ids = await objects_collection.distinct("_id", object_filter)
-    
-    print(f"[DEBUG] game_content.py - Found {len(matching_object_ids)} matching object IDs")
-    if len(matching_object_ids) > 0:
-        print(f"[DEBUG] game_content.py - Sample object IDs: {matching_object_ids[:5]}")
-    
-    return matching_object_ids
+#     return final_ids
 
 async def _fetch_matching_objects(
     round_structure: RoundStructure,
@@ -153,131 +149,128 @@ async def _fetch_matching_objects(
     """
     Fetches objects for matching game.
     Applies hint field mapping based on round_structure.hints_used for contest mode.
+    
+    Optimized: Uses data from get_random_picture_details directly instead of 
+    performing a redundant aggregation on translation_collection.
     """
     count = round_structure.question_count
     hints_used = round_structure.hints_used
     
     if assigned_object_ids:
+        # For assigned object IDs, we still need to fetch their translation details
         valid_object_ids = [ObjectId(oid) if isinstance(oid, str) else oid for oid in assigned_object_ids]
+        
+        # Fetch translation details for assigned objects
+        base_query = {
+            "translation_status": "Approved",
+            "object_id": {"$in": valid_object_ids}
+        }
+        if language:
+            base_query["requested_language"] = language
+        if org_id:
+            base_query["org_id"] = org_id
+        else:
+            base_query["$or"] = [
+                {"org_id": {"$exists": False}},
+                {"org_id": None},
+                {"org_id": ""},
+            ]
+        
+        pipeline = [
+            {"$match": base_query},
+            {"$group": {
+                "_id": "$object_name",
+                "object_id": {"$first": "$object_id"},
+                "object_name": {"$first": "$object_name"},
+                "object_description": {"$first": "$object_description"},
+                "object_hint": {"$first": "$object_hint"},
+                "object_short_hint": {"$first": "$object_short_hint"},
+                "translation_id": {"$first": "$_id"},
+                "quiz_qa": {"$first": "$quiz_qa"},
+                "requested_language": {"$first": "$requested_language"},
+            }},
+            {"$sample": {"size": count}},
+        ]
+        results_details = await translation_collection.aggregate(pipeline).to_list(length=count)
     else:
-        valid_object_ids = await _get_valid_object_ids(language, org_id, category, field_of_study, areas_of_interest)
-    
-    if not valid_object_ids:
+        # Use get_random_picture_details which already returns all needed fields
+        search_text = " ".join(areas_of_interest) if areas_of_interest else None
+        results_details = await get_random_picture_details(
+            count, 
+            language, 
+            category, 
+            field_of_study, 
+            org_id, 
+            None,
+            search_text
+        )
+
+    if not results_details:
         return []
 
-    # Base query for translations
-    base_query = {
-        "translation_status": "Approved",
-        "object_id": {"$in": valid_object_ids}
-    }
-    
-    if language:
-        base_query["requested_language"] = language
-
-    # Org logic for translations
-    if org_id:
-        base_query["org_id"] = org_id
-    else:
-        base_query["$or"] = [
-            {"org_id": {"$exists": False}},
-            {"org_id": None},
-            {"org_id": ""},
-        ]
-
-    # Determine hint field mapping based on hints_used
-    if hints_used:
-        if hints_used == "Long Hints":
-            hint_field = "$object_hint_raw"
-        elif hints_used == "Short Hints":
-            hint_field = "$object_short_hint_raw"
-        elif hints_used == "Object Name":
-            hint_field = "$object_name_raw"
-        else:
-            logger.warning(f"Invalid hints_used value: {hints_used}. Using Long Hints as default.")
-            hint_field = "$object_hint_raw"
-        # Both hint fields use the same source  in contest mode
-        short_hint_field = hint_field
-        logger.info(f"Contest mode - Hint mapping: both fields using {hint_field}")
-    else:
-        # Normal mode - keep original fields
-        hint_field = "$object_hint_raw"
-        short_hint_field = "$object_short_hint_raw"
-
-    # Pipeline to deduplicate and sample
-    pipeline = [
-        {"$match": base_query},
-        {"$group": {
-            "_id": "$object_name",
-            "object_id": {"$first": "$object_id"},
-            "object_name": {"$first": "$object_name"},
-            "object_description": {"$first": "$object_description"},
-            "object_hint_raw": {"$first": "$object_hint"},
-            "object_short_hint_raw": {"$first": "$object_short_hint"},
-            "object_name_raw": {"$first": "$object_name"},
-            # In matching, we typically just need the image and name/hint
-            "translation_id": {"$first": "$_id"},
-            "quiz_qa": {"$first": "$quiz_qa"}, # Included in case needed
-            "requested_language": {"$first": "$requested_language"},
-        }},
-        {"$sample": {"size": count}},
-        {"$project": {
-            "_id": 0,
-            "translation_id": 1,
-            "object_id": 1,
-            "object_name": "$object_name_raw",
-            "object_description": 1,
-            "object_hint": hint_field,
-            "object_short_hint": short_hint_field,
-            "quiz_qa": 1,
-            "requested_language": 1
-        }}
-    ]
-
-    results = await translation_collection.aggregate(pipeline).to_list(length=count)
-    
-    # Enrich results with image data from objects collection
-    if results:
-        from app.storage.imagestore import retrieve_image
-        
-        # Fetch object details for images
-        # object_id from aggregation might be ObjectId or string, handle both
-        object_ids = []
-        for r in results:
-            oid = r["object_id"]
-            if isinstance(oid, str):
-                object_ids.append(ObjectId(oid))
+    # Apply hint field mapping in-memory based on hints_used
+    for result in results_details:
+        if hints_used:
+            if hints_used == "Long Hints":
+                mapped_hint = result.get("object_hint", "")
+            elif hints_used == "Short Hints":
+                mapped_hint = result.get("object_short_hint", "")
+            elif hints_used == "Object Name":
+                mapped_hint = result.get("object_name", "")
             else:
-                object_ids.append(oid)
-        
-        objects_cursor = objects_collection.find({"_id": {"$in": object_ids}})
-        
-        objects_map = {}
-        async for obj in objects_cursor:
-            image_store = obj.get("image_store")
-            image_base64 = None
-            if image_store:
-                try:
-                    image_base64 = await retrieve_image(image_store)
-                except Exception as e:
-                    logger.error(f"Error retrieving image for object {obj.get('_id')}: {e}")
-            
-            if not image_base64:
-                image_base64 = obj.get("image_base64")
-            
-            objects_map[str(obj["_id"])] = image_base64
-        
-        # Add image_base64 to each result and convert ObjectIds to strings
-        for result in results:
-            # Convert ObjectId fields to strings for JSON serialization
-            result["object_id"] = str(result["object_id"])
-            result["translation_id"] = str(result["translation_id"])
-            
-            # Add image
-            result["image_base64"] = objects_map.get(result["object_id"])
-            # logger.info(f"Enriched object {result['object_id']} with image: {bool(result.get('image_base64'))}")
+                logger.warning(f"Invalid hints_used value: {hints_used}. Using Long Hints as default.")
+                mapped_hint = result.get("object_hint", "")
+            # Both hint fields use the same source in contest mode
+            result["object_hint"] = mapped_hint
+            result["object_short_hint"] = mapped_hint
+        # else: keep original fields as-is (normal mode)
+
+    # Enrich results with image data from objects collection
+    from app.storage.imagestore import retrieve_image
     
-    logger.info(f"[_fetch_matching_objects] Returning {len(results)} random results for language: {language}")
-    return results
+    # Extract object IDs for image lookup
+    object_ids = []
+    for r in results_details:
+        oid = r.get("object_id")
+        if isinstance(oid, str):
+            object_ids.append(ObjectId(oid))
+        elif oid is not None:
+            object_ids.append(oid)
+    
+    objects_cursor = objects_collection.find({"_id": {"$in": object_ids}})
+    
+    objects_map = {}
+    async for obj in objects_cursor:
+        image_store = obj.get("image_store")
+        image_base64 = None
+        if image_store:
+            try:
+                image_base64 = await retrieve_image(image_store)
+            except Exception as e:
+                logger.error(f"Error retrieving image for object {obj.get('_id')}: {e}")
+        
+        if not image_base64:
+            image_base64 = obj.get("image_base64")
+        
+        objects_map[str(obj["_id"])] = image_base64
+    
+    # Add image_base64 to each result and convert ObjectIds to strings
+    final_results = []
+    for result in results_details:
+        # Convert ObjectId fields to strings for JSON serialization
+        oid = result.get("object_id")
+        result["object_id"] = str(oid) if oid else ""
+        
+        tid = result.get("translation_id")
+        result["translation_id"] = str(tid) if tid else ""
+        
+        # Add image
+        result["image_base64"] = objects_map.get(result["object_id"])
+        final_results.append(result)
+    
+    logger.info(f"[_fetch_matching_objects] Returning {len(final_results)} results for language: {language}")
+    return final_results
+
 
 async def _fetch_quiz_questions(
     round_structure: RoundStructure,
@@ -291,83 +284,52 @@ async def _fetch_quiz_questions(
     """
     Fetches questions for quiz game based on difficulty distribution.
     Returns a list of Objects, each containing the Image data and a list of selected Questions.
+    
+    Optimized: Uses quiz_qa from get_random_picture_details directly instead of 
+    performing N separate find_one queries on translation_collection.
     """
     logger.info(f"[_fetch_quiz_questions] Fetching for language={language}, assigned_ids={assigned_object_ids}, org={org_id}")
 
-    # 1. Determine which Objects to use
-    
     # Target count from round structure
     target_count = round_structure.object_count if round_structure.object_count else 5
     
-    
-    # User Request: In Quiz mode, select random images for each language. 
-    # Do NOT prevent same images if random chance picks them, but do NOT enforce consistency with assigned_object_ids.
-    # Therefore, we effectively ignore assigned_object_ids here and just sample from pool.
-    
-    # 2026-01-13 Update: Ignoring assigned_object_ids as requested.
+    # User Request: In Quiz mode, select random images for each language.
+    # Ignoring assigned_object_ids as requested.
     assigned_object_ids = None 
 
-    if assigned_object_ids:
-        # Start with assigned objects
-        valid_object_ids = [ObjectId(oid) if isinstance(oid, str) else oid for oid in assigned_object_ids]
-        logger.info(f"Have {len(valid_object_ids)} assigned object IDs. Target is {target_count}.")
-        
-        # Logic to match target_count
-        if len(valid_object_ids) > target_count:
-            # Too many assigned? Sample down to target.
-            import random
-            valid_object_ids = random.sample(valid_object_ids, target_count)
-            logger.info(f"Sampled down to {len(valid_object_ids)} assigned objects.")
-            
-        elif len(valid_object_ids) < target_count:
-            # Too few assigned? Fetch more to fill the gap.
-            needed = target_count - len(valid_object_ids)
-            logger.info(f"Need {needed} more objects to reach target.")
-            
-            pool_ids = await _get_valid_object_ids(language, org_id, category, field_of_study)
-            
-            # Filter out already assigned IDs
-            assigned_set = {str(oid) for oid in valid_object_ids}
-            candidates = [pid for pid in pool_ids if str(pid) not in assigned_set]
-            
-            if candidates:
-                import random
-                # Take what we need, or all available if not enough
-                count_to_add = min(len(candidates), needed)
-                added_ids = random.sample(candidates, count_to_add)
-                valid_object_ids.extend(added_ids)
-                logger.info(f"Added {len(added_ids)} new random objects.")
-            else:
-                logger.warning("No fresh candidates found to fill the count.")
-
-    else:
-        # Otherwise, pick random objects
-        # Get pool of valid IDs
-        pool_ids = await _get_valid_object_ids(language, org_id, category, field_of_study, areas_of_interest)
-        
-        if not pool_ids:
-            logger.warning("No valid object pool found")
-            return []
-            
-        # Randomly sample 'target_count' objects from the pool
-        import random
-        if len(pool_ids) > target_count:
-            valid_object_ids = random.sample(pool_ids, target_count)
-        else:
-            valid_object_ids = pool_ids
-        logger.info(f"Selected {len(valid_object_ids)} random objects from pool of {len(pool_ids)}")
-
-    if not valid_object_ids:
+    # Fetch random pictures with all translation data including quiz_qa
+    search_text = " ".join(areas_of_interest) if areas_of_interest else None
+    results_details = await get_random_picture_details(
+        target_count, 
+        language, 
+        category, 
+        field_of_study, 
+        org_id, 
+        None,
+        search_text
+    )
+    
+    if not results_details:
+        logger.warning("No valid objects found from get_random_picture_details")
         return []
+    
+    logger.info(f"[_fetch_quiz_questions] Got {len(results_details)} results from get_random_picture_details")
 
-    # 2. Fetch Object Details (Images)
-    # We need image data (Base64 or URL) for these objects
+    # Extract object IDs for image fetching
+    object_ids = []
+    for r in results_details:
+        oid = r.get("object_id")
+        if isinstance(oid, str):
+            object_ids.append(ObjectId(oid))
+        elif oid is not None:
+            object_ids.append(oid)
+
+    # Fetch Object Images
     from app.storage.imagestore import retrieve_image
     
-    objects_cursor = objects_collection.find({"_id": {"$in": valid_object_ids}})
+    objects_cursor = objects_collection.find({"_id": {"$in": object_ids}})
     objects_map = {}
     async for obj in objects_cursor:
-        # Fetch image
         image_store = obj.get("image_store")
         image_base64 = None
         if image_store:
@@ -379,23 +341,14 @@ async def _fetch_quiz_questions(
         if not image_base64:
             image_base64 = obj.get("image_base64")
             
-        objects_map[obj["_id"]] = {
-            "object_id": str(obj["_id"]),
-            "image_base64": image_base64,
-            "object_name": obj.get("metadata", {}).get("object_name", "Unknown"), # Fallback or fetch from translation
-            "object_category": obj.get("metadata", {}).get("object_category")
-        }
+        objects_map[str(obj["_id"])] = image_base64
     
-    logger.info(f"Fetched details for {len(objects_map)} objects")
+    logger.info(f"Fetched images for {len(objects_map)} objects")
 
-    # 3. Fetch Questions per Object
-    # We need 'question_count' questions per object, distributed by difficulty
+    # Calculate question distribution by difficulty
     questions_per_object = round_structure.question_count
     dist = round_structure.difficulty_distribution
     
-    # Calculate target counts per difficulty
-    # dist is typically percentage (0-100) or ratio (0-1). 
-    # normalize to 0-1
     total_weight = dist.easy + dist.medium + dist.hard
     if total_weight > 0:
         w_easy = dist.easy / total_weight
@@ -408,63 +361,38 @@ async def _fetch_quiz_questions(
     c_medium = int(round(questions_per_object * w_medium))
     c_hard = int(round(questions_per_object * w_hard))
     
-    # adjust for rounding
+    # Adjust for rounding
     diff = questions_per_object - (c_easy + c_medium + c_hard)
     if diff != 0:
-        # Add to the largest bucket
         if c_easy >= c_medium and c_easy >= c_hard: c_easy += diff
         elif c_medium >= c_easy and c_medium >= c_hard: c_medium += diff
         else: c_hard += diff
     
     logger.info(f"Question distribution target: Easy={c_easy}, Medium={c_medium}, Hard={c_hard}")
 
-    # Perform fetch for each object's translation
-    # We use translation_collection to find the text/questions for this object + language
-    
+    # Helper to filter questions by difficulty
+    def get_by_diff(pool, diff_name, limit):
+        import random
+        matches = [q for q in pool if q.get("difficulty_level", "").lower() == diff_name.lower()]
+        if len(matches) > limit:
+            return random.sample(matches, limit)
+        return matches
+
+    # Process each result from get_random_picture_details
     results = []
     
-    for oid in valid_object_ids:
-        # Find translation for this object & language
-        # Similar logic to randompicdetails: filtering by org, language
-        query = {
-            "object_id": oid,
-            "translation_status": "Approved"
-        }
-        if language:
-            query["requested_language"] = language
-            
-        if org_id:
-            query["org_id"] = org_id
-        else:
-             query["$or"] = [
-                {"org_id": {"$exists": False}},
-                {"org_id": None},
-                {"org_id": ""}
-            ]
-            
-        translation = await translation_collection.find_one(query)
-        if not translation:
-            logger.warning(f"No translation found for object {oid} in language {language}")
-            # Try fallback without org_id if specific org fetch failed? 
-            # Or just skip? For now, skip if no translation found.
-            continue
-            
-        all_qa = translation.get("quiz_qa", [])
+    for translation_data in results_details:
+        oid = translation_data.get("object_id")
+        oid_str = str(oid) if oid else ""
+        
+        all_qa = translation_data.get("quiz_qa", [])
         if not all_qa:
-            logger.warning(f"Translation {translation['_id']} has no quiz_qa")
+            logger.warning(f"Object {oid_str} has no quiz_qa, skipping")
             continue
             
-        # Filter and Select Questions
+        # Select questions by difficulty
         selected_qa = []
         
-        # Helper to filter by difficulty (case-insensitive)
-        def get_by_diff(pool, diff_name, limit):
-             matches = [q for q in pool if q.get("difficulty_level", "").lower() == diff_name.lower()]
-             import random
-             if len(matches) > limit:
-                 return random.sample(matches, limit)
-             return matches
-
         easy_qs = get_by_diff(all_qa, "easy", c_easy)
         medium_qs = get_by_diff(all_qa, "medium", c_medium)
         hard_qs = get_by_diff(all_qa, "hard", c_hard)
@@ -473,33 +401,32 @@ async def _fetch_quiz_questions(
         selected_qa.extend(medium_qs)
         selected_qa.extend(hard_qs)
         
-        # If we don't have enough questions from preferred difficulties, 
-        # fill up with ANY remaining unique questions
+        # Fill up with remaining questions if needed
         if len(selected_qa) < questions_per_object:
+            import random
             seen_questions = {q.get("question") for q in selected_qa}
             remaining = [q for q in all_qa if q.get("question") not in seen_questions]
             needed = questions_per_object - len(selected_qa)
-            import random
             if len(remaining) > needed:
                 selected_qa.extend(random.sample(remaining, needed))
             else:
                 selected_qa.extend(remaining)
         
-        logger.info(f"Object {oid}: Selected {len(selected_qa)} questions")
+        logger.info(f"Object {oid_str}: Selected {len(selected_qa)} questions")
         
-        # Construct Result Item
-        obj_details = objects_map.get(oid, {})
+        # Construct result item
+        tid = translation_data.get("translation_id")
         
         item = {
-            "object_id": str(oid),
-            "translation_id": str(translation["_id"]),
-            "image_base64": obj_details.get("image_base64"),
-            "imageName": translation.get("object_name", obj_details.get("object_name")),
-            "object_description": translation.get("object_description"),
+            "object_id": oid_str,
+            "translation_id": str(tid) if tid else "",
+            "image_base64": objects_map.get(oid_str),
+            "imageName": translation_data.get("object_name", "Unknown"),
+            "object_description": translation_data.get("object_description"),
             "questions": selected_qa,
             "requested_language": language
         }
         results.append(item)
     
-    logger.info(f"Returning {len(results)} items for quiz")
+    logger.info(f"[_fetch_quiz_questions] Returning {len(results)} items for quiz")
     return results

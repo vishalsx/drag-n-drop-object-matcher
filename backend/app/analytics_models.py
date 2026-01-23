@@ -6,6 +6,7 @@ from enum import Enum
 
 class RoundStatus(str, Enum):
     """Status of a contest round attempt"""
+    STARTED = "started"
     COMPLETED = "completed"
     QUIT = "quit"
     TIMEOUT = "timeout"

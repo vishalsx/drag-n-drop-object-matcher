@@ -151,6 +151,8 @@ const App: React.FC = () => {
     const [transitionShowTime, setTransitionShowTime] = useState<number>(0);
     const [contestScores, setContestScores] = useState<{ language: string; score: number; time_taken?: number }[]>([]);
     const lastTotalScoreRef = useRef<number>(0);
+    const lastProcessedRoundKey = useRef<string | null>(null);
+    const isFinalScoreSubmitted = useRef<boolean>(false);
 
     React.useEffect(() => {
         // Check if we just completed an anonymous login (indicated by flag)
@@ -287,7 +289,14 @@ const App: React.FC = () => {
             const currentLangName = selectedLanguage;
             const roundScore = roundCompletionData.score;
             const roundTime = roundCompletionData.timeElapsed;
-            console.log(`[Contest Score] Round Modal Showing. Updating score for ${currentLangName}: ${roundScore}, Time: ${roundTime}`);
+            const roundKey = `${roundCompletionData.levelName}-${roundCompletionData.roundName}-${currentLangName}`;
+
+            if (lastProcessedRoundKey.current === roundKey) {
+                return; // Already processed this round
+            }
+
+            console.log(`[Contest Score] Processing round result for ${roundKey}. Score: ${roundScore}, Time: ${roundTime}`);
+            lastProcessedRoundKey.current = roundKey;
 
             setContestScores(prev => {
                 const roundContribution = roundScore - lastTotalScoreRef.current;
@@ -308,67 +317,30 @@ const App: React.FC = () => {
         }
     }, [showRoundCompletionModal, roundCompletionData, param2, selectedLanguage]);
 
-    // Contest: Capture intermediate scores when Level 2 completes
-    useEffect(() => {
-        if (param2 === 'contest' && gameLevel === 2 && level2State && level2State.isComplete && currentSegment) {
-            const currentLangName = selectedLanguage;
-            const roundScore = level2State.score;
-            const roundTime = currentSegment.round.time_limit_seconds - level2Timer;
-            console.log(`[Contest Score] Level 2 Complete. Updating score for ${currentLangName}: ${roundScore}, Time: ${roundTime}`);
-
-            setContestScores(prev => {
-                const roundContribution = roundScore - lastTotalScoreRef.current;
-                lastTotalScoreRef.current = roundScore;
-
-                const exists = prev.findIndex(p => p.language === currentLangName);
-                if (exists !== -1) {
-                    const newScores = [...prev];
-                    newScores[exists] = {
-                        language: currentLangName,
-                        score: (prev[exists].score || 0) + roundContribution,
-                        time_taken: (prev[exists].time_taken || 0) + roundTime
-                    };
-                    return newScores;
-                }
-                return [...prev, { language: currentLangName, score: roundContribution, time_taken: roundTime }];
-            });
-
-            // Auto-advance for contest mode (since summary screen is hidden)
-            // Small delay to ensure state updates and avoid jarring transition
-            const timer = setTimeout(() => {
-                console.log('[Contest] Auto-advancing Level 2...');
-                handleLevel2Complete();
-            }, 1500);
-            return () => clearTimeout(timer);
-        }
-    }, [level2State, param2, gameLevel, selectedLanguage, handleLevel2Complete]);
-
     // Contest: Auto-rotation logic REMOVED.
     // useGame.ts now manages the full queue (Levels -> Rounds -> Languages).
 
-    // Contest: Auto-submit scores when they change (real-time leaderboard)
+    // Contest: Auto-submit scores when they change (real-time leaderboard + final)
     useEffect(() => {
         if (param2 === 'contest' && contestScores.length > 0) {
             const contestId = contestDetails?._id || contestDetails?.id;
             const username = authService.getUsername();
             if (contestId && username) {
-                console.log('[App] Auto-submitting latest contest scores:', contestScores);
-                contestService.submitContestScores(contestId, username, contestScores, false);
-            }
-        }
-    }, [contestScores, param2, contestDetails]);
+                const isFinal = gameState === 'complete';
 
-    // Contest: Auto-submit FINAL scores when contest ends
-    useEffect(() => {
-        if (param2 === 'contest' && gameState === 'complete') {
-            const contestId = contestDetails?._id || contestDetails?.id;
-            const username = authService.getUsername();
-            if (contestId && username && contestScores.length > 0) {
-                console.log('[App] Auto-FINALIZING contest scores:', contestScores);
-                contestService.submitContestScores(contestId, username, contestScores, true);
+                // If it's final, guard it with a Ref to prevent duplicate or infinite submissions
+                if (isFinal) {
+                    if (isFinalScoreSubmitted.current) return;
+                    isFinalScoreSubmitted.current = true;
+                    console.log('[App] Auto-FINALIZING contest scores:', contestScores);
+                } else {
+                    console.log('[App] Auto-submitting latest contest scores:', contestScores);
+                }
+
+                contestService.submitContestScores(contestId, username, contestScores, isFinal);
             }
         }
-    }, [gameState, param2, contestDetails, contestScores]);
+    }, [contestScores, param2, contestDetails, gameState]);
 
     const handleConfirmNextLevel = () => {
         if (transitionNextLangCode) {
@@ -391,6 +363,8 @@ const App: React.FC = () => {
         if (pendingContestStart && selectedLanguage) {
             console.log('[Contest Start] Triggering handleStartGame with contestDetails:', !!contestDetails);
             lastTotalScoreRef.current = 0;
+            lastProcessedRoundKey.current = null;
+            isFinalScoreSubmitted.current = false;
             setContestScores([]);
             handleStartGame();
             setPendingContestStart(false);
@@ -498,12 +472,18 @@ const App: React.FC = () => {
             const username = authService.getUsername();
 
             if (contestId && username && contestScores.length > 0) {
-                await contestService.submitContestScores(contestId, username, contestScores, true);
+                // Submit scores in background, don't block UI redirection
+                contestService.submitContestScores(contestId, username, contestScores, true)
+                    .catch(err => console.error('Background score submission failed:', err));
             }
 
-            authService.logout();
-            const redirectUrl = orgData ? `/${orgData.org_code}/contest` : '/';
-            window.location.href = redirectUrl;
+            // Small delay to allow background call to initiate if possible, 
+            // but prioritize user experience (redirection)
+            setTimeout(() => {
+                authService.logout();
+                const redirectUrl = orgData ? `/${orgData.org_code}/contest` : '/';
+                window.location.href = redirectUrl;
+            }, 100);
         } else {
             handleResetGame();
         }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { GameObject, Language } from '../types/types';
 import { useTooltip } from '../context/TooltipContext';
-import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon, SpeakerIcon, RefreshIcon } from '../components/Icons';
+import { ThumbsUpIcon, ThumbsDownIcon, SaveIcon, SpinnerIcon, CheckIcon, GridIcon, ListIcon, SpeakerIcon, RefreshIcon, ThumbsUpSolidIcon, ThumbsDownSolidIcon } from '../components/Icons';
 import { useSpeech } from '../hooks/useSpeech';
 
 interface CompletionScreenProps {
@@ -30,6 +30,9 @@ interface CompletionScreenProps {
 const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
     const [completionView, setCompletionView] = useState<'list' | 'grid'>('grid');
     const [selectedGridInfo, setSelectedGridInfo] = useState<{ item: GameObject; index: number } | null>(null);
+    const [refreshCount, setRefreshCount] = useState(0);
+    const [manualLanguage, setManualLanguage] = useState('');
+    const [validationError, setValidationError] = useState<string | null>(null);
     const { speakText, stop: stopSpeech } = useSpeech();
     const { showTooltip, hideTooltip } = useTooltip();
 
@@ -52,6 +55,33 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
     const handleRefreshLanguages = () => {
         setDisplayLangs(getRandomLanguages());
+        setRefreshCount(prev => prev + 1);
+    };
+
+    const handleManualPlay = () => {
+        setValidationError(null);
+        const trimmed = manualLanguage.trim();
+        if (!trimmed) {
+            setValidationError("Please enter a language name.");
+            return;
+        }
+
+        // Normalize to Title Case (e.g., "hindi" -> "Hindi", "field of study" -> "Field Of Study")
+        const normalized = trimmed
+            .split(/\s+/)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+
+        const exists = props.availableLanguages.some(lang => lang.name.toLowerCase() === trimmed.toLowerCase());
+
+        if (exists) {
+            const matchedLang = props.availableLanguages.find(lang => lang.name.toLowerCase() === trimmed.toLowerCase());
+            if (matchedLang) {
+                props.onReplayInLanguage(matchedLang.name);
+            }
+        } else {
+            setValidationError(`"${normalized}" is not available. Please try another language.`);
+        }
     };
 
     useEffect(() => {
@@ -71,12 +101,12 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4" role="dialog" aria-modal="true" aria-labelledby="completion-title">
-                <div className="text-center w-full max-w-6xl max-h-[90vh] flex flex-col p-6 sm:p-8 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
-                    <div className="mt-4 w-full">
-                        <h2 id="completion-title" className="text-4xl font-bold text-green-400">Congratulations!</h2>
-                        <p className="mt-2 text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{props.score}</span></p>
-                        <p className="mt-2 text-md text-slate-400">Review your matches, vote, and save.</p>
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="completion-title">
+                <div className="text-center w-full max-w-6xl max-h-[98vh] flex flex-col p-4 sm:p-6 bg-slate-800 rounded-lg shadow-2xl animate-fadeIn border border-slate-700">
+                    <div className="mt-2 w-full">
+                        <h2 id="completion-title" className="text-3xl sm:text-4xl font-bold text-green-400">Congratulations!</h2>
+                        <p className="mt-1 text-md sm:text-lg text-slate-300">You've matched all the items! Final Score: <span className="font-bold text-yellow-300">{props.score}</span></p>
+                        <p className="text-sm text-slate-400">Review your matches, vote, and save.</p>
                     </div>
 
                     <div className="flex flex-col flex-grow my-2 overflow-hidden">
@@ -106,11 +136,20 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                                 </div>
                                             </div>
                                             <div className="flex flex-col items-center space-y-1 relative sm:ml-4 flex-shrink-0">
-                                                <div className="flex items-center space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold">
-                                                    <button onClick={() => props.onVote(item.id, 'up')} disabled={props.votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
-                                                    <span className="min-w-[1.5ch] text-center">{item.upvotes}</span>
-                                                    <button onClick={() => props.onVote(item.id, 'down')} disabled={props.votingInProgress.has(item.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
-                                                    <span className="min-w-[1.5ch] text-center">{item.downvotes}</span>
+                                                <div className="flex items-center space-x-2 bg-slate-800/80 pl-5 pr-3 py-1.5 rounded-md text-white text-xs font-bold border border-slate-700/50">
+                                                    <div className="flex items-center">
+                                                        <button onClick={() => props.onVote(item.id, 'up')} disabled={props.votingInProgress.has(item.id)} className="p-1 rounded-md text-white hover:bg-slate-700 transition-colors disabled:opacity-50" aria-label="Vote up">
+                                                            {item.userVote === 'up' ? <ThumbsUpSolidIcon className="w-4 h-4" /> : <ThumbsUpIcon className="w-4 h-4" />}
+                                                        </button>
+                                                        <span className="min-w-[1.2ch] text-center ml-0.5">{item.upvotes}</span>
+                                                    </div>
+                                                    <div className="w-[1px] h-3.5 bg-slate-700/50 mx-1"></div>
+                                                    <div className="flex items-center">
+                                                        <button onClick={() => props.onVote(item.id, 'down')} disabled={props.votingInProgress.has(item.id)} className="p-1 rounded-md text-white hover:bg-slate-700 transition-colors disabled:opacity-50" aria-label="Vote down">
+                                                            {item.userVote === 'down' ? <ThumbsDownSolidIcon className="w-4 h-4" /> : <ThumbsDownIcon className="w-4 h-4" />}
+                                                        </button>
+                                                        <span className="min-w-[1.2ch] text-center ml-0.5">{item.downvotes}</span>
+                                                    </div>
                                                 </div>
                                                 {props.voteErrors[item.id] && (<p className="text-xs text-red-400" role="alert">{props.voteErrors[item.id]}</p>)}
                                             </div>
@@ -119,13 +158,6 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                 </div>
                             )}
                             {completionView === 'grid' && (() => {
-                                const getJustifyClass = (index: number | undefined) => {
-                                    if (index === undefined || index === null) return 'justify-center';
-                                    if (index <= 2) return 'justify-start'; // Top row
-                                    if (index <= 5) return 'justify-center'; // Middle row
-                                    return 'justify-end'; // Bottom row
-                                };
-
                                 return (
                                     <div className="flex flex-col md:flex-row gap-4">
                                         <div className="w-full md:w-1/2 grid grid-cols-3 gap-2">
@@ -141,32 +173,44 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                                             setSelectedGridInfo({ item: updatedItem, index });
                                                         }}
                                                     >
-                                                        <div className="relative w-full h-[5.5rem]">
+                                                        <div className="relative w-full h-[10rem]">
                                                             <img src={updatedItem.imageUrl} alt={updatedItem.imageName} className="w-full h-full rounded-md object-contain" />
-                                                            <p className="absolute bottom-0 left-0 right-0 p-1 bg-black/30 text-white text-xs truncate font-semibold">{updatedItem.imageName}</p>
-                                                        </div>
-                                                        <div className="flex items-center w-full space-x-2 bg-slate-700/50 px-2 py-1 rounded-full text-white text-xs font-bold mt-2">
-                                                            <button onClick={(e) => { e.stopPropagation(); props.onVote(updatedItem.id, 'up'); }} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-green-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote up"><ThumbsUpIcon className="w-4 h-4" /></button>
-                                                            <span className="min-w-[1.5ch] text-center">{updatedItem.upvotes}</span>
-                                                            <button onClick={(e) => { e.stopPropagation(); props.onVote(updatedItem.id, 'down'); }} disabled={props.votingInProgress.has(updatedItem.id)} className="p-1 rounded-full hover:bg-red-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="Vote down"><ThumbsDownIcon className="w-4 h-4" /></button>
-                                                            <span className="min-w-[1.5ch] text-center">{updatedItem.downvotes}</span>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    speakText(updatedItem.object_description, props.currentLanguageBcp47);
-                                                                }}
-                                                                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-600 transition-colors ml-auto"
-                                                                aria-label="Read description aloud"
-                                                            >
-                                                                <SpeakerIcon className="w-4 h-4" />
-                                                            </button>
+
+                                                            {/* Interaction Overlay (Top) */}
+                                                            <div className="absolute top-0 left-0 right-0 flex items-center justify-between bg-black/40 backdrop-blur-sm px-2 py-1 rounded-t-md text-white text-xs font-bold border-b border-white/10" onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <div className="flex items-center">
+                                                                        <button onClick={() => props.onVote(updatedItem.id, 'up')} disabled={props.votingInProgress.has(updatedItem.id)} className="p-0.5 rounded-md hover:bg-white/20 transition-colors disabled:opacity-50" aria-label="Vote up">
+                                                                            {updatedItem.userVote === 'up' ? <ThumbsUpSolidIcon className="w-3.5 h-3.5" /> : <ThumbsUpIcon className="w-3.5 h-3.5" />}
+                                                                        </button>
+                                                                        <span className="min-w-[1ch] text-center ml-0.5 text-[10px]">{updatedItem.upvotes}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center">
+                                                                        <button onClick={() => props.onVote(updatedItem.id, 'down')} disabled={props.votingInProgress.has(updatedItem.id)} className="p-0.5 rounded-md hover:bg-white/20 transition-colors disabled:opacity-50" aria-label="Vote down">
+                                                                            {updatedItem.userVote === 'down' ? <ThumbsDownSolidIcon className="w-3.5 h-3.5" /> : <ThumbsDownIcon className="w-3.5 h-3.5" />}
+                                                                        </button>
+                                                                        <span className="min-w-[1ch] text-center ml-0.5 text-[10px]">{updatedItem.downvotes}</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <button
+                                                                    onClick={() => speakText(updatedItem.object_description, props.currentLanguageBcp47)}
+                                                                    className="p-0.5 rounded-md hover:bg-white/20 transition-colors"
+                                                                    aria-label="Read description aloud"
+                                                                >
+                                                                    <SpeakerIcon className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Name Overlay (Bottom) */}
+                                                            <p className="absolute bottom-0 left-0 right-0 p-1 bg-black/40 backdrop-blur-sm text-white text-xs truncate font-semibold border-t border-white/10 rounded-b-md">{updatedItem.imageName}</p>
                                                         </div>
                                                         {props.voteErrors[item.id] && (<p className="text-xs text-red-400 mt-1" role="alert">{props.voteErrors[item.id]}</p>)}
                                                     </div>
                                                 )
                                             })}
                                         </div>
-                                        <div className={`w-full md:w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center transition-all duration-300 min-h-[150px] max-h-[60vh] overflow-y-auto ${getJustifyClass(selectedGridInfo?.index)}`}>
+                                        <div className="w-full md:w-1/2 bg-slate-900/50 rounded-lg border border-slate-700/50 p-6 flex flex-col items-center justify-start transition-all duration-300 min-h-[150px] max-h-[60vh] overflow-y-auto">
                                             {selectedGridInfo ? (
                                                 <div className="text-center animate-fadeIn w-full">
                                                     <h3 className="font-bold text-xl text-teal-300 mb-2 sticky top-0 bg-slate-900/90 py-1 backdrop-blur-sm z-10">{selectedGridInfo.item.imageName}</h3>
@@ -184,7 +228,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                         </div>
                     </div>
 
-                    <div className="flex-shrink-0 mt-4">
+                    <div className="flex-shrink-0 mt-2">
                         <div className="flex flex-wrap justify-center items-center gap-4">
                             {!props.isFromTubSheet && !props.isFromPlaylist && !props.isPublicOrg && (
                                 <button
@@ -220,7 +264,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
 
                         {/* Play in another language section */}
                         {props.availableLanguages && props.availableLanguages.length > 0 && (
-                            <div className="mt-8 pt-6 border-t border-slate-700/50">
+                            <div className="mt-4 pt-4 border-t border-slate-700/50">
                                 <div className="flex items-center justify-center gap-3 mb-4">
                                     <h3 className="text-xl font-bold text-teal-400">Play in another language?</h3>
                                     {props.availableLanguages.length > 6 && (
@@ -246,6 +290,36 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                         </button>
                                     ))}
                                 </div>
+
+                                {refreshCount >= 5 && (
+                                    <div className="mt-6 p-4 bg-slate-900/60 rounded-xl border border-teal-500/30 animate-fadeIn">
+                                        <p className="text-slate-300 mb-3 italic">"Looks like you can't find the right language, why don't you try and type it?"</p>
+                                        <div className="flex flex-col sm:flex-row items-start justify-center gap-3">
+                                            <div className="w-full sm:w-64">
+                                                <input
+                                                    type="text"
+                                                    value={manualLanguage}
+                                                    onChange={(e) => {
+                                                        setManualLanguage(e.target.value);
+                                                        setValidationError(null);
+                                                    }}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleManualPlay()}
+                                                    placeholder="Type language name..."
+                                                    className={`w-full px-4 py-2 bg-slate-800 border ${validationError ? 'border-red-500' : 'border-slate-600'} rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all`}
+                                                />
+                                                {validationError && (
+                                                    <p className="mt-1.5 text-[11px] text-red-400 font-medium text-left px-1">{validationError}</p>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={handleManualPlay}
+                                                className="w-full sm:w-auto px-6 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg shadow-lg transition-all transform hover:scale-105"
+                                            >
+                                                Play
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         {props.sheetSaveError && <p className="text-red-400 text-sm mt-3" role="alert">{props.sheetSaveError}</p>}

@@ -1,6 +1,6 @@
 import random
 import logging
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, BackgroundTasks
 from typing import List, Optional
 from app.database import objects_collection, translation_set_collection, translation_collection, contests_collection
 from app.models import ApiPicture, ResultObject, ResultTranslation, ResultVoting
@@ -13,8 +13,9 @@ from fastapi import HTTPException
 from app.storage.imagestore import retrieve_image  
 from app.services.TScarddetails import get_TS_card_details
 from app.services.randompicdetails import get_random_picture_details
-from app.services.poolrecommendations import get_pool_recommendations
+# from app.services.poolrecommendations import get_pool_recommendations
 from app.services.pagedetails import get_page_details
+from app.utils.external_api import trigger_embeddings_update
 
 
 # Configure logging
@@ -38,7 +39,8 @@ async def get_random_pictures(
     search_text: Optional[str] = Query(None, description="Search text for pool recommendations"),
     org_code: Optional[str] = Query(None, description="Organization code from URL path"),
     hints_used: Optional[str] = Query(None, description="Hint type for contest mode: 'Long Hints', 'Short Hints', or 'Object Name'"),
-    object_ids: Optional[str] = Query(None, description="Comma-separated set of object IDs to fetch translations for")
+    object_ids: Optional[str] = Query(None, description="Comma-separated set of object IDs to fetch translations for"),
+    background_tasks: BackgroundTasks = None
 ):
     # Extract org_id from request state (set by AuthMiddleware)
     org = getattr(request.state, "org", None)
@@ -73,19 +75,23 @@ async def get_random_pictures(
     elif translation_set_id:
         print(f"Translation set ID provided: {translation_set_id}. Fetching pictures from this set.")
         translation_docs = await get_TS_card_details(translation_set_id)
-    elif search_text:
-        print(f"Search text provided: {search_text}. Fetching pictures from pool recommendations.")
-        translation_docs = await get_pool_recommendations(
-            search_query=search_text,
-            limit=count,
-            language=language or "English",
-            request=request,
-            org_id=org_id
-        )
+    # elif search_text:
+    #     print(f"Search text provided: {search_text}. Fetching pictures via vector search.")
+    #     # We now use get_random_picture_details with search_text which will perform vector search
+    #     translation_docs = await get_random_picture_details(
+    #         count, 
+    #         language, 
+    #         category, 
+    #         field_of_study, 
+    #         org_id, 
+    #         object_ids=None, 
+    #         search_text=search_text
+    #     )
     else:
         print(f"No specific source provided. Fetching random pictures. Object IDs filter: {object_ids}")
         parsed_object_ids = [ObjectId(oid.strip()) for oid in object_ids.split(",") if oid.strip()] if object_ids else None
-        translation_docs = await get_random_picture_details(count, language, category, field_of_study, org_id, object_ids=parsed_object_ids)
+        # Call without search_text
+        translation_docs = await get_random_picture_details(count, language, category, field_of_study, org_id, object_ids=parsed_object_ids,search_text=search_text)
 
     # continue rest of the processing from here
     logger.info(f"Retrieved {len(translation_docs)} documents from DB")
@@ -194,5 +200,13 @@ async def get_random_pictures(
                 )
 
                 return_result.append(api_pic)
+
+    # 5. Trigger embeddings update in the background for each selected object
+    # if background_tasks:
+    #     for pic in return_result:
+    #         oid = pic.object.object_id
+    #         tid = pic.translations.translation_id
+    #         if oid:
+    #             background_tasks.add_task(trigger_embeddings_update, str(oid), str(tid) if tid else None)
 
     return return_result
