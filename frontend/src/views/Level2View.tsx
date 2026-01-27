@@ -392,7 +392,21 @@ const Level2View: React.FC<Level2ViewProps> = ({
           <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[28%]' : 'lg:w-[30%]'} p-4 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
             <header className="text-center mb-4 flex-shrink-0">
               <h2 className="text-xl font-bold text-slate-300">Answers</h2>
-              <p className="text-slate-400 text-xs">Drop questions here</p>
+              <p className="text-slate-400 text-xs mb-3">Drop questions here</p>
+
+              <div className="flex items-center justify-center gap-6 py-2 px-4 bg-slate-700/50 rounded-lg border border-slate-600 shadow-inner">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] uppercase tracking-tighter text-slate-400 font-bold">Score</span>
+                  <span className="text-xl font-black text-yellow-400 leading-none">{score}</span>
+                </div>
+                <div className="w-px h-8 bg-slate-600"></div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] uppercase tracking-tighter text-slate-400 font-bold">Time Left</span>
+                  <span className={`text-2xl font-black tabular-nums leading-none ${isContest && elapsedTime < 10 ? 'text-red-500 animate-pulse' : 'text-blue-400'}`}>
+                    {formatTime(elapsedTime)}
+                  </span>
+                </div>
+              </div>
             </header>
 
             <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
@@ -454,12 +468,6 @@ const Level2View: React.FC<Level2ViewProps> = ({
           <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[29%]' : 'lg:w-[40%]'} p-4 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
             <header className="text-center mb-4 flex-shrink-0">
               <h2 className="text-xl font-bold text-slate-300">Picture</h2>
-              <div className="mt-2 flex justify-center gap-4 text-sm">
-                <div className="text-yellow-400 font-bold">Score: {score}</div>
-                <div className={`${isContest && elapsedTime < 10 ? 'text-red-500 animate-pulse' : 'text-blue-400'} font-bold`}>
-                  Time: {formatTime(elapsedTime)}
-                </div>
-              </div>
             </header>
 
             <div className="flex-grow flex items-start justify-center bg-black/20 rounded-lg p-2 overflow-hidden min-h-0">

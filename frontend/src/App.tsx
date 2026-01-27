@@ -138,7 +138,8 @@ const App: React.FC = () => {
         roundCompletionData,
         handleContinueToNext,
         transitionMessage,
-        handleQuizComplete
+        handleQuizComplete,
+        setLevel2Timer
     } = useGame(isOrgChecked, param2 === 'contest', contestDetails?._id || contestDetails?.id, authService.getToken(), orgData?.org_id || null, contestDetails);
 
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
@@ -451,6 +452,7 @@ const App: React.FC = () => {
                         setShowLogin(false);
                     }}
                     orgCode={orgData?.org_code}
+                    orgData={orgData}
                 />;
             } else if (orgData) {
                 return <ContestDashboard orgData={orgData} />;
@@ -591,6 +593,7 @@ const App: React.FC = () => {
                     currentSegment={currentSegment}
                     transitionMessage={transitionMessage}
                     handleQuizComplete={handleQuizComplete}
+                    setLevel2Timer={setLevel2Timer}
                 />
             )}
 
@@ -624,6 +627,8 @@ const App: React.FC = () => {
                     roundName={roundCompletionData.roundName}
                     language={roundCompletionData.language}
                     score={roundCompletionData.score}
+                    baseScore={roundCompletionData.baseScore}
+                    timeBonus={roundCompletionData.timeBonus}
                     timeElapsed={roundCompletionData.timeElapsed}
                     onContinue={handleContinueToNext}
                 />

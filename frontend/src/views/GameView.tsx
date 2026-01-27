@@ -72,7 +72,8 @@ interface GameViewProps {
     level1Timer?: number;
     currentSegment?: any;
     transitionMessage?: string | null;
-    handleQuizComplete?: (score: number, correct: number) => void;
+    handleQuizComplete?: (score: number, correct: number, timeLeft?: number) => void;
+    setLevel2Timer: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const GameView: React.FC<GameViewProps> = (props) => {
@@ -479,14 +480,16 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                     object_name: d.imageName,
                                     question: d.quiz_qa?.[0]?.question || "Question missing",
                                     answer: d.quiz_qa?.[0]?.answer || "Answer missing",
-                                    difficulty: d.quiz_qa?.[0]?.difficulty_level || "Medium"
+                                    difficulty_level: (d.quiz_qa?.[0]?.difficulty_level?.toLowerCase() || "medium") as any
                                 }))}
-                                onComplete={(score, correct) => {
+                                onComplete={(score, correct, timeLeft) => {
                                     if (props.handleQuizComplete) {
-                                        props.handleQuizComplete(score, correct);
+                                        props.handleQuizComplete(score, correct, timeLeft);
                                     }
                                 }}
+                                onTimeUpdate={props.setLevel2Timer}
                                 timeLimitSeconds={props.currentSegment?.round?.time_limit_seconds || 60}
+                                scoringParams={props.contestDetails?.scoring_config?.quiz}
                             />
                         ) : (
 

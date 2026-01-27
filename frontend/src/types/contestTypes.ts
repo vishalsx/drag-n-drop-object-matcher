@@ -26,28 +26,26 @@ export interface GameStructure {
 }
 
 export interface ScoringDifficultyWeights {
-    easy: number;
+    low: number;
     medium: number;
-    hard: number;
+    high: number;
+    very_high: number;
 }
 
-export interface ScoringLanguageWeights {
-    native: number;
-    fluent: number;
-    learning: number;
+export interface ScoringParameters {
+    base_points: number;
+    negative_marking: number;
+    time_bonus: number;
+    language_weights: { [key: string]: number };
 }
 
-export interface TimeBonus {
-    enabled: boolean;
-    max_bonus: number;
+export interface QuizScoringParameters extends ScoringParameters {
+    difficulty_weights: ScoringDifficultyWeights;
 }
 
 export interface ScoringConfig {
-    base_points: number;
-    negative_marking: number;
-    difficulty_weights: ScoringDifficultyWeights;
-    language_weights: ScoringLanguageWeights;
-    time_bonus: TimeBonus;
+    matching: ScoringParameters;
+    quiz: QuizScoringParameters;
     tie_breaker_rules: string[];
 }
 

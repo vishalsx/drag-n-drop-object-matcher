@@ -109,6 +109,8 @@ export const useGame = (
         roundName: string;
         language: string;
         score: number;
+        baseScore: number;
+        timeBonus: number;
         timeElapsed: number;
     } | null>(null);
 
@@ -260,6 +262,8 @@ export const useGame = (
                                 roundName: currentSegment.round.round_name,
                                 language: currentSegment.language,
                                 score: score,
+                                baseScore: score,
+                                timeBonus: 0,
                                 timeElapsed: currentSegment.round.time_limit_seconds
                             });
                             // Ensure final round score is captured
@@ -645,13 +649,27 @@ export const useGame = (
             const timeout = setTimeout(() => {
                 console.log('[useGame] ✅ Round complete, showing modal/advancing');
                 if (isContest && currentSegment) {
+                    const timeUsed = currentSegment.round.time_limit_seconds - level1Timer;
+                    const timeLeft = Math.max(0, currentSegment.round.time_limit_seconds - timeUsed);
+
+                    let timeBonus = 0;
+                    if (contestDetails?.scoring_config?.matching) {
+                        const multiplier = contestDetails.scoring_config.matching.time_bonus || 0;
+                        timeBonus = timeLeft * multiplier;
+                    }
+
+                    const finalRoundScore = score + timeBonus;
+                    setScore(finalRoundScore);
+
                     // Show modal for contest mode
                     setRoundCompletionData({
                         levelName: currentSegment.level.level_name,
                         roundName: currentSegment.round.round_name,
                         language: currentSegment.language,
-                        score: score,
-                        timeElapsed: gameLevel === 1 ? (currentSegment.round.time_limit_seconds - level1Timer) : (currentSegment.round.time_limit_seconds - level2Timer)
+                        score: finalRoundScore,
+                        baseScore: score,
+                        timeBonus: timeBonus,
+                        timeElapsed: timeUsed
                     });
                     setShowRoundCompletionModal(true);
                 } else {
@@ -675,7 +693,20 @@ export const useGame = (
             if (isContest) {
                 trackMatch(imageId);
             }
-            setScore(prevScore => prevScore + 10);
+
+            let pointsToAdd = 10;
+            if (isContest && contestDetails?.scoring_config?.matching) {
+                const config = contestDetails.scoring_config.matching;
+                pointsToAdd = config.base_points;
+
+                // Apply language weights if available
+                if (config.language_weights && currentSegment) {
+                    const weight = config.language_weights[currentSegment.language] || 1;
+                    pointsToAdd = Math.round(pointsToAdd * weight);
+                }
+            }
+
+            setScore(prevScore => prevScore + pointsToAdd);
             setCorrectlyMatchedIds(prevIds => new Set(prevIds).add(imageId));
             setJustMatchedId(imageId);
             setTimeout(() => setJustMatchedId(null), 750);
@@ -683,7 +714,13 @@ export const useGame = (
             if (isContest) {
                 trackWrongMatch(descriptionId, imageId);
             }
-            setScore(prevScore => prevScore - 5);
+
+            let pointsToSubtract = 5;
+            if (isContest && contestDetails?.scoring_config?.matching) {
+                pointsToSubtract = contestDetails.scoring_config.matching.negative_marking;
+            }
+
+            setScore(prevScore => prevScore - pointsToSubtract);
             playWrongSound();
             setWrongDropTargetId(imageId);
             setWrongDropSourceId(descriptionId);
@@ -908,6 +945,8 @@ export const useGame = (
                                     roundName: currentSegment.round.round_name,
                                     language: currentSegment.language,
                                     score: finalRoundScore,
+                                    baseScore: finalRoundScore,
+                                    timeBonus: 0,
                                     timeElapsed: currentSegment.round.time_limit_seconds // Full time used
                                 });
                                 setShowRoundCompletionModal(true);
@@ -1003,6 +1042,24 @@ export const useGame = (
         const isCorrect = questionId === targetAnswerId;
 
         if (isCorrect) {
+            // Calculate base points with multipliers for contests
+            let pointsToAdd = 15;
+            if (isContest && contestDetails?.scoring_config?.quiz) {
+                const qConfig = contestDetails.scoring_config.quiz;
+                let base = qConfig.base_points ?? 15;
+
+                // Language weight
+                if (qConfig.language_weights && currentSegment?.language) {
+                    const langWeight = qConfig.language_weights[currentSegment.language] || 1;
+                    base = Math.round(base * langWeight);
+                }
+
+                // Difficulty weight (matching quiz questions might have individual difficulty)
+                // For now, if currentPicture has a difficulty, use it.
+                // Level 2 Pictures often come from objects that have a difficulty_level.
+                pointsToAdd = base;
+            }
+
             // Add to matched questions
             const newMatched = new Set(currentPicture.matchedQuestions);
             newMatched.add(questionId);
@@ -1013,10 +1070,13 @@ export const useGame = (
                 matchedQuestions: newMatched,
             };
 
+            const newLevel2Score = level2State.score + pointsToAdd;
+            console.log(`[ScoreDebug] Legacy Quiz Correct Match: +${pointsToAdd} points. New Level Score: ${newLevel2Score}`);
+
             setLevel2State({
                 ...level2State,
                 pictures: updatedPictures,
-                score: level2State.score + 15, // +15 for correct
+                score: newLevel2Score,
             });
 
             // Pause timer if all correct questions for this picture are matched
@@ -1028,16 +1088,24 @@ export const useGame = (
             playCorrectSound();
         } else {
             // Incorrect answer
+            let penalty = 10;
+            if (isContest && contestDetails?.scoring_config?.quiz) {
+                penalty = contestDetails.scoring_config.quiz.negative_marking || 0;
+            }
+
             const updatedPictures = [...level2State.pictures];
             updatedPictures[level2State.currentPictureIndex] = {
                 ...currentPicture,
                 wrongAttempts: currentPicture.wrongAttempts + 1,
             };
 
+            const newLevel2Score = Math.max(0, level2State.score - penalty);
+            console.log(`[ScoreDebug] Legacy Quiz Wrong Match: -${penalty} points. New Level Score: ${newLevel2Score}`);
+
             setLevel2State({
                 ...level2State,
                 pictures: updatedPictures,
-                score: level2State.score - 10, // -10 for incorrect
+                score: newLevel2Score,
             });
 
             playWrongSound();
@@ -1080,39 +1148,93 @@ export const useGame = (
     };
 
     // Level 2 (Quiz) Completion handler for contest mode
-    const handleQuizComplete = useCallback((quizScore: number, correctCount: number) => {
-        console.log('[useGame] Quiz Complete:', { quizScore, correctCount });
-        // QuizGame returns its internal score, which we should add to our cumulative score
-        // However, if the score is already carried over in level2State, we just sync it
-        const newScore = score + quizScore;
-        setScore(newScore);
+    const handleQuizComplete = useCallback((quizScore: number, correctCount: number, timeLeftSeconds?: number) => {
+        console.log('[useGame] 🏁 Quiz Complete!', { quizScore, correctCount, timeLeftSeconds });
 
         if (isContest && currentSegment) {
+            // Exactly matching the logic from Level 1 Matching completion
+            const totalRoundTime = currentSegment.round.time_limit_seconds;
+            // Use the passed timeLeft or fallback to level2Timer state
+            const timeLeftAtCompletion = timeLeftSeconds !== undefined ? timeLeftSeconds : (level2Timer || 0);
+
+            const timeUsed = totalRoundTime - timeLeftAtCompletion;
+            const timeLeft = Math.max(0, totalRoundTime - timeUsed);
+
+            let timeBonus = 0;
+            const qConfig = contestDetails?.scoring_config?.quiz;
+            if (qConfig) {
+                const multiplier = qConfig.time_bonus || 0;
+                timeBonus = Math.round(timeLeft * multiplier);
+                console.log(`[useGame] Quiz Time Bonus Calc: ${timeLeft}s * ${multiplier} = ${timeBonus}`);
+            }
+
+            const totalRoundScore = quizScore + timeBonus;
+            const finalScore = score + totalRoundScore;
+
+            console.log(`[ScoreDebug] useGame.handleQuizComplete:`, {
+                prevTotalScore: score,
+                quizScoreEarned: quizScore,
+                timeLeftValue: timeLeft,
+                multiplier: qConfig?.time_bonus,
+                calculatedBonus: timeBonus,
+                totalRoundScore: totalRoundScore,
+                finalScoreAfterUpdate: finalScore
+            });
+
+            setScore(finalScore);
+
             setRoundCompletionData({
                 levelName: currentSegment.level.level_name,
                 roundName: currentSegment.round.round_name,
                 language: currentSegment.language,
-                score: newScore,
-                timeElapsed: currentSegment.round.time_limit_seconds - (level2Timer || 0)
+                score: finalScore,
+                baseScore: score + quizScore,
+                timeBonus: timeBonus,
+                timeElapsed: timeUsed
             });
             setShowRoundCompletionModal(true);
         } else {
+            // Standard non-contest flow
+            const finalScore = score + quizScore;
+            setScore(finalScore);
             handleSegmentComplete(false);
         }
-    }, [score, isContest, currentSegment, level2Timer, handleSegmentComplete]);
+    }, [score, isContest, currentSegment, level2Timer, contestDetails, handleSegmentComplete]);
 
     const handleLevel2Complete = useCallback(() => {
+        let currentBaseScore = score;
         if (level2State) {
-            setScore(level2State.score); // Sync score before completing segment
+            currentBaseScore = level2State.score;
+            setScore(currentBaseScore); // Sync score
         }
 
         if (isContest && currentSegment) {
+            const totalRoundTime = currentSegment.round.time_limit_seconds;
+            const timeUsed = totalRoundTime - level2Timer;
+            const timeLeft = Math.max(0, totalRoundTime - timeUsed);
+
+            let timeBonus = 0;
+            const qConfig = contestDetails?.scoring_config?.quiz;
+            if (qConfig) {
+                const multiplier = qConfig.time_bonus || 0;
+                timeBonus = Math.round(timeLeft * multiplier);
+                console.log(`[ScoreDebug] Legacy Quiz Time Bonus Calculation: ${timeLeft}s * ${multiplier} = ${timeBonus}`);
+            }
+
+            const newTotalScore = currentBaseScore + timeBonus;
+
+            console.log(`[ScoreDebug] Legacy Quiz Round Final: Base=${currentBaseScore}, Bonus=${timeBonus}, Total=${newTotalScore}`);
+
+            setScore(newTotalScore);
+
             setRoundCompletionData({
                 levelName: currentSegment.level.level_name,
                 roundName: currentSegment.round.round_name,
                 language: currentSegment.language,
-                score: level2State ? level2State.score : score,
-                timeElapsed: currentSegment.round.time_limit_seconds - level2Timer
+                score: newTotalScore,
+                baseScore: currentBaseScore,
+                timeBonus: timeBonus,
+                timeElapsed: timeUsed
             });
             setShowRoundCompletionModal(true);
         } else if (isContest) {
@@ -1120,7 +1242,7 @@ export const useGame = (
         } else {
             handleResetGame();
         }
-    }, [level2State, isContest, currentSegment, score, level2Timer, handleSegmentComplete, handleResetGame]);
+    }, [level2State, isContest, currentSegment, score, level2Timer, contestDetails, handleSegmentComplete, handleResetGame]);
 
     const startGameWithData = useCallback((data: GameObject[]) => {
         setGameState('loading');
@@ -1237,6 +1359,7 @@ export const useGame = (
             }
         }, [speakText, currentLanguageBcp47, isContest, trackHintFlip]),
         stopSpeech: stop,
+        setLevel2Timer,
 
         // Analytics
         trackVisibilityChange,

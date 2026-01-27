@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import { contestService } from '../services/contestService';
 import { SpinnerIcon, UserIcon } from '../components/Icons';
+import { Organisation } from '../services/routingService';
 
 interface ContestLoginScreenProps {
     contestName?: string;
     contestId: string;
     onLoginSuccess: () => void;
     orgCode?: string;
+    orgData?: Organisation | null;
 }
 
-const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, contestId, onLoginSuccess, orgCode }) => {
+const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, contestId, onLoginSuccess, orgCode, orgData }) => {
     const [mode, setMode] = useState<'login' | 'register'>('login');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -120,9 +122,40 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                     {/* Left Brand Panel */}
                     <div className="md:w-[40%] p-12 flex flex-col justify-between bg-gradient-to-br from-blue-600/20 to-transparent border-b md:border-b-0 md:border-r border-white/10">
                         <div>
-                            <div className="flex items-center gap-2 mb-8">
-                                <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-teal-400 rounded-xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/20">A</div>
-                                <span className="text-2xl font-black tracking-tighter">alphaTUB</span>
+                            <div className="flex flex-col gap-6 mb-10">
+                                {/* alphaTUB Branding (Icon + Text) */}
+                                <div className="flex items-center gap-3">
+                                    <img
+                                        src="/alphatub-logo.png"
+                                        alt="alphaTUB"
+                                        className="w-10 h-10 object-contain drop-shadow-lg"
+                                    />
+                                    <span className="text-2xl font-black tracking-tighter text-white">alphaTUB</span>
+                                </div>
+
+                                {/* Divider with Org Logo */}
+                                <div className="flex items-center gap-4">
+                                    <div className="h-px bg-white/10 flex-1"></div>
+                                    {orgData?.logo_url ? (
+                                        <img
+                                            src={orgData.logo_url}
+                                            alt={orgData.org_name}
+                                            className="h-10 object-contain drop-shadow-xl"
+                                        />
+                                    ) : (
+                                        <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-teal-400 rounded-xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/20">
+                                            {orgData?.org_name ? orgData.org_name[0] : 'A'}
+                                        </div>
+                                    )}
+                                    <div className="h-px bg-white/10 flex-1"></div>
+                                </div>
+
+                                {orgData?.org_name && (
+                                    <div className="text-center">
+                                        <span className="text-xs font-black uppercase tracking-widest text-blue-400/80">Affiliated with</span>
+                                        <h4 className="text-lg font-bold text-white tracking-tight">{orgData.org_name}</h4>
+                                    </div>
+                                )}
                             </div>
 
                             <h2 className="text-4xl md:text-5xl font-black leading-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">
@@ -135,8 +168,8 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                         </div>
 
                         <div className="flex flex-col gap-4">
-                            <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                                <p className="text-sm text-slate-400 italic">"The only way to do great work is to love what you do."</p>
+                            <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
+                                <p className="text-sm text-slate-400 italic">"Join the community of learners and competitors."</p>
                             </div>
                             <p className="text-slate-500 text-xs">© 2026 alphaTUB. All rights reserved.</p>
                         </div>

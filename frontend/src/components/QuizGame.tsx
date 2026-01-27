@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
+import type { QuizScoringParameters } from '../types/contestTypes';
 
 interface QuizQuestion {
     translation_id: string;
@@ -6,17 +8,18 @@ interface QuizQuestion {
     object_name: string;
     question: string;
     answer: string;
-    difficulty: string;
+    difficulty_level?: 'low' | 'medium' | 'high' | 'very_high';
 }
 
 interface QuizGameProps {
     questions: QuizQuestion[];
-    onComplete: (score: number, correctCount: number) => void;
+    onComplete: (score: number, correctCount: number, timeLeftSeconds: number) => void;
     timeLimitSeconds: number;
     onTimeUpdate?: (secondsLeft: number) => void;
+    scoringParams?: QuizScoringParameters;
 }
 
-const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSeconds, onTimeUpdate }) => {
+const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSeconds, onTimeUpdate, scoringParams }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(timeLimitSeconds);
     const [score, setScore] = useState(0);
@@ -26,27 +29,40 @@ const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSec
     const [isCorrect, setIsCorrect] = useState(false);
     const [gameActive, setGameActive] = useState(true);
 
+    const timeLeftRef = useRef(timeLeft);
+    useEffect(() => {
+        timeLeftRef.current = timeLeft;
+    }, [timeLeft]);
+
     useEffect(() => {
         if (!gameActive) return;
+
+        console.log(`[QuizGame] Starting timer with ${timeLeft}s`);
 
         const timer = setInterval(() => {
             setTimeLeft((prev) => {
                 if (prev <= 0) {
+                    console.log('[QuizGame] Timer reached 0. Completing...');
                     clearInterval(timer);
                     handleComplete();
                     return 0;
                 }
-                if (onTimeUpdate) onTimeUpdate(prev - 1);
-                return prev - 1;
+                const nextVal = prev - 1;
+                if (onTimeUpdate) onTimeUpdate(nextVal);
+                return nextVal;
             });
         }, 1000);
 
-        return () => clearInterval(timer);
+        return () => {
+            console.log('[QuizGame] Clearing timer.');
+            clearInterval(timer);
+        };
     }, [gameActive, onTimeUpdate]);
 
     const handleComplete = () => {
+        console.log('[QuizGame] handleComplete triggered. Final Score:', score, 'Time Left:', timeLeftRef.current);
         setGameActive(false);
-        onComplete(score, correctCount);
+        onComplete(score, correctCount, timeLeftRef.current);
     };
 
     const submitAnswer = () => {
@@ -61,8 +77,23 @@ const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSec
         setShowFeedback(true);
 
         if (correct) {
-            setScore(prev => prev + 10); // Standard score per question
+            let points = scoringParams?.base_points ?? 10;
+
+            // Apply difficulty multiplier if weights are available
+            if (scoringParams?.difficulty_weights && currentQ.difficulty_level) {
+                const diffKey = currentQ.difficulty_level.toLowerCase() as keyof typeof scoringParams.difficulty_weights;
+                const multiplier = scoringParams.difficulty_weights[diffKey] || 1;
+                points = Math.round(points * multiplier);
+            }
+
+            setScore(prev => prev + points);
             setCorrectCount(prev => prev + 1);
+        } else {
+            // Apply negative marking if configured
+            const penalty = scoringParams?.negative_marking || 0;
+            if (penalty > 0) {
+                setScore(prev => Math.max(0, prev - penalty));
+            }
         }
 
         setTimeout(() => {
@@ -84,13 +115,27 @@ const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSec
 
     return (
         <div className="flex flex-col items-center justify-center w-full h-full p-8 text-slate-200">
-            <div className="mb-4 text-xl font-bold flex justify-between w-full max-w-2xl">
-                <span>Question {currentIndex + 1}/{questions.length}</span>
-                <span className={timeLeft < 10 ? "text-red-500" : "text-teal-400"}>Time: {timeLeft}s</span>
+            <div className="mb-4 flex flex-col items-center w-full max-w-2xl">
+                <div className="flex justify-between w-full text-xl font-bold mb-2">
+                    <span>Question {currentIndex + 1}/{questions.length}</span>
+                </div>
+                <div className="flex items-center gap-8 py-2 px-6 bg-slate-800/80 rounded-full border border-slate-700 shadow-xl">
+                    <div className="flex flex-col items-center">
+                        <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Total Score</span>
+                        <span className="text-3xl font-black text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.3)]">{score}</span>
+                    </div>
+                    <div className="w-px h-10 bg-slate-700"></div>
+                    <div className="flex flex-col items-center">
+                        <span className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Time Remaining</span>
+                        <span className={`text-4xl font-black tabular-nums drop-shadow-md ${timeLeft < 10 ? "text-red-500 animate-pulse" : "text-teal-400"}`}>
+                            {timeLeft}s
+                        </span>
+                    </div>
+                </div>
             </div>
 
             <div className="bg-slate-800 p-8 rounded-xl shadow-lg w-full max-w-2xl border border-slate-700">
-                <div className="mb-2 text-sm text-slate-400 uppercase tracking-wider">Difficulty: {currentQ.difficulty}</div>
+                <div className="mb-2 text-sm text-slate-400 uppercase tracking-wider">Difficulty: {currentQ.difficulty_level || 'medium'}</div>
                 <h3 className="text-2xl font-semibold mb-6 text-white">{currentQ.question}</h3>
 
                 {showFeedback ? (

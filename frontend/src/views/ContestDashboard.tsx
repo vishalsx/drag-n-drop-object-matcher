@@ -94,19 +94,28 @@ const ContestDashboard: React.FC<ContestDashboardProps> = ({ orgData }) => {
 
             {/* Top Bar: Nav/Branding */}
             <div className="z-10 flex-shrink-0 bg-white/[0.02] backdrop-blur-md border-b border-white/10 p-5 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-6">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-teal-400 rounded-xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/20">A</div>
-                        <span className="text-2xl font-black tracking-tighter">alphaTUB</span>
+                        <img
+                            src="/alphatub-logo.png"
+                            alt="alphaTUB"
+                            className="h-10 w-10 object-contain drop-shadow-xl"
+                        />
+                        <span className="text-2xl font-black tracking-tighter text-white">alphaTUB</span>
                     </div>
                     <div className="w-px h-8 bg-white/10 hidden md:block"></div>
                     <div className="flex items-center gap-3">
                         {orgData.logo_url ? (
-                            <img src={orgData.logo_url} alt={orgData.org_name} className="h-8 object-contain" />
+                            <img src={orgData.logo_url} alt={orgData.org_name} className="h-10 object-contain drop-shadow-xl" />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold border border-white/10">LOGO</div>
+                            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-500 to-teal-400 flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/20">
+                                {orgData.org_name ? orgData.org_name[0] : 'O'}
+                            </div>
                         )}
-                        <h1 className="text-lg font-bold text-white tracking-tight">{orgData.org_name}</h1>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest leading-none mb-1">Organization</span>
+                            <h1 className="text-lg font-bold text-white tracking-tight leading-tight">{orgData.org_name}</h1>
+                        </div>
                     </div>
                 </div>
 
@@ -328,8 +337,8 @@ const LeaderboardRecord: React.FC<{ entry: LeaderboardEntry; formatTime: (s: num
 
     return (
         <div className={`relative p-5 md:p-6 rounded-[2rem] transition-all flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden ${entry.is_current_user
-                ? 'bg-blue-600/10 border border-blue-500/30'
-                : 'bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/10'
+            ? 'bg-blue-600/10 border border-blue-500/30'
+            : 'bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/10'
             }`}>
             {entry.is_current_user && (
                 <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/20 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none"></div>
@@ -337,9 +346,9 @@ const LeaderboardRecord: React.FC<{ entry: LeaderboardEntry; formatTime: (s: num
 
             <div className="flex items-center gap-6 w-full sm:w-auto">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl flex-shrink-0 relative ${entry.rank === 1 ? 'bg-gradient-to-tr from-[#FFD700] to-[#FFA500] text-[#422500] shadow-[0_0_20px_rgba(255,215,0,0.4)]' :
-                        entry.rank === 2 ? 'bg-gradient-to-tr from-[#E2E2E2] to-[#A2A2A2] text-[#333] shadow-[0_0_20px_rgba(226,226,226,0.3)]' :
-                            entry.rank === 3 ? 'bg-gradient-to-tr from-[#CD7F32] to-[#8B4513] text-white shadow-[0_0_20px_rgba(205,127,50,0.3)]' :
-                                'bg-white/5 text-slate-400 border border-white/10'
+                    entry.rank === 2 ? 'bg-gradient-to-tr from-[#E2E2E2] to-[#A2A2A2] text-[#333] shadow-[0_0_20px_rgba(226,226,226,0.3)]' :
+                        entry.rank === 3 ? 'bg-gradient-to-tr from-[#CD7F32] to-[#8B4513] text-white shadow-[0_0_20px_rgba(205,127,50,0.3)]' :
+                            'bg-white/5 text-slate-400 border border-white/10'
                     }`}>
                     {entry.rank}
                     {isTop3 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-white/20 rounded-full blur-[2px]"></div>}
