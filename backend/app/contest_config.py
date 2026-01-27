@@ -33,26 +33,24 @@ class GameStructure(BaseModel):
     levels: List[LevelStructure]
     
 class ScoringDifficultyWeights(BaseModel):
-    easy: float = 1.0
+    low: float = 1.0
     medium: float = 1.5
-    hard: float = 2.0
+    high: float = 2.0
+    very_high: float = 2.5
 
-class ScoringLanguageWeights(BaseModel):
-    native: float = 0.7
-    fluent: float = 1.0
-    learning: float = 1.3
+class ScoringParameters(BaseModel):
+    base_points: int = 10
+    negative_marking: float = 0
+    time_bonus: int = 10
+    language_weights: Dict[str, float] = Field(default_factory=dict)
 
-class TimeBonus(BaseModel):
-    enabled: bool = True
-    max_bonus: int = 3
+class QuizScoringParameters(ScoringParameters):
+    difficulty_weights: ScoringDifficultyWeights = Field(default_factory=ScoringDifficultyWeights)
 
 class ScoringConfig(BaseModel):
-    base_points: int = 10
-    negative_marking: int = 2
-    difficulty_weights: ScoringDifficultyWeights
-    language_weights: ScoringLanguageWeights
-    time_bonus: TimeBonus
-    tie_breaker_rules: List[str]
+    matching: ScoringParameters = Field(default_factory=ScoringParameters)
+    quiz: QuizScoringParameters = Field(default_factory=QuizScoringParameters)
+    tie_breaker_rules: List[str] = Field(default_factory=list)
 
 class EligibilityRules(BaseModel):
     min_age: int
