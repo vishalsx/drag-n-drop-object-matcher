@@ -137,7 +137,8 @@ const App: React.FC = () => {
         showRoundCompletionModal,
         roundCompletionData,
         handleContinueToNext,
-        transitionMessage
+        transitionMessage,
+        handleQuizComplete
     } = useGame(isOrgChecked, param2 === 'contest', contestDetails?._id || contestDetails?.id, authService.getToken(), orgData?.org_id || null, contestDetails);
 
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
@@ -589,6 +590,7 @@ const App: React.FC = () => {
                     level1Timer={level1Timer}
                     currentSegment={currentSegment}
                     transitionMessage={transitionMessage}
+                    handleQuizComplete={handleQuizComplete}
                 />
             )}
 

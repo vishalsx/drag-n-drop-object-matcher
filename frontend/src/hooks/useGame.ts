@@ -262,6 +262,8 @@ export const useGame = (
                                 score: score,
                                 timeElapsed: currentSegment.round.time_limit_seconds
                             });
+                            // Ensure final round score is captured
+                            setScore(score);
                             setShowRoundCompletionModal(true);
                         }
                         return 0;
@@ -899,12 +901,14 @@ export const useGame = (
 
                             // Trigger completion with current score
                             if (currentSegment) {
+                                const finalRoundScore = level2State ? level2State.score : score;
+                                setScore(finalRoundScore);
                                 setRoundCompletionData({
                                     levelName: currentSegment.level.level_name,
                                     roundName: currentSegment.round.round_name,
                                     language: currentSegment.language,
-                                    score: score, // Use current accumulated score
-                                    timeElapsed: segmentStartTimeRef.current ? Math.round((Date.now() - segmentStartTimeRef.current) / 1000) : currentSegment.round.time_limit_seconds // Full time used
+                                    score: finalRoundScore,
+                                    timeElapsed: currentSegment.round.time_limit_seconds // Full time used
                                 });
                                 setShowRoundCompletionModal(true);
                             }
@@ -1075,7 +1079,28 @@ export const useGame = (
         setIsLevel2Paused(false);
     };
 
-    // Level 2: Close completion and return to idle
+    // Level 2 (Quiz) Completion handler for contest mode
+    const handleQuizComplete = useCallback((quizScore: number, correctCount: number) => {
+        console.log('[useGame] Quiz Complete:', { quizScore, correctCount });
+        // QuizGame returns its internal score, which we should add to our cumulative score
+        // However, if the score is already carried over in level2State, we just sync it
+        const newScore = score + quizScore;
+        setScore(newScore);
+
+        if (isContest && currentSegment) {
+            setRoundCompletionData({
+                levelName: currentSegment.level.level_name,
+                roundName: currentSegment.round.round_name,
+                language: currentSegment.language,
+                score: newScore,
+                timeElapsed: currentSegment.round.time_limit_seconds - (level2Timer || 0)
+            });
+            setShowRoundCompletionModal(true);
+        } else {
+            handleSegmentComplete(false);
+        }
+    }, [score, isContest, currentSegment, level2Timer, handleSegmentComplete]);
+
     const handleLevel2Complete = useCallback(() => {
         if (level2State) {
             setScore(level2State.score); // Sync score before completing segment
@@ -1197,6 +1222,7 @@ export const useGame = (
         handleStartLevel2,
         handleLevel2QuestionDrop,
         handleLevel2NextPicture,
+        handleQuizComplete,
         handleLevel2Complete, // This needs to call handleSegmentComplete logic if queue not empty? Logic moved to handleSegmentComplete.
         handleLevel2ImageLoaded,
         handleReplayInLanguage,

@@ -72,6 +72,7 @@ interface GameViewProps {
     level1Timer?: number;
     currentSegment?: any;
     transitionMessage?: string | null;
+    handleQuizComplete?: (score: number, correct: number) => void;
 }
 
 const GameView: React.FC<GameViewProps> = (props) => {
@@ -421,67 +422,71 @@ const GameView: React.FC<GameViewProps> = (props) => {
 
                 {/* Hints Panel: 45% width when open, 55% when closed */}
                 <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[45%]' : 'lg:w-[65%]'} p-4 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
-                    <header className="text-left mb-2 flex-shrink-0 relative">
-                        {/* Only show story toggle for matching game or if story exists */}
-                        {(props.gameState === 'playing' || props.gameState === 'complete') &&
-                            (!props.contestDetails || props.contestDetails.game_structure?.levels[0]?.game_type === 'matching') && (
-                                <button
-                                    onClick={() => setShowStory(!showStory)}
-                                    disabled={!(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)}
-                                    className={`absolute right-0 top-0 p-2 transition-colors ${(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)
-                                        ? 'text-slate-400 hover:text-white'
-                                        : 'text-slate-600 cursor-not-allowed opacity-40'
-                                        }`}
-                                    title={(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral) ? (showStory ? "Show Hints" : "Show Story") : "Story not available for this page"}
-                                >
-                                    <BookOpenIcon className="w-6 h-6" />
-                                </button>
+                    <header className="mb-2 flex-shrink-0 relative">
+                        <div className="flex items-center justify-between min-h-[2rem] relative">
+                            {/* Title Logic */}
+                            <h2 className="text-2xl font-bold text-slate-300">
+                                {props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz' ? 'Quiz Time!' :
+                                    ((showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) ? 'Story' : 'Hints')}
+                            </h2>
+
+                            {/* Level Info - Centered */}
+                            {props.isContest && props.gameState === 'playing' && (
+                                <div className="absolute left-1/2 transform -translate-x-1/2 text-yellow-400 font-bold text-lg whitespace-nowrap">
+                                    {props.currentSegment ? `Level ${props.currentSegment.level.level_seq} - ${props.currentSegment.round.round_name}` : ''}
+                                </div>
                             )}
 
-                        {/* Title Logic */}
-                        <h2 className="text-2xl font-bold text-slate-300">
-                            {props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz' ? 'Quiz Time!' :
-                                ((showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) ? 'Story' : 'Hints')}
-                        </h2>
+                            {/* Only show story toggle for matching game or if story exists */}
+                            {(props.gameState === 'playing' || props.gameState === 'complete') &&
+                                (!props.contestDetails || props.currentSegment?.level?.game_type === 'matching') && (
+                                    <button
+                                        onClick={() => setShowStory(!showStory)}
+                                        disabled={!(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)}
+                                        className={`p-2 transition-colors ${(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)
+                                            ? 'text-slate-400 hover:text-white'
+                                            : 'text-slate-600 cursor-not-allowed opacity-40'
+                                            }`}
+                                        title={(props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral) ? (showStory ? "Show Hints" : "Show Story") : "Story not available for this page"}
+                                    >
+                                        <BookOpenIcon className="w-6 h-6" />
+                                    </button>
+                                )}
+                        </div>
 
                         {/* Subtitle Logic - Only show for Quiz or Story, remove instruction text for Matching as requested */}
-                        {((showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) || props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz') && (
+                        {((showStory && (props.shuffledDescriptions[0]?.story || props.shuffledDescriptions[0]?.moral)) || props.currentSegment?.level?.game_type === 'quiz') && (
                             <p className="text-slate-400 mt-1 text-sm">
-                                {props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz' ? 'Answer the questions correctly' : 'Read the story'}
+                                {props.currentSegment?.level?.game_type === 'quiz' ? 'Answer the questions correctly' : 'Read the story'}
                             </p>
                         )}
 
-                        {/* Contest Status Display */}
-                        {props.isContest && props.gameState === 'playing' && (
-                            <div className="mt-2 text-yellow-400 font-bold text-lg flex flex-col items-center">
-                                <div>{props.currentSegment ? `Level ${props.currentSegment.level.level_seq} - ${props.currentSegment.round.round_name}` : ''}</div>
-                                {props.level1Timer !== undefined && (
-                                    <div className={`text-2xl ${props.level1Timer < 10 ? 'text-red-500 animate-pulse' : 'text-blue-300'}`}>
-                                        Time: {props.level1Timer}s
-                                    </div>
-                                )}
+                        {/* Contest Status Display - Time only */}
+                        {props.isContest && props.gameState === 'playing' && props.level1Timer !== undefined && (
+                            <div className={`mt-1 text-center text-2xl ${props.level1Timer < 10 ? 'text-red-500 animate-pulse' : 'text-blue-300'}`}>
+                                Time: {props.level1Timer}s
                             </div>
                         )}
                     </header>
 
                     <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
                         {/* QUIZ MODE RENDER */}
-                        {props.gameState === 'playing' && props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz' ? (
+                        {props.gameState === 'playing' && props.currentSegment?.level?.game_type === 'quiz' ? (
                             <QuizGame
                                 questions={props.shuffledDescriptions.map(d => ({
                                     translation_id: d.id,
-                                    object_id: d.id, // Assuming same for simplicity unless mapped differently
+                                    object_id: d.objectId || d.id,
                                     object_name: d.imageName,
                                     question: d.quiz_qa?.[0]?.question || "Question missing",
                                     answer: d.quiz_qa?.[0]?.answer || "Answer missing",
                                     difficulty: d.quiz_qa?.[0]?.difficulty_level || "Medium"
                                 }))}
                                 onComplete={(score, correct) => {
-                                    // Placeholder callback integration
-                                    console.log("Quiz Complete", score, correct);
-                                    // In a real implementation this would trigger round completion logic in parent
+                                    if (props.handleQuizComplete) {
+                                        props.handleQuizComplete(score, correct);
+                                    }
                                 }}
-                                timeLimitSeconds={60}
+                                timeLimitSeconds={props.currentSegment?.round?.time_limit_seconds || 60}
                             />
                         ) : (
 
@@ -639,7 +644,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                      Objects Panel is Right.
                                      Let's just show a "Quiz in Progress" or decorative animation in the Right Panel for now.
                                   */ }
-                                {props.gameState === 'playing' && props.contestDetails?.game_structure?.levels[0]?.game_type === 'quiz' ? (
+                                {props.gameState === 'playing' && props.currentSegment?.level?.game_type === 'quiz' ? (
                                     <div className="w-full h-full flex items-center justify-center text-slate-500 italic">
                                         Quiz Mode Active
                                     </div>
