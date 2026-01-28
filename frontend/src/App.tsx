@@ -132,6 +132,7 @@ const App: React.FC = () => {
         trackVisibilityChange,
         trackHintFlip,
         level1Timer,
+        learnersTimer,
         currentSegment,
 
         // Round Completion Modal
@@ -644,6 +645,7 @@ const App: React.FC = () => {
                     contestError={contestError}
                     contestSearchText={contestSearchText}
                     level1Timer={level1Timer}
+                    learnersTimer={learnersTimer}
                     level2Timer={level2Timer}
                     currentSegment={currentSegment}
                     transitionMessage={transitionMessage}

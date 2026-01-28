@@ -107,6 +107,11 @@ export const useGame = (
     const [currentSegment, setCurrentSegment] = useState<GameSegment | null>(null);
     const [level1Objects, setLevel1Objects] = useState<GameObject[]>([]);
     const [level1Timer, setLevel1Timer] = useState(0);
+
+    // Learners mode timer (increments from 0) and penalty tracking
+    const [learnersTimer, setLearnersTimer] = useState(0);
+    const learnersPenaltyMarkRef = useRef<number>(0);
+
     const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
     const segmentStartTimeRef = useRef<number | null>(null);
     const shouldForceRefreshRef = useRef<boolean>(true);
@@ -324,6 +329,37 @@ export const useGame = (
             return () => clearInterval(timer);
         }
     }, [gameState, gameLevel, isContest, showRoundCompletionModal, currentSegment, score]);
+
+    // Timer Effect for Learners Mode (Non-Contest) - Increments and applies penalty every 10 seconds
+    useEffect(() => {
+        // Only run for non-contest (learners) mode, when playing matching game
+        if (gameState === 'playing' && gameLevel === 1 && !isContest) {
+            const timer = setInterval(() => {
+                setLearnersTimer(prev => {
+                    const newTime = prev + 1;
+
+                    // Check if we've crossed a 10-second mark from the last penalty
+                    // Apply penalty every 10 seconds (at 10, 20, 30, etc.)
+                    if (newTime > 0 && newTime % 10 === 0 && newTime > learnersPenaltyMarkRef.current) {
+                        learnersPenaltyMarkRef.current = newTime;
+                        console.log(`[useGame] ⏱️ Learners mode: 10 seconds elapsed (total: ${newTime}s). Applying -5 penalty.`);
+                        setScore(prevScore => prevScore - 5);
+                    }
+
+                    return newTime;
+                });
+            }, 1000);
+            return () => clearInterval(timer);
+        }
+    }, [gameState, gameLevel, isContest]);
+
+    // Reset learners timer when game starts or resets (non-contest mode)
+    useEffect(() => {
+        if (gameState === 'idle' || gameState === 'loading') {
+            setLearnersTimer(0);
+            learnersPenaltyMarkRef.current = 0;
+        }
+    }, [gameState]);
 
     // Helper to start a segment from queue
     const startSegment = async (segment: GameSegment, initialScore?: number) => {
@@ -1492,6 +1528,10 @@ export const useGame = (
         // Contest State
         currentSegment,
         level1Timer,
+
+        // Learners Mode Timer
+        learnersTimer,
+
         currentRoundIndex: currentSegment ? (currentSegment.round.round_seq) : 0,
         totalRounds: contestDetails?.game_structure?.levels.reduce((acc, l) => acc + l.rounds.length, 0) || 0, // Approx logic
 
