@@ -55,7 +55,7 @@ const App: React.FC = () => {
 
     const [orgData, setOrgData] = useState<Organisation | null>(null);
 
-    console.log('[App] Render START', { isOrgChecked, param2, hasContest: !!contestDetails });
+
     const {
         // State from useGame hook
         score,
@@ -160,6 +160,16 @@ const App: React.FC = () => {
     const lastTotalScoreRef = useRef<number>(0);
     const lastProcessedRoundKey = useRef<string | null>(null);
     const isFinalScoreSubmitted = useRef<boolean>(false);
+
+    console.log('[DEBUG-App] Render State:', {
+        param2,
+        param3,
+        gameState,
+        showLogin,
+        hasContestDetails: !!contestDetails,
+        pendingContestStart,
+        contestScoresLen: contestScores.length
+    });
 
     React.useEffect(() => {
         // Check if we just completed an anonymous login (indicated by flag)
@@ -284,6 +294,18 @@ const App: React.FC = () => {
             setContestError(null);
         }
     }, [param2, showLogin, setSearchKeyword]);
+
+    // Reset all contest state when contest or login status changes
+    useEffect(() => {
+        if (param2 === 'contest') {
+            console.log('[App] Contest/Login changed. Resetting scores and refs.');
+            setContestScores([]);
+            setPendingContestStart(false);
+            lastTotalScoreRef.current = 0;
+            lastProcessedRoundKey.current = null;
+            isFinalScoreSubmitted.current = false;
+        }
+    }, [param2, contestDetails?._id, contestDetails?.id, showLogin]);
 
     // Contest: Default to first language and Auto-Start
     useEffect(() => {
@@ -480,6 +502,7 @@ const App: React.FC = () => {
                     onLoginSuccess={() => {
                         const entries = authService.getContestDetails();
                         setContestDetails(entries);
+                        handleResetGame(); // Atomic reset of game state
                         setShowLogin(false);
                     }}
                     orgCode={orgData?.org_code}
@@ -682,14 +705,17 @@ const App: React.FC = () => {
               Prioritize this over level-specific screens when the entire contest is done.
             */}
             {param2 === 'contest' && gameState === 'complete' && (
-                <ContestSummaryScreen
-                    contestScores={contestScores}
-                    contestName={currentContestName}
-                    contestId={contestDetails?._id || contestDetails?.id}
-                    onClose={handleCloseCompletion}
-                    nextLanguageName={transitionNextLangName}
-                    onNextRound={handleConfirmNextLevel}
-                />
+                (() => {
+                    console.log('[DEBUG-App] RENDERING ContestSummaryScreen!', { contestScores, gameState });
+                    return <ContestSummaryScreen
+                        contestScores={contestScores}
+                        contestName={currentContestName}
+                        contestId={contestDetails?._id || contestDetails?.id}
+                        onClose={handleCloseCompletion}
+                        nextLanguageName={transitionNextLangName}
+                        onNextRound={handleConfirmNextLevel}
+                    />;
+                })()
             )}
 
             {/* Level 1 (Non-Contest) Completion */}

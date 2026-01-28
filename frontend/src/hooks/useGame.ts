@@ -95,7 +95,15 @@ export const useGame = (
     const [isLevel2Paused, setIsLevel2Paused] = useState(true);
 
     // Contest State
-    const [segmentQueue, setSegmentQueue] = useState<GameSegment[]>([]);
+    const [segmentQueue, setSegmentQueueState] = useState<GameSegment[]>([]);
+    const segmentQueueRef = useRef<GameSegment[]>([]);
+
+    // Sync ref with state
+    const setSegmentQueue = (queue: GameSegment[]) => {
+        segmentQueueRef.current = queue;
+        setSegmentQueueState(queue);
+    };
+
     const [currentSegment, setCurrentSegment] = useState<GameSegment | null>(null);
     const [level1Objects, setLevel1Objects] = useState<GameObject[]>([]);
     const [level1Timer, setLevel1Timer] = useState(0);
@@ -199,13 +207,35 @@ export const useGame = (
         loadInitialData();
     }, [token, orgId, isOrgChecked, isContest]);
 
-    // Track token changes to force a refresh on login
     useEffect(() => {
         if (token) {
             console.log("[useGame] Token detected (login/refresh). Marking for categories refresh.");
             shouldForceRefreshRef.current = true;
         }
     }, [token]);
+
+    // Reset contest-specific state when switching contests, users, or logging into a new one
+    useEffect(() => {
+        if (isContest) {
+            console.log(`[DEBUG-useGame] Resetting contest state for contestId: ${contestId}. Previous gameState: ${gameState}`);
+            setGameState('idle');
+            setScore(0);
+            setGameData([]);
+            setShuffledDescriptions([]);
+            setShuffledImages([]);
+            setSegmentQueue([]);
+            setCurrentSegment(null);
+            setShowRoundCompletionModal(false);
+            setRoundCompletionData(null);
+            setCorrectlyMatchedIds(new Set());
+            setGameLevel(1);
+            setLevel2State(null);
+            setResumeNotificationData(null);
+            resumeAttemptsLeftRef.current = null;
+            scoreAtRoundStartRef.current = 0;
+            setGameStartError(null);
+        }
+    }, [contestId, isContest, authToken]);
 
     // Effect to load categories whenever the language changes. This is the single source of truth.
     useEffect(() => {
@@ -359,11 +389,11 @@ export const useGame = (
                     setGameState('playing');
                     setTransitionMessage(null);
                 } else {
-                    console.error("No data found for segment, skipping...");
+                    console.error(`[DEBUG-useGame] No data found for segment (Level ${segment.level.level_seq}, Round ${segment.round.round_seq}, Lang ${segment.language}), skipping...`);
                     handleSegmentComplete(true); // Skip empty round?
                 }
             } catch (error) {
-                console.error("Error fetching segment data", error);
+                console.error(`[DEBUG-useGame] Error fetching segment data (Level ${segment.level.level_seq}, Round ${segment.round.round_seq}, Lang ${segment.language}):`, error);
                 handleSegmentComplete(false);
             }
 
@@ -460,13 +490,16 @@ export const useGame = (
         // Add current round objects to level1Objects array for Level 2
         setLevel1Objects(prev => [...prev, ...gameData]);
 
-        // Check if there are more segments
-        if (segmentQueue.length > 0) {
-            const nextSegment = segmentQueue.shift()!;
-            setSegmentQueue([...segmentQueue]);
+        // Check if there are more segments using the Ref (to avoid stale closures)
+        const currentQueue = segmentQueueRef.current;
+        console.log('[DEBUG-useGame] handleSegmentComplete: checking queue length:', currentQueue.length);
+
+        if (currentQueue.length > 0) {
+            const nextSegment = currentQueue.shift()!;
+            setSegmentQueue([...currentQueue]); // Updates both ref and state
             setCurrentSegment(nextSegment);
 
-            console.log('[useGame] Next Segment:', nextSegment);
+            console.log('[DEBUG-useGame] handleSegmentComplete: Advancing to next segment:', nextSegment);
 
             // Start next segment
             setCorrectlyMatchedIds(new Set());
@@ -479,11 +512,11 @@ export const useGame = (
             startSegment(nextSegment, score);
         } else {
             // All segments complete
-            console.log('[useGame] All segments complete!');
+            console.log('[DEBUG-useGame] handleSegmentComplete: QUEUE EMPTY. Setting gameState to complete.');
             setGameState('complete');
             playGameCompleteSound();
         }
-    }, [segmentQueue, gameData, submitAnalytics, score, playGameCompleteSound, isContest, username, currentSegment, contestId, gameLevel, level1Timer, level2Timer]);
+    }, [gameData, submitAnalytics, score, playGameCompleteSound, isContest, username, currentSegment, contestId, gameLevel, level1Timer, level2Timer]);
 
     // Handler for Continue button on round completion modal
     const handleContinueToNext = useCallback(() => {
@@ -595,7 +628,7 @@ export const useGame = (
                         const resumeRound = resumeState.resume_round || 1;
                         const resumeLang = resumeState.resume_language;
 
-                        console.log(`[useGame] Attempting to Resume: Level ${resumeLevel}, Round ${resumeRound}, Lang ${resumeLang || 'Any'}`);
+                        console.log(`[DEBUG-useGame] Attempting to Resume: Level ${resumeLevel}, Round ${resumeRound}, Lang ${resumeLang || 'Any'}`);
 
                         const resumeIndex = queue.findIndex(s =>
                             s.level.level_seq === resumeLevel &&
@@ -604,18 +637,18 @@ export const useGame = (
                         );
 
                         if (resumeIndex > 0) {
-                            console.log(`[useGame] Resuming... Skipping ${resumeIndex} segments.`);
+                            console.log(`[DEBUG-useGame] Resuming... Skipping ${resumeIndex} segments.`);
                             queue.splice(0, resumeIndex);
                         } else if (resumeIndex === -1 && (resumeLevel > 1 || resumeRound > 1)) {
                             // Precise match failed, fallback to level matching
                             const levelMatchIndex = queue.findIndex(s => s.level.level_seq === resumeLevel);
                             if (levelMatchIndex >= 0) {
-                                console.warn(`[useGame] Precise resume match failed. Falling back to Level ${resumeLevel} start.`);
+                                console.warn(`[DEBUG-useGame] Precise resume match failed. Falling back to Level ${resumeLevel} start.`);
                                 queue.splice(0, levelMatchIndex);
                             }
                         }
                     } else if (resumeState.status === "completed") {
-                        console.log("[useGame] Contest already completed. Showing summary.");
+                        console.log("[DEBUG-useGame] SETTING GAMESTATE TO COMPLETE - Resume status is 'completed'");
                         setGameState('complete');
                         return;
                     }
