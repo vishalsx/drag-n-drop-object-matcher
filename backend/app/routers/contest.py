@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from app.services.validateContest import validate_contest_for_login, validate_contest_registration, check_eligibility
 import hashlib
 import os
+import json
 from dotenv import load_dotenv
 import jwt
 from datetime import timedelta
@@ -108,6 +109,7 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
              raise HTTPException(status_code=400, detail="Username already registered for this contest")
              
         # Add new participation to existing contestant
+        print(f"[DEBUG-Backend] Adding new participation to existing contestant: {data.username} for contest: {data.contest_id}")
         new_participation = {
             "contest_id": data.contest_id,
             "org_id": organisation_id,
@@ -524,6 +526,9 @@ async def enter_contest(data: ContestEnterRequest, current_username: Optional[st
     current_attempts = participation.get("incomplete_attempts", 0)
     new_attempts = current_attempts + 1
 
+    print(f"[DEBUG-Backend] enter_contest: ID={data.contest_id}, User={current_username}")
+    print(f"[DEBUG-Backend] Participation Data: {json.dumps(participation, default=str)}")
+
     # Check if this increment disqualifies them
     if new_attempts > max_attempts:
         # If status was already in_progress, they exceeded. 
@@ -658,7 +663,7 @@ async def log_contest_progress(data: ContestProgressLog):
         next_level = next_seg["level"]
         next_round = next_seg["round"]
         next_language = next_seg["language"]
-    elif current_idx == len(queue) - 1:
+    elif current_idx != -1 and current_idx == len(queue) - 1:
         contest_completed = True
 
     update_data = {

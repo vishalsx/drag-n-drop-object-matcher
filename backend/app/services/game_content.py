@@ -24,6 +24,7 @@ async def fetch_level_content(
     assigned_object_ids: Optional[List[str]] = None,
     areas_of_interest: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
+    print(f"[DEBUG-Backend] fetch_level_content: type={level_game_type}, lang={language}, org={org_id}, cat={category}, fos={field_of_study}")
     """
     Orchestrator to fetch content based on game type (matching vs quiz).
     """
