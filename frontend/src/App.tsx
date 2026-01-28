@@ -644,6 +644,7 @@ const App: React.FC = () => {
                     contestError={contestError}
                     contestSearchText={contestSearchText}
                     level1Timer={level1Timer}
+                    level2Timer={level2Timer}
                     currentSegment={currentSegment}
                     transitionMessage={transitionMessage}
                     handleQuizComplete={handleQuizComplete}

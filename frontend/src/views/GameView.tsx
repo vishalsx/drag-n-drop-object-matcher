@@ -70,6 +70,7 @@ interface GameViewProps {
     trackHintFlip: (text: string) => void;
     isContest: boolean;
     level1Timer?: number;
+    level2Timer?: number;
     currentSegment?: any;
     transitionMessage?: string | null;
     handleQuizComplete?: (score: number, correct: number, timeLeft?: number) => void;
@@ -463,12 +464,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                             </p>
                         )}
 
-                        {/* Contest Status Display - Time only */}
-                        {props.isContest && props.gameState === 'playing' && props.level1Timer !== undefined && (
-                            <div className={`mt-1 text-center text-2xl ${props.level1Timer < 10 ? 'text-red-500 animate-pulse' : 'text-blue-300'}`}>
-                                Time: {props.level1Timer}s
-                            </div>
-                        )}
+
                     </header>
 
                     <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-2 flex-grow content-start">
@@ -647,8 +643,20 @@ const GameView: React.FC<GameViewProps> = (props) => {
                 {/* Objects Panel: 40% width when open, 45% when closed */}
                 <div className={`w-full ${isLeftPanelOpen ? 'lg:w-[40%]' : 'lg:w-[35%]'} p-4 bg-slate-800/50 rounded-xl shadow-lg border border-slate-700 flex flex-col transition-all duration-300 ease-in-out`}>
                     <header className="flex items-center justify-between mb-4 flex-shrink-0">
-                        <h2 className="text-2xl font-bold text-slate-300">Objects</h2>
-                        <div className="text-2xl font-bold text-yellow-400">Score: {props.score}</div>
+                        <h2 className="text-2xl font-bold text-slate-300 text-left">Objects</h2>
+                        <div className="flex flex-col items-end gap-1">
+                            <div className="text-2xl font-bold text-yellow-400">Score: {props.score}</div>
+                            {props.gameState === 'playing' && props.level1Timer !== undefined && props.currentSegment?.level?.game_type !== 'quiz' && (
+                                <div className={`text-xl font-bold ${props.level1Timer < 10 ? 'text-red-500 animate-pulse' : 'text-blue-300'}`}>
+                                    Time: {props.level1Timer}s
+                                </div>
+                            )}
+                            {props.gameState === 'playing' && props.level2Timer !== undefined && props.currentSegment?.level?.game_type === 'quiz' && (
+                                <div className={`text-xl font-bold ${props.level2Timer < 10 ? 'text-red-500 animate-pulse' : 'text-blue-300'}`}>
+                                    Time: {props.level2Timer}s
+                                </div>
+                            )}
+                        </div>
                     </header>
                     <div className="flex-grow overflow-y-auto pr-2 flex items-start">
                         {props.gameState === 'idle' || props.gameState === 'loading' ? (
@@ -698,7 +706,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                         )}
                     </div>
                 </div>
-            </div>
+            </div >
             {zoomedImage && (
                 <ImageZoomModal
                     imageUrl={zoomedImage.url}
@@ -706,7 +714,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                 />
             )}
 
-        </div>
+        </div >
     );
 };
 
