@@ -33,6 +33,8 @@ class ParticipationTimeline(BaseModel):
     completed_at: Optional[datetime] = None
 
 class RoundScore(BaseModel):
+    level: int
+    round: int
     language: str
     score: int
     time_taken: float = 0 # In seconds
@@ -48,6 +50,14 @@ class ContestParticipation(BaseModel):
     org_id: Optional[str] = None
     role: str = "participant"
     status: str = "applied"
+    
+    # Resume & Tracking Logic
+    current_level: int = 1
+    current_round: int = 1
+    current_language: Optional[str] = None
+    incomplete_attempts: int = 0
+    is_disqualified: bool = False
+    last_active_at: Optional[datetime] = None
     entry_sources: EntrySource
     selected_languages: List[str]
     flags: FlagsControls = Field(default_factory=FlagsControls)

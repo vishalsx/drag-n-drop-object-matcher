@@ -461,3 +461,229 @@ async def list_org_contests(org_id: str):
                         val[k2] = v2.isoformat()
                 
     return contests
+
+class ContestEnterRequest(BaseModel):
+    contest_id: str
+
+class ContestProgressLog(BaseModel):
+    contest_id: str
+    username: str
+    level: int
+    round: int
+    score: int
+    language: str
+    time_taken: float
+
+@router.post("/contest/enter")
+async def enter_contest(data: ContestEnterRequest, current_username: Optional[str] = Query(None)):
+    """
+    Called after login to verify contest status and handle resume logic.
+    Returns resume state if user is re-entering an in-progress contest.
+    """
+    if not current_username:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+
+    # 1. Fetch Contest Config
+    contest = await contests_collection.find_one({"_id": ObjectId(data.contest_id)})
+    if not contest:
+        raise HTTPException(status_code=404, detail="Contest not found")
+        
+    contest_obj = Contest(**contest)
+    max_attempts = contest_obj.max_incomplete_attempts
+
+    # 2. Fetch Participant
+    participant = await participants_collection.find_one({
+        "username": current_username,
+        "participations.contest_id": data.contest_id
+    })
+    
+    if not participant:
+        raise HTTPException(status_code=403, detail="User not registered for this contest")
+        
+    # Get specific participation
+    participation = next((p for p in participant.get("participations", []) if p.get("contest_id") == data.contest_id), None)
+    
+    if not participation:
+        raise HTTPException(status_code=403, detail="Participation record not found")
+
+    # 3. Check Status & Disqualification
+    if participation.get("is_disqualified", False):
+        raise HTTPException(status_code=403, detail="You have been disqualified from this contest due to excessive incomplete attempts.")
+        
+    if participation.get("incomplete_attempts", 0) >= max_attempts:
+        # Mark disqualified if not already
+        await participants_collection.update_one(
+            {"_id": participant["_id"], "participations.contest_id": data.contest_id},
+            {"$set": {"participations.$.is_disqualified": True}}
+        )
+        raise HTTPException(status_code=403, detail="You have exceeded the maximum number of incomplete attempts.")
+
+    # 4. Handle Entry/Resume Logic
+    status = participation.get("status")
+    contest_completed = participation.get("contest_completed", False)
+    current_attempts = participation.get("incomplete_attempts", 0)
+    new_attempts = current_attempts + 1
+
+    # Check if this increment disqualifies them
+    if new_attempts > max_attempts:
+        # If status was already in_progress, they exceeded. 
+        # If status was applied, weird but let's be safe.
+        await participants_collection.update_one(
+            {"_id": participant["_id"], "participations.contest_id": data.contest_id},
+            {"$set": {"participations.$.is_disqualified": True}}
+        )
+        raise HTTPException(status_code=403, detail="You have exceeded the maximum number of attempts.")
+
+    # Base update fields for every entry
+    update_fields = {
+        "participations.$.incomplete_attempts": new_attempts,
+        "participations.$.last_active_at": datetime.now(timezone.utc)
+    }
+
+    if status == "applied":
+        # First entry
+        first_lang = contest_obj.supported_languages[0] if contest_obj.supported_languages else None
+        update_fields["participations.$.status"] = "in_progress"
+        update_fields["participations.$.current_level"] = 1
+        update_fields["participations.$.current_round"] = 1
+        update_fields["participations.$.current_language"] = first_lang
+        
+        await participants_collection.update_one(
+            {"_id": participant["_id"], "participations.contest_id": data.contest_id},
+            {"$set": update_fields}
+        )
+        
+        # Prepare response
+        response = {
+            "status": "in_progress",
+            "resume_level": 1,
+            "resume_round": 1,
+            "resume_language": first_lang,
+            "current_score": 0,
+            "attempts_left": max_attempts - new_attempts,
+            "previous_scores": []
+        }
+    else:
+        # Resume (status == "in_progress")
+        await participants_collection.update_one(
+            {"_id": participant["_id"], "participations.contest_id": data.contest_id},
+            {"$set": update_fields}
+        )
+        
+        response = {
+            "status": status,
+            "resume_level": participation.get("current_level", 1),
+            "resume_round": participation.get("current_round", 1),
+            "resume_language": participation.get("current_language"),
+            "current_score": participation.get("total_score", 0),
+            "attempts_left": max_attempts - new_attempts,
+            "previous_scores": participation.get("round_scores", [])
+        }
+
+    return response
+
+@router.post("/contest/log-progress")
+async def log_contest_progress(data: ContestProgressLog):
+    """
+    Background endpoint to log progress immediately after a round completes.
+    Updates scores and advances the current level/round pointer.
+    """
+    # Verify participant exists
+    participant = await participants_collection.find_one({
+        "username": data.username,
+        "participations.contest_id": data.contest_id
+    })
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+        
+    # Create RoundScore object
+    round_score = RoundScore(
+        level=data.level,
+        round=data.round,
+        language=data.language,
+        score=data.score,
+        time_taken=data.time_taken,
+        completed_at=datetime.now(timezone.utc)
+    )
+
+    # 0. Check if this segment is already logged to prevent duplicates
+    participation = next((p for p in participant.get("participations", []) if p["contest_id"] == data.contest_id), None)
+    if participation:
+        existing_scores = participation.get("round_scores", [])
+        if any(rs.get("level") == data.level and 
+               rs.get("round") == data.round and 
+               rs.get("language") == data.language for rs in existing_scores):
+            return {"status": "already_logged", "message": "This segment has already been recorded."}
+    
+    # 1. Fetch Contest Config to determine progression
+    contest_doc = await contests_collection.find_one({"_id": ObjectId(data.contest_id)})
+    if not contest_doc:
+         raise HTTPException(status_code=404, detail="Contest not found")
+    
+    contest_obj = Contest(**contest_doc)
+    supported_langs = contest_obj.supported_languages
+    if not supported_langs:
+        supported_langs = [data.language] # Fallback
+    
+    # 2. Build flattened queue of segments (Level -> Round -> Language)
+    queue = []
+    levels = sorted(contest_obj.game_structure.levels, key=lambda x: x.level_seq)
+    for lvl in levels:
+        rounds = sorted(lvl.rounds, key=lambda x: x.round_seq)
+        for rnd in rounds:
+            for lang in supported_langs:
+                queue.append({
+                    "level": lvl.level_seq,
+                    "round": rnd.round_seq,
+                    "language": lang
+                })
+    
+    # 3. Find current segment index and determine NEXT
+    current_idx = -1
+    for i, seg in enumerate(queue):
+        if (seg["level"] == data.level and 
+            seg["round"] == data.round and 
+            seg["language"] == data.language):
+            current_idx = i
+            break
+    
+    next_level = data.level
+    next_round = data.round
+    next_language = data.language # Default to same if not found
+    contest_completed = False
+
+    if current_idx != -1 and current_idx < len(queue) - 1:
+        next_seg = queue[current_idx + 1]
+        next_level = next_seg["level"]
+        next_round = next_seg["round"]
+        next_language = next_seg["language"]
+    elif current_idx == len(queue) - 1:
+        contest_completed = True
+
+    update_data = {
+        "participations.$.current_level": next_level,
+        "participations.$.current_round": next_round,
+        "participations.$.current_language": next_language,
+        "participations.$.contest_completed": contest_completed,
+        "participations.$.last_active_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
+    }
+    if contest_completed:
+        update_data["participations.$.contest_completed_at"] = datetime.now(timezone.utc)
+        update_data["participations.$.status"] = "completed"
+    
+    # Atomic update: Push score, inc total, set next pointer
+    await participants_collection.update_one(
+        {
+            "_id": participant["_id"],
+            "participations.contest_id": data.contest_id
+        },
+        {
+            "$push": {"participations.$.round_scores": round_score.model_dump()},
+            "$inc": {"participations.$.total_score": data.score},
+            "$set": update_data
+        }
+    )
+    
+    return {"status": "progress_logged"}

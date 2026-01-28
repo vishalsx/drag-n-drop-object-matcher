@@ -102,6 +102,7 @@ class Contest(BaseModel):
     
     # Participation Rules
     max_participants: int = 0
+    max_incomplete_attempts: int = Field(default=3, description="Maximum number of times a user can exit and resume the contest")
 
     
     # Eligibility Rules
