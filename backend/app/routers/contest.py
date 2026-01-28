@@ -687,3 +687,45 @@ async def log_contest_progress(data: ContestProgressLog):
     )
     
     return {"status": "progress_logged"}
+
+@router.get("/contest/{contest_id}/participant/summary")
+async def get_participant_summary(contest_id: str, username: str = Query(...)):
+    """
+    Fetch language-wise aggregated scores for the participant to show on summary screen.
+    """
+    participant = await participants_collection.find_one({
+        "username": username,
+        "participations.contest_id": contest_id
+    })
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant record not found")
+        
+    participation = next((p for p in participant.get("participations", []) if p.get("contest_id") == contest_id), None)
+    
+    if not participation:
+        raise HTTPException(status_code=404, detail="Participation details not found")
+        
+    round_scores = participation.get("round_scores", [])
+    languages = {}
+    
+    for rs in round_scores:
+        lang = rs.get("language")
+        score = rs.get("score", 0)
+        if lang not in languages:
+            languages[lang] = {"total": 0, "scores": []}
+        languages[lang]["total"] += score
+        languages[lang]["scores"].append(score)
+        
+    breakdown = []
+    for lang, data in languages.items():
+        breakdown.append({
+            "language": lang,
+            "total": data["total"],
+            "calculation": " + ".join(map(str, data["scores"])) + f" = {data['total']}"
+        })
+        
+    return {
+        "total_score": participation.get("total_score", 0),
+        "breakdown": breakdown
+    }
