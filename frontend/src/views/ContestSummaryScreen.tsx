@@ -2,11 +2,15 @@ import React, { useMemo, useState, useEffect } from 'react';
 import Confetti from '../components/Confetti';
 import { contestService } from '../services/contestService';
 
+import { authService } from '../services/authService';
 import { LeaderboardEntry, LeaderboardResponse } from '../types/contestTypes';
 
 interface ContestScore {
+    level: number;
+    round: number;
     language: string;
     score: number;
+    time_taken?: number;
 }
 
 interface ContestSummaryScreenProps {
@@ -31,6 +35,61 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
     const totalScore = (contestScores || []).reduce((acc, curr) => acc + (curr.score || 0), 0);
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
+    const [backendSummary, setBackendSummary] = useState<{ total_score: number; breakdown: any[] } | null>(null);
+    const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+
+    useEffect(() => {
+        const fetchSummary = async () => {
+            const username = authService.getUsername();
+            if (contestId && username) {
+                setIsLoadingSummary(true);
+                try {
+                    const data = await contestService.getParticipantSummary(contestId, username);
+                    setBackendSummary(data);
+                } catch (err) {
+                    console.error("Failed to fetch participant summary:", err);
+                } finally {
+                    setIsLoadingSummary(false);
+                }
+            }
+        };
+        fetchSummary();
+    }, [contestId]);
+
+    // Group scores by language (fallback)
+    const localGroupedScores = useMemo(() => {
+        const groups: Record<string, { total: number, scores: number[] }> = {};
+        (contestScores || []).forEach(item => {
+            if (!groups[item.language]) {
+                groups[item.language] = { total: 0, scores: [] };
+            }
+            groups[item.language].total += (item.score || 0);
+            groups[item.language].scores.push(item.score || 0);
+        });
+        return Object.entries(groups).map(([language, data]) => ({
+            language,
+            total: data.total,
+            breakdown: data.scores.join(' + ') + ' = ' + data.total
+        }));
+    }, [contestScores]);
+
+    const finalGroupedScores = useMemo(() => {
+        if (backendSummary) {
+            return backendSummary.breakdown.map(b => ({
+                language: b.language,
+                total: b.total,
+                breakdown: b.calculation
+            }));
+        }
+        return localGroupedScores;
+    }, [backendSummary, localGroupedScores]);
+
+    const finalTotalScore = backendSummary ? backendSummary.total_score : totalScore;
+
+    const finalTotalBreakdown = useMemo(() => {
+        if (finalGroupedScores.length <= 1) return null;
+        return finalGroupedScores.map(s => s.total).join(' + ') + ' = ' + finalTotalScore;
+    }, [finalGroupedScores, finalTotalScore]);
 
     useEffect(() => {
         const fetchLeaderboard = async () => {
@@ -74,14 +133,21 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
                         <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">Your Performance</h3>
 
                         <div className="space-y-4">
-                            {(contestScores || []).map((item, idx) => (
-                                <div key={idx} className="flex items-center justify-between group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-2 h-2 rounded-full bg-teal-500 group-hover:scale-150 transition-transform"></div>
-                                        <span className="text-lg text-slate-200 font-medium">{item.language}</span>
+                            {isLoadingSummary ? (
+                                <div className="text-center py-4 text-slate-500 italic">Calculating breakdown...</div>
+                            ) : finalGroupedScores.map((item, idx) => (
+                                <div key={idx} className="flex items-center justify-between group p-3 bg-slate-800/40 rounded-xl border border-slate-700/30 hover:bg-slate-800/60 transition-colors">
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2 h-2 rounded-full bg-teal-500 group-hover:scale-150 transition-transform"></div>
+                                            <span className="text-lg text-slate-200 font-bold">{item.language}</span>
+                                        </div>
+                                        <div className="ml-5 mt-1 text-xs text-slate-400 font-mono tracking-tight">
+                                            {item.breakdown}
+                                        </div>
                                     </div>
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-2xl font-bold text-teal-400">{item.score || 0}</span>
+                                        <span className="text-2xl font-black text-teal-400">{item.total}</span>
                                         <span className="text-slate-500 text-xs">pts</span>
                                     </div>
                                 </div>
@@ -90,10 +156,17 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
 
                         <div className="mt-8 pt-6 border-t border-slate-700">
                             <div className="flex items-center justify-between">
-                                <span className="text-xl font-bold text-white">Your Total Score</span>
+                                <div className="flex flex-col">
+                                    <span className="text-xl font-bold text-white">Your Grand Total</span>
+                                    {finalTotalBreakdown && (
+                                        <span className="text-xs font-mono text-slate-500 mt-1 uppercase tracking-wider">
+                                            {finalTotalBreakdown}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="flex flex-col items-end">
                                     <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 to-orange-500">
-                                        {totalScore}
+                                        {finalTotalScore}
                                     </span>
                                 </div>
                             </div>

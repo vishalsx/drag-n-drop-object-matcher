@@ -331,17 +331,8 @@ export const useGame = (
                 );
 
                 if (data.length > 0) {
-                    // Filter out objects without quiz questions for learners mode
-                    const validData = data.filter((item: any) => item.quiz_qa && item.quiz_qa.length > 0);
-
-                    if (validData.length === 0) {
-                        console.warn("No Level 1 data with valid quiz questions found for segment, skipping...");
-                        handleSegmentComplete(true);
-                        return;
-                    }
-
                     // Transform contest API response to GameObject format
-                    const gameData: GameObject[] = validData.map((item: any) => ({
+                    const gameData: GameObject[] = data.map((item: any) => ({
                         id: item.translation_id,
                         objectId: item.object_id,
                         description: item.object_hint,
@@ -623,6 +614,10 @@ export const useGame = (
                                 queue.splice(0, levelMatchIndex);
                             }
                         }
+                    } else if (resumeState.status === "completed") {
+                        console.log("[useGame] Contest already completed. Showing summary.");
+                        setGameState('complete');
+                        return;
                     }
                 }
             } catch (err: any) {

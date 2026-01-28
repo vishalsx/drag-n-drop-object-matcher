@@ -223,5 +223,22 @@ export const contestService = {
             console.error('Failed to log progress:', error);
             // Non-blocking, so we just log the error
         }
+    },
+
+    getParticipantSummary: async (contestId: string, username: string): Promise<{ total_score: number; breakdown: any[] }> => {
+        try {
+            const token = authService.getToken();
+            const response = await axios.get(
+                `${API_BASE_URL}/contest/${contestId}/participant/summary`,
+                {
+                    params: { username },
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Failed to get participant summary:', error);
+            throw error;
+        }
     }
 };
