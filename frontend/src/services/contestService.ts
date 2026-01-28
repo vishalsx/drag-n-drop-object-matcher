@@ -180,5 +180,48 @@ export const contestService = {
             console.error('Failed to fetch game content:', error);
             throw error;
         }
+    },
+
+    enterContest: async (contestId: string): Promise<any> => {
+        try {
+            const token = authService.getToken();
+            const username = authService.getUsername();
+            const response = await axios.post(
+                `${API_BASE_URL}/contest/enter`,
+                { contest_id: contestId },
+                {
+                    params: { current_username: username },
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Failed to enter contest:', error);
+            throw error;
+        }
+    },
+
+    logProgress: async (data: {
+        contest_id: string;
+        username: string;
+        level: number;
+        round: number;
+        score: number;
+        language: string;
+        time_taken: number;
+    }): Promise<void> => {
+        try {
+            const token = authService.getToken();
+            await axios.post(
+                `${API_BASE_URL}/contest/log-progress`,
+                data,
+                {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                }
+            );
+        } catch (error) {
+            console.error('Failed to log progress:', error);
+            // Non-blocking, so we just log the error
+        }
     }
 };

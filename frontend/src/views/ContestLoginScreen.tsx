@@ -100,8 +100,16 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                 }
             }
         } catch (err: any) {
+            console.error("Login Error:", err);
             const detail = err.response?.data?.detail;
-            setError(typeof detail === 'string' ? detail : 'Authentication failed. Please check your details.');
+
+            if (detail && detail.includes("disqualified")) {
+                setError("You have been disqualified from this contest due to excessive incomplete attempts.");
+            } else if (detail) {
+                setError(typeof detail === 'string' ? detail : 'Authentication failed.');
+            } else {
+                setError('Authentication failed. Please check your details.');
+            }
         } finally {
             setIsLoading(false);
         }

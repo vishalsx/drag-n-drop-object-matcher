@@ -74,6 +74,7 @@ interface GameViewProps {
     transitionMessage?: string | null;
     handleQuizComplete?: (score: number, correct: number, timeLeft?: number) => void;
     setLevel2Timer: React.Dispatch<React.SetStateAction<number>>;
+    attemptsLeft?: number | null;
 }
 
 const GameView: React.FC<GameViewProps> = (props) => {
@@ -535,7 +536,16 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                             </div>
 
                                             {/* Instructions */}
-                                            {!props.contestDetails && (
+                                            {props.contestDetails ? (
+                                                <div className="w-full text-center pb-8 space-y-2">
+                                                    <p className="text-white text-xl font-bold">Contest Entry Screen</p>
+                                                    {props.attemptsLeft !== undefined && props.attemptsLeft !== null && (
+                                                        <p className="text-orange-400 text-sm font-bold uppercase tracking-widest bg-orange-400/10 px-4 py-1.5 rounded-full inline-block border border-orange-400/20">
+                                                            Attempts Remaining: {props.attemptsLeft}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : (
                                                 <div className="w-full text-center pb-8">
                                                     <p className="text-slate-400 text-lg">Choose your settings and click 'Play Game' to begin!</p>
                                                 </div>
@@ -571,9 +581,18 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                                         <span className="font-semibold text-teal-300 text-lg">{props.transitionMessage}</span>
                                                     ) : props.contestDetails ? (
                                                         // Loading contest
-                                                        <>
-                                                            Starting <span className="font-semibold text-white">Contest: {props.contestDetails.name?.en}</span> in <span className="font-semibold text-white">{props.selectedLanguageName}</span>.
-                                                        </>
+                                                        <div className="space-y-3">
+                                                            <p>
+                                                                Starting <span className="font-semibold text-white">Contest: {props.contestDetails.name?.en}</span> in <span className="font-semibold text-white">{props.selectedLanguageName}</span>.
+                                                            </p>
+                                                            {props.attemptsLeft !== undefined && props.attemptsLeft !== null && (
+                                                                <div className="flex justify-center">
+                                                                    <span className="text-orange-400 text-xs font-black uppercase tracking-widest border border-orange-400/30 px-3 py-1 rounded-lg bg-orange-400/5">
+                                                                        Attempts Remaining: {props.attemptsLeft}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     ) : props.selectedPageId && props.selectedBookTitle ? (
                                                         // Loading from playlist
                                                         <>

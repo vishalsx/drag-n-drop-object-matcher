@@ -3,6 +3,7 @@ import type { GameObject, Difficulty, Language, CategoryFosItem } from '../types
 import type { Level2GameState, Level2PictureData } from '../types/level2Types';
 import type { Contest, GameStructure, LevelStructure, RoundStructure } from '../types/contestTypes';
 import { fetchGameData, uploadScore, voteOnImage, saveTranslationSet, fetchCategoriesAndFos, fetchActiveLanguages, fetchContestLevelContent } from '../services/gameService';
+import { contestService } from '../services/contestService';
 import { useContestAnalytics } from './useContestAnalytics';
 import { RoundStatus } from '../types/analyticsTypes';
 import { authService } from '../services/authService';
@@ -107,6 +108,8 @@ export const useGame = (
     const [roundCompletionData, setRoundCompletionData] = useState<{
         levelName: string;
         roundName: string;
+        levelSeq: number;
+        roundSeq: number;
         language: string;
         score: number;
         baseScore: number;
@@ -117,6 +120,7 @@ export const useGame = (
     const { playCorrectSound, playWrongSound, playGameCompleteSound, playYaySound } = useSoundEffects();
     const { speakText, stop } = useSpeech();
     const [username, setUsername] = useState<string | null>(null);
+    const resumeAttemptsLeftRef = useRef<number | null>(null);
 
     const objectIds = useMemo(() => gameData.map(d => d.id), [gameData]);
 
@@ -135,6 +139,16 @@ export const useGame = (
         objectIds,
         authToken
     });
+
+    const scoreAtRoundStartRef = useRef<number>(0);
+
+    const [resumeNotificationData, setResumeNotificationData] = useState<{
+        level: number;
+        round: number;
+        score: number;
+        attemptsLeft: number;
+        previousScores?: any[];
+    } | null>(null);
 
     // Get the token to trigger re-fetch when it changes (e.g. after login)
     const token = authService.getToken();
@@ -260,9 +274,11 @@ export const useGame = (
                             setRoundCompletionData({
                                 levelName: currentSegment.level.level_name,
                                 roundName: currentSegment.round.round_name,
+                                levelSeq: currentSegment.level.level_seq,
+                                roundSeq: currentSegment.round.round_seq,
                                 language: currentSegment.language,
                                 score: score,
-                                baseScore: score,
+                                baseScore: scoreAtRoundStartRef.current,
                                 timeBonus: 0,
                                 timeElapsed: currentSegment.round.time_limit_seconds
                             });
@@ -280,8 +296,10 @@ export const useGame = (
     }, [gameState, gameLevel, isContest, showRoundCompletionModal, currentSegment, score]);
 
     // Helper to start a segment from queue
-    const startSegment = async (segment: GameSegment) => {
+    const startSegment = async (segment: GameSegment, initialScore?: number) => {
         setGameState('loading');
+
+        const effectiveScore = initialScore ?? score;
 
         // Find language name
         const currentLangObj = languages.find(l =>
@@ -402,7 +420,7 @@ export const useGame = (
                 setLevel2State({
                     currentPictureIndex: 0,
                     pictures: shuffleArray(picturesData),
-                    score: score, // Carry over score
+                    score: effectiveScore, // Carry over score
                     elapsedTime: 0,
                     isComplete: false
                 });
@@ -412,7 +430,7 @@ export const useGame = (
                 if (isContest) {
                     segmentStartTimeRef.current = Date.now();
                     startRound(picturesData.map(d => d.pictureId));
-                    submitAnalytics(RoundStatus.STARTED, score);
+                    submitAnalytics(RoundStatus.STARTED, effectiveScore);
                 }
                 setGameState('playing');
                 setTransitionMessage(null);
@@ -432,6 +450,22 @@ export const useGame = (
             console.error('[useGame] Analytics submission failed (background):', err)
         );
 
+        // Log progress to backend (Resume Feature)
+        if (isContest && username && currentSegment && contestId) {
+            const timeUsed = currentSegment.round.time_limit_seconds - (gameLevel === 1 ? level1Timer : level2Timer);
+            const incrementalScore = Math.max(0, score - scoreAtRoundStartRef.current);
+
+            contestService.logProgress({
+                contest_id: contestId,
+                username: username,
+                level: currentSegment.level.level_seq,
+                round: currentSegment.round.round_seq,
+                score: incrementalScore,
+                language: currentSegment.language,
+                time_taken: timeUsed
+            });
+        }
+
         // Add current round objects to level1Objects array for Level 2
         setLevel1Objects(prev => [...prev, ...gameData]);
 
@@ -445,27 +479,29 @@ export const useGame = (
 
             // Start next segment
             setCorrectlyMatchedIds(new Set());
+            // Do NOT reset score in contest mode
             if (!isContest) {
                 setScore(0);
             }
 
             // Start next segment
-            startSegment(nextSegment);
+            startSegment(nextSegment, score);
         } else {
             // All segments complete
             console.log('[useGame] All segments complete!');
             setGameState('complete');
             playGameCompleteSound();
         }
-    }, [segmentQueue, gameData, submitAnalytics, score, playGameCompleteSound]);
+    }, [segmentQueue, gameData, submitAnalytics, score, playGameCompleteSound, isContest, username, currentSegment, contestId, gameLevel, level1Timer, level2Timer]);
 
     // Handler for Continue button on round completion modal
     const handleContinueToNext = useCallback(() => {
+        scoreAtRoundStartRef.current = score;
         console.log('[useGame] User clicked Continue button');
         setShowRoundCompletionModal(false);
         setRoundCompletionData(null);
         handleSegmentComplete(false);
-    }, [handleSegmentComplete]);
+    }, [handleSegmentComplete, score]);
 
     const currentLanguageBcp47 = useMemo(() => {
         // In contest mode, always use the language of the current segment if available
@@ -485,7 +521,9 @@ export const useGame = (
         setSheetSaveState('idle');
         setSheetSaveError(null);
         setLevel1Objects([]); // Reset accumulated objects
+        scoreAtRoundStartRef.current = 0; // Initialize score tracker for round 1
 
+        setGameState('loading');
         if (isContest) {
             console.log("[useGame] ========== CONTEST FLOW START ==========");
             console.log("[useGame] contestDetails:", JSON.stringify(contestDetails, null, 2));
@@ -518,6 +556,7 @@ export const useGame = (
                 console.error("[useGame] contestDetails:", contestDetails);
                 console.error("[useGame] gameStructure:", gameStructure);
                 setGameStartError("Invalid contest configuration.");
+                setGameState('idle');
                 return;
             }
 
@@ -537,6 +576,65 @@ export const useGame = (
                 });
             });
 
+            // RESUME LOGIC
+            try {
+                if (contestId) {
+                    const resumeState = await contestService.enterContest(contestId);
+                    console.log("[useGame] Resume State:", resumeState);
+
+                    if (resumeState.attempts_left !== undefined) {
+                        resumeAttemptsLeftRef.current = resumeState.attempts_left;
+                    }
+
+                    setResumeNotificationData({
+                        level: resumeState.resume_level || 1,
+                        round: resumeState.resume_round || 1,
+                        score: resumeState.current_score || 0,
+                        attemptsLeft: resumeState.attempts_left,
+                        previousScores: resumeState.previous_scores || []
+                    });
+
+                    if (resumeState.status === "in_progress") {
+                        // Restore Score
+                        setScore(resumeState.current_score || 0);
+                        scoreAtRoundStartRef.current = resumeState.current_score || 0;
+
+                        // Find where to resume in the queue
+                        const resumeLevel = resumeState.resume_level || 1;
+                        const resumeRound = resumeState.resume_round || 1;
+                        const resumeLang = resumeState.resume_language;
+
+                        console.log(`[useGame] Attempting to Resume: Level ${resumeLevel}, Round ${resumeRound}, Lang ${resumeLang || 'Any'}`);
+
+                        const resumeIndex = queue.findIndex(s =>
+                            s.level.level_seq === resumeLevel &&
+                            s.round.round_seq === resumeRound &&
+                            (!resumeLang || s.language.toLowerCase() === resumeLang.toLowerCase())
+                        );
+
+                        if (resumeIndex > 0) {
+                            console.log(`[useGame] Resuming... Skipping ${resumeIndex} segments.`);
+                            queue.splice(0, resumeIndex);
+                        } else if (resumeIndex === -1 && (resumeLevel > 1 || resumeRound > 1)) {
+                            // Precise match failed, fallback to level matching
+                            const levelMatchIndex = queue.findIndex(s => s.level.level_seq === resumeLevel);
+                            if (levelMatchIndex >= 0) {
+                                console.warn(`[useGame] Precise resume match failed. Falling back to Level ${resumeLevel} start.`);
+                                queue.splice(0, levelMatchIndex);
+                            }
+                        }
+                    }
+                }
+            } catch (err: any) {
+                console.error("[useGame] Failed to load resume state:", err);
+                if (err.response && (err.response.status === 403)) { // Disqualified
+                    setGameStartError(err.response.data.detail || "Contest entry denied.");
+                    setGameState('idle');
+                    return;
+                }
+                setGameState('idle');
+            }
+
             console.log("Segment Queue Built:", queue);
 
             if (queue.length > 0) {
@@ -544,10 +642,15 @@ export const useGame = (
                 if (first) {
                     setSegmentQueue(queue);
                     setCurrentSegment(first);
-                    startSegment(first);
+
+                    // PASS RESTORED SCORE DIRECTLY
+                    // Using 0 as default if no resume state
+                    const startScore = scoreAtRoundStartRef.current;
+                    startSegment(first, startScore);
                 }
             } else {
                 setGameStartError("Empty contest structure.");
+                setGameState('idle');
             }
 
             return; // Exit standard flow
@@ -659,12 +762,29 @@ export const useGame = (
                     }
 
                     const finalRoundScore = score + timeBonus;
+                    const incrementalScore = Math.max(0, finalRoundScore - scoreAtRoundStartRef.current);
+
                     setScore(finalRoundScore);
+
+                    // Log progress immediately when round completes
+                    if (username && contestId) {
+                        contestService.logProgress({
+                            contest_id: contestId,
+                            username: username,
+                            level: currentSegment.level.level_seq,
+                            round: currentSegment.round.round_seq,
+                            score: incrementalScore,
+                            language: currentSegment.language,
+                            time_taken: timeUsed
+                        }).catch(err => console.error('[useGame] Failed to log progress:', err));
+                    }
 
                     // Show modal for contest mode
                     setRoundCompletionData({
                         levelName: currentSegment.level.level_name,
                         roundName: currentSegment.round.round_name,
+                        levelSeq: currentSegment.level.level_seq,
+                        roundSeq: currentSegment.round.round_seq,
                         language: currentSegment.language,
                         score: finalRoundScore,
                         baseScore: score,
@@ -943,6 +1063,8 @@ export const useGame = (
                                 setRoundCompletionData({
                                     levelName: currentSegment.level.level_name,
                                     roundName: currentSegment.round.round_name,
+                                    levelSeq: currentSegment.level.level_seq,
+                                    roundSeq: currentSegment.round.round_seq,
                                     language: currentSegment.language,
                                     score: finalRoundScore,
                                     baseScore: finalRoundScore,
@@ -1170,6 +1292,7 @@ export const useGame = (
 
             const totalRoundScore = quizScore + timeBonus;
             const finalScore = score + totalRoundScore;
+            const incrementalScore = Math.max(0, finalScore - scoreAtRoundStartRef.current);
 
             console.log(`[ScoreDebug] useGame.handleQuizComplete:`, {
                 prevTotalScore: score,
@@ -1183,9 +1306,24 @@ export const useGame = (
 
             setScore(finalScore);
 
+            // Log progress immediately when quiz completes
+            if (username && contestId) {
+                contestService.logProgress({
+                    contest_id: contestId,
+                    username: username,
+                    level: currentSegment.level.level_seq,
+                    round: currentSegment.round.round_seq,
+                    score: incrementalScore,
+                    language: currentSegment.language,
+                    time_taken: timeUsed
+                }).catch(err => console.error('[useGame] Failed to log quiz progress:', err));
+            }
+
             setRoundCompletionData({
                 levelName: currentSegment.level.level_name,
                 roundName: currentSegment.round.round_name,
+                levelSeq: currentSegment.level.level_seq,
+                roundSeq: currentSegment.round.round_seq,
                 language: currentSegment.language,
                 score: finalScore,
                 baseScore: score + quizScore,
@@ -1222,14 +1360,30 @@ export const useGame = (
             }
 
             const newTotalScore = currentBaseScore + timeBonus;
+            const incrementalScore = Math.max(0, newTotalScore - scoreAtRoundStartRef.current);
 
             console.log(`[ScoreDebug] Legacy Quiz Round Final: Base=${currentBaseScore}, Bonus=${timeBonus}, Total=${newTotalScore}`);
 
             setScore(newTotalScore);
 
+            // Log progress immediately when quiz completes
+            if (username && contestId) {
+                contestService.logProgress({
+                    contest_id: contestId,
+                    username: username,
+                    level: currentSegment.level.level_seq,
+                    round: currentSegment.round.round_seq,
+                    score: incrementalScore,
+                    language: currentSegment.language,
+                    time_taken: timeUsed
+                }).catch(err => console.error('[useGame] Failed to log legacy quiz progress:', err));
+            }
+
             setRoundCompletionData({
                 levelName: currentSegment.level.level_name,
                 roundName: currentSegment.round.round_name,
+                levelSeq: currentSegment.level.level_seq,
+                roundSeq: currentSegment.round.round_seq,
                 language: currentSegment.language,
                 score: newTotalScore,
                 baseScore: currentBaseScore,
@@ -1363,6 +1517,12 @@ export const useGame = (
 
         // Analytics
         trackVisibilityChange,
-        trackHintFlip
+        trackHintFlip,
+
+        // Resume Info
+        attemptsLeft: resumeAttemptsLeftRef.current,
+        resumeNotificationData,
+        previousScores: resumeNotificationData?.previousScores || [],
+        clearResumeNotification: useCallback(() => setResumeNotificationData(null), [])
     };
 };

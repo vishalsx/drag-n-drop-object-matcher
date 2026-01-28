@@ -14,6 +14,7 @@ import ContestSummaryScreen from './views/ContestSummaryScreen';
 import ContestLoginScreen from './views/ContestLoginScreen';
 import ContestDashboard from './views/ContestDashboard';
 import ContestErrorModal from './components/ContestErrorModal';
+import { ResumeNotification } from './components/ResumeNotification';
 import { SpinnerIcon } from './components/Icons.tsx';
 import AlertDialog from './components/AlertDialog';
 import SaveSetDialog from './components/SaveSetDialog';
@@ -139,7 +140,11 @@ const App: React.FC = () => {
         handleContinueToNext,
         transitionMessage,
         handleQuizComplete,
-        setLevel2Timer
+        setLevel2Timer,
+        resumeNotificationData,
+        clearResumeNotification,
+        attemptsLeft,
+        previousScores
     } = useGame(isOrgChecked, param2 === 'contest', contestDetails?._id || contestDetails?.id, authService.getToken(), orgData?.org_id || null, contestDetails);
 
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
@@ -151,7 +156,7 @@ const App: React.FC = () => {
     const [transitionNextLangName, setTransitionNextLangName] = useState<string | null>(null);
     const [showTransitionModal, setShowTransitionModal] = useState(false);
     const [transitionShowTime, setTransitionShowTime] = useState<number>(0);
-    const [contestScores, setContestScores] = useState<{ language: string; score: number; time_taken?: number }[]>([]);
+    const [contestScores, setContestScores] = useState<{ level: number; round: number; language: string; score: number; time_taken?: number }[]>([]);
     const lastTotalScoreRef = useRef<number>(0);
     const lastProcessedRoundKey = useRef<string | null>(null);
     const isFinalScoreSubmitted = useRef<boolean>(false);
@@ -244,6 +249,20 @@ const App: React.FC = () => {
             const searchText = authService.getContestSearchText();
             const error = authService.getContestError();
 
+            // Sync contest scores on resume
+            if (previousScores.length > 0 && contestScores.length === 0) {
+                console.log('[App] Syncing previous scores from resume:', previousScores);
+                // previousScores from backend now has level/round
+                setContestScores(previousScores.map((ps: any) => ({
+                    level: ps.level || 0,
+                    round: ps.round || 0,
+                    language: ps.language,
+                    score: ps.score,
+                    time_taken: ps.time_taken
+                })));
+                lastTotalScoreRef.current = score; // Sync the baseline for future contributions
+            }
+
             console.log('[App] Contest Data Effect:', {
                 details: !!details,
                 hasGameStructure: !!details?.game_structure,
@@ -304,17 +323,29 @@ const App: React.FC = () => {
                 const roundContribution = roundScore - lastTotalScoreRef.current;
                 lastTotalScoreRef.current = roundScore;
 
-                const exists = prev.findIndex(p => p.language === currentLangName);
+                const exists = prev.findIndex(p =>
+                    p.level === roundCompletionData.levelSeq &&
+                    p.round === roundCompletionData.roundSeq &&
+                    p.language === currentLangName
+                );
+
                 if (exists !== -1) {
                     const newScores = [...prev];
                     newScores[exists] = {
-                        language: currentLangName,
+                        ...newScores[exists],
                         score: (prev[exists].score || 0) + roundContribution,
                         time_taken: (prev[exists].time_taken || 0) + roundTime
                     };
                     return newScores;
                 }
-                return [...prev, { language: currentLangName, score: roundContribution, time_taken: roundTime }];
+
+                return [...prev, {
+                    level: roundCompletionData.levelSeq,
+                    round: roundCompletionData.roundSeq,
+                    language: currentLangName,
+                    score: roundContribution,
+                    time_taken: roundTime
+                }];
             });
         }
     }, [showRoundCompletionModal, roundCompletionData, param2, selectedLanguage]);
@@ -594,6 +625,7 @@ const App: React.FC = () => {
                     transitionMessage={transitionMessage}
                     handleQuizComplete={handleQuizComplete}
                     setLevel2Timer={setLevel2Timer}
+                    attemptsLeft={attemptsLeft}
                 />
             )}
 
@@ -618,6 +650,17 @@ const App: React.FC = () => {
                         // Or logout? "Back" -> show summary.
                         setShowTransitionModal(false);
                     }}
+                />
+            )}
+
+            {resumeNotificationData && (
+                <ResumeNotification
+                    isVisible={!!resumeNotificationData}
+                    level={resumeNotificationData.level}
+                    round={resumeNotificationData.round}
+                    score={resumeNotificationData.score}
+                    attemptsLeft={resumeNotificationData.attemptsLeft}
+                    onClose={clearResumeNotification}
                 />
             )}
 
@@ -744,7 +787,13 @@ const App: React.FC = () => {
                 <AlertDialog
                     title="Could Not Start Game"
                     message={gameStartError}
-                    onClose={clearGameStartError}
+                    onClose={() => {
+                        clearGameStartError();
+                        if (param2 === 'contest') {
+                            const redirectUrl = orgData ? `/${orgData.org_code}/contest` : '/';
+                            window.location.href = redirectUrl;
+                        }
+                    }}
                 />
             )}
 
