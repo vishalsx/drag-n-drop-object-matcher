@@ -13,11 +13,16 @@ interface ContestScore {
     time_taken?: number;
 }
 
+interface LanguageInfo {
+    code: string;
+    name: string;
+}
+
 interface ContestSummaryScreenProps {
     contestScores: ContestScore[];
     contestName?: string;
     currentLanguage?: string;
-    languages?: any[];
+    languages?: LanguageInfo[];
     contestId?: string;
     onClose: () => void;
     nextLanguageName?: string;
@@ -28,6 +33,7 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
     contestScores,
     contestName = 'Contest',
     contestId,
+    languages = [],
     onClose,
     nextLanguageName,
     onNextRound
@@ -37,6 +43,20 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
     const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
     const [backendSummary, setBackendSummary] = useState<{ total_score: number; breakdown: any[] } | null>(null);
     const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+
+    // Helper function to convert language code/value to proper language name
+    const getLanguageName = (langCodeOrName: string): string => {
+        if (!langCodeOrName) return langCodeOrName;
+
+        // Try to find in languages array by code or name (case-insensitive)
+        const langObj = languages.find(l =>
+            l.code?.toLowerCase() === langCodeOrName.toLowerCase() ||
+            l.name?.toLowerCase() === langCodeOrName.toLowerCase()
+        );
+
+        // Return the full language name if found, otherwise return as-is
+        return langObj?.name || langCodeOrName;
+    };
 
     useEffect(() => {
         const fetchSummary = async () => {
@@ -60,29 +80,32 @@ const ContestSummaryScreen: React.FC<ContestSummaryScreenProps> = ({
     const localGroupedScores = useMemo(() => {
         const groups: Record<string, { total: number, scores: number[] }> = {};
         (contestScores || []).forEach(item => {
-            if (!groups[item.language]) {
-                groups[item.language] = { total: 0, scores: [] };
+            // Map language to proper name before grouping
+            const langName = getLanguageName(item.language);
+            if (!groups[langName]) {
+                groups[langName] = { total: 0, scores: [] };
             }
-            groups[item.language].total += (item.score || 0);
-            groups[item.language].scores.push(item.score || 0);
+            groups[langName].total += (item.score || 0);
+            groups[langName].scores.push(item.score || 0);
         });
         return Object.entries(groups).map(([language, data]) => ({
             language,
             total: data.total,
             breakdown: data.scores.join(' + ') + ' = ' + data.total
         }));
-    }, [contestScores]);
+    }, [contestScores, languages]);
 
     const finalGroupedScores = useMemo(() => {
         if (backendSummary) {
+            // Map backend language values to proper names
             return backendSummary.breakdown.map(b => ({
-                language: b.language,
+                language: getLanguageName(b.language),
                 total: b.total,
                 breakdown: b.calculation
             }));
         }
         return localGroupedScores;
-    }, [backendSummary, localGroupedScores]);
+    }, [backendSummary, localGroupedScores, languages]);
 
     const finalTotalScore = backendSummary ? backendSummary.total_score : totalScore;
 

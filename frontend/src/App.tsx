@@ -148,6 +148,21 @@ const App: React.FC = () => {
         previousScores
     } = useGame(isOrgChecked, param2 === 'contest', contestDetails?._id || contestDetails?.id, authService.getToken(), orgData?.org_id || null, contestDetails);
 
+    // Helper function to map language code/value to proper language name
+    // Uses contest's supported_languages as the canonical list and maps to full names from languages array
+    const getLanguageName = (langCodeOrName: string): string => {
+        if (!langCodeOrName) return langCodeOrName;
+
+        // Try to find in languages array by code or name (case-insensitive)
+        const langObj = languages.find(l =>
+            l.code?.toLowerCase() === langCodeOrName.toLowerCase() ||
+            l.name?.toLowerCase() === langCodeOrName.toLowerCase()
+        );
+
+        // Return the full language name if found, otherwise return as-is
+        return langObj?.name || langCodeOrName;
+    };
+
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [contestSearchText, setContestSearchText] = useState<string | null>(null);
@@ -269,10 +284,11 @@ const App: React.FC = () => {
             if (previousScores.length > 0 && contestScores.length === 0) {
                 console.log('[App] Syncing previous scores from resume:', previousScores);
                 // previousScores from backend now has level/round
+                // Map language codes to proper language names
                 setContestScores(previousScores.map((ps: any) => ({
                     level: ps.level || 0,
                     round: ps.round || 0,
-                    language: ps.language,
+                    language: getLanguageName(ps.language),
                     score: ps.score,
                     time_taken: ps.time_taken
                 })));
@@ -319,7 +335,8 @@ const App: React.FC = () => {
         const hasValidStructure = contestDetails?.game_structure || (contestDetails as any)?.round_structure;
 
         if (param2 === 'contest' && gameState === 'idle' && contestDetails?.supported_languages?.length > 0 && hasValidStructure && !gameStartError) {
-            const firstLangName = contestDetails.supported_languages[0];
+            // Convert the first language from supported_languages to proper language name
+            const firstLangName = getLanguageName(contestDetails.supported_languages[0]);
 
             console.log(`[Contest Auto-Start] Target: ${firstLangName}, Has Structure: ${!!hasValidStructure}`);
 
@@ -331,11 +348,12 @@ const App: React.FC = () => {
                 setPendingContestStart(true);
             }
         }
-    }, [contestDetails, gameState, selectedLanguage, pendingContestStart, gameStartError, setSelectedLanguage, param2]);
+    }, [contestDetails, gameState, selectedLanguage, pendingContestStart, gameStartError, setSelectedLanguage, param2, languages]);
 
     useEffect(() => {
         if (param2 === 'contest' && showRoundCompletionModal && roundCompletionData) {
-            const currentLangName = selectedLanguage;
+            // Convert selectedLanguage to proper language name using helper
+            const currentLangName = getLanguageName(selectedLanguage);
             const roundScore = roundCompletionData.score;
             const roundTime = roundCompletionData.timeElapsed;
             const roundKey = `${roundCompletionData.levelName}-${roundCompletionData.roundName}-${currentLangName}`;
@@ -376,7 +394,7 @@ const App: React.FC = () => {
                 }];
             });
         }
-    }, [showRoundCompletionModal, roundCompletionData, param2, selectedLanguage]);
+    }, [showRoundCompletionModal, roundCompletionData, param2, selectedLanguage, languages]);
 
     // Contest: Auto-rotation logic REMOVED.
     // useGame.ts now manages the full queue (Levels -> Rounds -> Languages).
@@ -720,6 +738,7 @@ const App: React.FC = () => {
                         contestScores={contestScores}
                         contestName={currentContestName}
                         contestId={contestDetails?._id || contestDetails?.id}
+                        languages={languages}
                         onClose={handleCloseCompletion}
                         nextLanguageName={transitionNextLangName}
                         onNextRound={handleConfirmNextLevel}
