@@ -209,7 +209,7 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                     </div>
                 )}
 
-                {!username && (
+                {!username && gameState === 'idle' && !orgData && (
                     <button
                         onClick={onShowLogin}
                         className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-sm font-bold rounded-full shadow-lg shadow-blue-600/20 transform hover:-translate-y-0.5 active:translate-y-0 transition-all"
