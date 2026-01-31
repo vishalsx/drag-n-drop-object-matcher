@@ -173,6 +173,8 @@ const App: React.FC = () => {
     });
 
     React.useEffect(() => {
+        // COMMENTED OUT: We want to allow unauthenticated play and support existing sessions
+        /*
         // Check if we just completed an anonymous login (indicated by flag)
         const justLoggedInAnonymously = localStorage.getItem('skip_logout_once');
 
@@ -184,6 +186,7 @@ const App: React.FC = () => {
             // Clear existing session on mount to treat each URL entry as a fresh request
             authService.logout();
         }
+        */
 
         const checkOrg = async () => {
             const pathSegments = window.location.pathname.split('/').filter(Boolean).filter(segment => segment.toLowerCase() !== 'index.html');
@@ -210,7 +213,8 @@ const App: React.FC = () => {
                     if (org.org_type === 'Private' || pathSegments[1] === 'contest') {
                         setShowLogin(true);
                     } else if (org.org_type === 'Public') {
-                        // For public orgs, auto-login anonymously if not already authenticated
+                        // COMMENTED OUT: For public orgs, let user play as unlogged user or use existing session
+                        /*
                         const isAuthenticated = authService.isAuthenticated();
                         if (!isAuthenticated) {
                             try {
@@ -228,6 +232,7 @@ const App: React.FC = () => {
                         } else {
                             console.log('[App] Public org detected, user already authenticated');
                         }
+                        */
                     }
                 }
             } else {
@@ -517,6 +522,7 @@ const App: React.FC = () => {
             orgName={orgData?.org_code}
             param2={param2}
             param3={param3}
+            isPublicOrg={orgData?.org_type === 'Public'}
             onLoginSuccess={() => {
                 setShowLogin(false);
             }}
@@ -579,9 +585,9 @@ const App: React.FC = () => {
                     window.location.href = '/';
                 }}
                 contestDetails={contestDetails}
-                currentLanguage={currentLanguageName}
                 languages={languages}
                 contestNameOverride={currentContestName}
+                onShowLogin={() => setShowLogin(true)}
             />
 
             {contestError && (

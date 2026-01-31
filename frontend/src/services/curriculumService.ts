@@ -36,8 +36,8 @@ export const curriculumService = {
             params.append('language', language);
         }
 
-        // Note: The backend endpoint is /curriculum/books/search.
-        const response = await authenticatedFetch(`${API_BASE_URL}/curriculum/books/search?${params.toString()}`);
+        // Use the new combined search endpoint that returns books+chapters+pages
+        const response = await authenticatedFetch(`${API_BASE_URL}/curriculum/books/external-search?${params.toString()}`);
         if (!response.ok) {
             throw new Error(`Failed to search books: ${response.statusText}`);
         }

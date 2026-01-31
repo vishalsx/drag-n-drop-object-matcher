@@ -312,7 +312,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
         };
 
         fetchTubSheets();
-    }, [props.selectedLanguage, props.languageBcp47, props.selectedCategory, props.selectedFos, props.gameState]); // Re-fetch on game state change (e.g. login/logout might affect this, though game state is not auth state. Ideally listen to auth state)
+    }, [props.selectedLanguage, props.languageBcp47, props.selectedCategory, props.selectedFos, props.gameState, props.languages, props.userId, props.orgData]); // Re-fetch on game state, language, user, or org change
 
     // Auto-collapse panel when game starts
     useEffect(() => {

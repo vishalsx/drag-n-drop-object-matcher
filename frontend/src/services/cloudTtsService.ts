@@ -11,25 +11,36 @@
 // export const fetchCloudTTS = async (text: string, languageCode: string): Promise<string | null> => {
 //     // Simulate network delay
 //     await new Promise(resolve => setTimeout(resolve, 150));
-    
+
 //     // Check if the request is for the specific text and language we have mocked
 //     if (text.toLowerCase() === 'light bulb' && languageCode.startsWith('en')) {
 //       return MOCK_AUDIO_BASE64;
 //     }
-  
+
 //     // For any other text, return null to indicate no audio is available from the mock service.
 //     return null;
 // };
 
-export const fetchCloudTTS = async (text: string, languageCode: string): Promise<string | null> => {
+export const fetchCloudTTS = async (text: string, languageCode: string, languageName?: string): Promise<string | null> => {
   const ttsUrl = import.meta.env.VITE_TTS_SERVICE_URL || "http://localhost:8080/tts";
-  
+
   try {
-    
+    // Build request body - include languageName if available (used in contest mode)
+    const requestBody: { text: string; languageCode?: string; languageName?: string } = { text };
+
+    if (languageName) {
+      requestBody.languageName = languageName;
+    }
+    if (languageCode) {
+      requestBody.languageCode = languageCode;
+    }
+
+    console.log(`[TTS] Requesting: text='${text.substring(0, 20)}...', languageCode='${languageCode}', languageName='${languageName}'`);
+
     const response = await fetch(ttsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, languageCode }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) throw new Error("TTS request failed");

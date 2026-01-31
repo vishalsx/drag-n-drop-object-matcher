@@ -69,13 +69,16 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
 };
 
 export const fetchActiveLanguages = async (orgId?: string | null): Promise<Language[]> => {
-  // Allow errors to propagate to the caller
-  const headers: Record<string, string> = {};
+  let response: Response;
+
   if (orgId) {
-    headers['X-Org-ID'] = orgId;
+    const headers: Record<string, string> = { 'X-Org-ID': orgId };
+    response = await authenticatedFetch(`${API_BASE_URL}/active/languages`, { headers });
+  } else {
+    // Force PUBLIC fetch by using raw fetch without any automatic X-Org-ID headers
+    response = await fetch(`${API_BASE_URL}/active/languages`);
   }
 
-  const response = await authenticatedFetch(`${API_BASE_URL}/active/languages`, { headers });
   if (!response.ok) {
     throw new Error(`Network response was not ok: ${response.statusText}`);
   }

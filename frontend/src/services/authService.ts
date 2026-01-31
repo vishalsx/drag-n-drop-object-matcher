@@ -10,6 +10,7 @@ interface LoginResponse {
     token_type: string;
     org_id?: string;
     username?: string;
+    languages_allowed?: string[];
     contest_details?: Contest;
     search_text?: string;
     contest_error?: string;
@@ -77,6 +78,13 @@ export const authService = {
                     localStorage.removeItem('contest_error');
                 }
 
+                // Store languages_allowed if available in the response
+                if (response.data.languages_allowed) {
+                    localStorage.setItem('languages_allowed', JSON.stringify(response.data.languages_allowed));
+                } else {
+                    localStorage.removeItem('languages_allowed');
+                }
+
                 return response.data.access_token;
             } else {
                 throw new Error('No access token received');
@@ -127,6 +135,7 @@ export const authService = {
         localStorage.removeItem('contest_search_text');
         localStorage.removeItem('contest_error');
         localStorage.removeItem('is_anonymous');
+        localStorage.removeItem('languages_allowed');
     },
 
     getToken: (): string | null => {
@@ -166,5 +175,33 @@ export const authService = {
         return localStorage.getItem('contest_error');
     },
 
+    register: async (data: {
+        username: string;
+        password: string;
+        email?: string;
+        age?: number;
+        country?: string;
+        phone?: string;
+        address?: string;
+        languages?: string[];
+    }): Promise<any> => {
+        try {
+            const response = await axios.post(`${API_BASE_URL}/auth/register`, data);
+            return response.data;
+        } catch (error) {
+            console.error('Registration failed:', error);
+            throw error;
+        }
+    },
 
+    getLanguagesAllowed: (): string[] | null => {
+        const langs = localStorage.getItem('languages_allowed');
+        console.log("[authService] getLanguagesAllowed raw from localStorage:", langs);
+        try {
+            return langs ? JSON.parse(langs) : null;
+        } catch (e) {
+            console.error("[authService] Failed to parse languages_allowed:", e);
+            return null;
+        }
+    }
 };

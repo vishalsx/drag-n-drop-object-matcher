@@ -41,10 +41,10 @@ export const useSpeech = () => {
         cancelBrowserSpeech();
     }, [cancelBrowserSpeech]);
 
-    const speakText = useCallback(async (text: string, languageCode: string) => {
+    const speakText = useCallback(async (text: string, languageCode: string, languageName?: string) => {
         if (USE_CLOUD_TTS) {
             try {
-                const audioUrl = await fetchCloudTTS(text, languageCode);
+                const audioUrl = await fetchCloudTTS(text, languageCode, languageName);
                 if (audioUrl) {
                     playAudioFromUrl(audioUrl);
                     return; // Successfully played cloud audio, so we're done.

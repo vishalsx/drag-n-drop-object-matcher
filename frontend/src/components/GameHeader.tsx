@@ -12,9 +12,10 @@ interface GameHeaderProps {
     currentLanguage?: string;
     languages?: any[];
     contestNameOverride?: string;
+    onShowLogin?: () => void;
 }
 
-const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, username, onLogout, contestDetails, currentLanguage, languages = [], contestNameOverride }) => {
+const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, username, onLogout, contestDetails, currentLanguage, languages = [], contestNameOverride, onShowLogin }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -206,6 +207,16 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                             </div>
                         )}
                     </div>
+                )}
+
+                {!username && (
+                    <button
+                        onClick={onShowLogin}
+                        className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-sm font-bold rounded-full shadow-lg shadow-blue-600/20 transform hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                    >
+                        <UserIcon className="w-4 h-4" />
+                        <span>Login / Register</span>
+                    </button>
                 )}
             </div>
         </div>

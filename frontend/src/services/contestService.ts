@@ -17,13 +17,23 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
 };
 
 export const contestService = {
-    checkParticipant: async (username: string): Promise<{ found: boolean; data?: any }> => {
+    checkParticipant: async (username: string): Promise<{ found: boolean; data?: any; message?: string }> => {
         try {
             const response = await axios.get(`${API_BASE_URL}/contest/check-participant/${username}`);
             return response.data;
         } catch (error) {
             console.error('Check participant error:', error);
             return { found: false };
+        }
+    },
+
+    authenticateParticipant: async (username: string, password: string): Promise<{ found: boolean; data?: any }> => {
+        try {
+            const response = await axios.post(`${API_BASE_URL}/contest/authenticate-participant`, { username, password });
+            return response.data;
+        } catch (error) {
+            console.error('Authenticate participant error:', error);
+            throw error;
         }
     },
 

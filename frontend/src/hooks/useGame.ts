@@ -134,6 +134,40 @@ export const useGame = (
     const { speakText, stop } = useSpeech();
     const [username, setUsername] = useState<string | null>(null);
     const resumeAttemptsLeftRef = useRef<number | null>(null);
+    const processingSegmentCompleteRef = useRef<boolean>(false);
+    const isTransitioningRef = useRef<boolean>(false);
+
+
+    const currentLanguageBcp47 = useMemo(() => {
+        // In contest mode, use the segment language directly - backend TTS will normalize it
+        if (isContest && currentSegment) {
+            console.log(`[useGame] currentLanguageBcp47: Contest mode - using segment language: '${currentSegment.language}'`);
+            return currentSegment.language;
+        }
+
+        // In learners mode, try to get BCP-47 from languages array
+        const currentLangObj = languages.find(l =>
+            l.code.toLowerCase() === (selectedLanguage || '').toLowerCase() ||
+            l.name.toLowerCase() === (selectedLanguage || '').toLowerCase()
+        );
+
+        const resolved = currentLangObj?.bcp47 || selectedLanguage || 'en-US';
+        console.log(`[useGame] currentLanguageBcp47: Learners mode - resolved to '${resolved}'`);
+        return resolved;
+    }, [selectedLanguage, languages, isContest, currentSegment]);
+
+    // Language name for TTS - in contest mode, use segment language name directly
+    const currentLanguageName = useMemo(() => {
+        if (isContest && currentSegment) {
+            return currentSegment.language; // e.g., "Hindi", "Bengali"
+        }
+        // In learners mode, try to get the name from the languages array
+        const currentLangObj = languages.find(l =>
+            l.code.toLowerCase() === (selectedLanguage || '').toLowerCase() ||
+            l.name.toLowerCase() === (selectedLanguage || '').toLowerCase()
+        );
+        return currentLangObj?.name || selectedLanguage;
+    }, [selectedLanguage, languages, isContest, currentSegment]);
 
     const objectIds = useMemo(() => gameData.map(d => d.id), [gameData]);
 
@@ -148,12 +182,20 @@ export const useGame = (
     } = useContestAnalytics({
         contestId,
         userId: authService.getUsername(), // Get directly from storage to avoid state sync lag
-        languageName: selectedLanguage,
+        languageName: currentLanguageName,
         objectIds,
         authToken
     });
 
     const scoreAtRoundStartRef = useRef<number>(0);
+    const scoreRef = useRef<number>(score);
+
+    // Keep scoreRef in sync with score state without causing re-renders
+    useEffect(() => {
+        scoreRef.current = score;
+    }, [score]);
+
+    const completionTriggeredRef = useRef<boolean>(false);
 
     const [resumeNotificationData, setResumeNotificationData] = useState<{
         level: number;
@@ -173,19 +215,42 @@ export const useGame = (
         const uname = authService.getUsername();
         if (uname) setUsername(uname);
 
-        if (!isOrgChecked || isContest) {
-            if (isContest) setIsAppLoading(false);
+        if (!isOrgChecked) {
             return;
         }
 
         const loadInitialData = async () => {
             try {
                 const effectiveOrgId = explicitOrgId || orgId;
-                const activeLanguages = await fetchActiveLanguages(effectiveOrgId);
+                let activeLanguages = await fetchActiveLanguages(effectiveOrgId);
+
+                // Filter languages for global users in the base area
+                if (!effectiveOrgId && authService.isAuthenticated()) {
+                    const allowedLangs = authService.getLanguagesAllowed();
+                    console.log("[useGame] Global context detected. Allowed languages from authService:", allowedLangs);
+
+                    if (allowedLangs && allowedLangs.length > 0) {
+                        activeLanguages = activeLanguages.filter(lang => {
+                            const isMatch = allowedLangs.some(al => {
+                                // Support both string array and object array formats
+                                const alStr = typeof al === 'string' ? al : (al as any).name || (al as any).code;
+                                if (!alStr) return false;
+
+                                return alStr.toLowerCase() === lang.name.toLowerCase() ||
+                                    alStr.toLowerCase() === lang.code.toLowerCase();
+                            });
+                            return isMatch;
+                        });
+                        console.log("[useGame] Filtered active languages:", activeLanguages.map(l => l.name));
+                    } else {
+                        console.warn("[useGame] User authenticated but no allowed languages found in localStorage.");
+                    }
+                }
+
                 setLanguages(activeLanguages);
 
                 if (activeLanguages.length > 0) {
-                    // Check if current/persisted language is still valid for this org
+                    // Check if current/persisted language is still valid for this context
                     const isCurrentValid = activeLanguages.some(lang => lang.code === selectedLanguage);
 
                     if (!isCurrentValid) {
@@ -293,8 +358,8 @@ export const useGame = (
 
     // Timer Effect for Level 1 Matching
     useEffect(() => {
-        // Don't run timer if modal is showing
-        if (showRoundCompletionModal) {
+        // Don't run timer if modal is showing, transitioning, or completion already triggered
+        if (showRoundCompletionModal || isTransitioningRef.current || completionTriggeredRef.current) {
             return;
         }
 
@@ -303,8 +368,16 @@ export const useGame = (
                 setLevel1Timer(prev => {
                     if (prev <= 0) {
                         clearInterval(timer);
-                        // Timer expired - show modal with time's up status
-                        console.log('[useGame] ⏰ Timer expired!');
+                        console.log('[useGame] ⏰ Timer expired!', { isTransitioning: isTransitioningRef.current, completionTriggered: completionTriggeredRef.current });
+
+                        // Prevent double triggering if a round completion is already pending or transitioning
+                        if (isTransitioningRef.current || completionTriggeredRef.current) {
+                            console.log('[useGame] Timer expired but transition or completion already triggered. Ignoring.');
+                            return prev; // Return prev instead of 0 to avoid leaking 0 to next round
+                        }
+
+                        completionTriggeredRef.current = true; // Set flag to prevent match completion from firing too
+
                         if (currentSegment) {
                             setRoundCompletionData({
                                 levelName: currentSegment.level.level_name,
@@ -363,6 +436,9 @@ export const useGame = (
 
     // Helper to start a segment from queue
     const startSegment = async (segment: GameSegment, initialScore?: number) => {
+        isTransitioningRef.current = true; // Still transitioning during setup
+        processingSegmentCompleteRef.current = false; // Reset completion guard when segment starts
+        completionTriggeredRef.current = false; // Reset completion trigger when segment starts
         setGameState('loading');
 
         const effectiveScore = initialScore ?? score;
@@ -422,14 +498,18 @@ export const useGame = (
                         segmentStartTimeRef.current = Date.now();
                         startRound(gameData.map(d => d.id));
                     }
+                    // Final confirmation that we are out of transition
+                    isTransitioningRef.current = false;
                     setGameState('playing');
                     setTransitionMessage(null);
                 } else {
                     console.error(`[DEBUG-useGame] No data found for segment (Level ${segment.level.level_seq}, Round ${segment.round.round_seq}, Lang ${segment.language}), skipping...`);
+                    isTransitioningRef.current = false;
                     handleSegmentComplete(true); // Skip empty round?
                 }
             } catch (error) {
                 console.error(`[DEBUG-useGame] Error fetching segment data (Level ${segment.level.level_seq}, Round ${segment.round.round_seq}, Lang ${segment.language}):`, error);
+                isTransitioningRef.current = false;
                 handleSegmentComplete(false);
             }
 
@@ -489,17 +569,31 @@ export const useGame = (
                     startRound(picturesData.map(d => d.pictureId));
                     submitAnalytics(RoundStatus.STARTED, effectiveScore);
                 }
+                isTransitioningRef.current = false; // Reset transitioning flag
                 setGameState('playing');
                 setTransitionMessage(null);
 
             } catch (error) {
                 console.error("Error starting quiz segment:", error);
+                isTransitioningRef.current = false; // Reset to allow handleSegmentComplete to proceed
                 handleSegmentComplete(false);
             }
         }
     };
 
     const handleSegmentComplete = useCallback(async (isFullTimerExpired: boolean) => {
+        if (processingSegmentCompleteRef.current) {
+            console.log('[DEBUG-useGame] handleSegmentComplete: Transition already in progress, ignoring.');
+            return;
+        }
+
+        if (!isFullTimerExpired) {
+            console.log('[DEBUG-useGame] handleSegmentComplete: Manual completion or timer expiration modal continue');
+        }
+
+        processingSegmentCompleteRef.current = true;
+        isTransitioningRef.current = true; // Mark as transitioning immediately
+        setGameState('loading'); // CRITICAL: Stop all timers and game logic immediately during transition
         console.log('[useGame] Segment Complete. Full Timer Expired:', isFullTimerExpired);
 
         // Submit analytics for this round - NON-BLOCKING
@@ -539,8 +633,15 @@ export const useGame = (
 
             // Start next segment
             setCorrectlyMatchedIds(new Set());
+            // Proactively reset timers to avoid bleed-through from previous round
+            setLevel1Timer(nextSegment.round.time_limit_seconds);
+            setLevel2Timer(nextSegment.round.time_limit_seconds);
+
             // Do NOT reset score in contest mode
-            if (!isContest) {
+            if (isContest) {
+                // IMPORTANT: update reference score for the NEXT round only when we are officially starting it
+                scoreAtRoundStartRef.current = score;
+            } else {
                 setScore(0);
             }
 
@@ -556,23 +657,12 @@ export const useGame = (
 
     // Handler for Continue button on round completion modal
     const handleContinueToNext = useCallback(() => {
-        scoreAtRoundStartRef.current = score;
         console.log('[useGame] User clicked Continue button');
         setShowRoundCompletionModal(false);
         setRoundCompletionData(null);
         handleSegmentComplete(false);
     }, [handleSegmentComplete, score]);
 
-    const currentLanguageBcp47 = useMemo(() => {
-        // In contest mode, always use the language of the current segment if available
-        const langToResolve = (isContest && currentSegment) ? currentSegment.language : selectedLanguage;
-
-        const currentLangObj = languages.find(l =>
-            l.code.toLowerCase() === langToResolve.toLowerCase() ||
-            l.name.toLowerCase() === langToResolve.toLowerCase()
-        );
-        return currentLangObj?.bcp47 || 'en-US';
-    }, [selectedLanguage, languages, isContest, currentSegment]);
 
     const handleStartGame = useCallback(async () => {
         setGameStartError(null);
@@ -626,11 +716,18 @@ export const useGame = (
             // User Requirement: Play all languages for a round before moving to next round.
             // gameStructure.levels -> level.rounds -> contestDetails.supported_languages
 
-            const supportedLangs = contestDetails.supported_languages || [selectedLanguage]; // Fallback
+            const supportedLangs = (contestDetails.supported_languages || [selectedLanguage]).map(lang => {
+                const found = languages.find(l =>
+                    l.code.toLowerCase() === lang.toLowerCase() ||
+                    l.name.toLowerCase() === lang.toLowerCase()
+                );
+                return found?.name || lang;
+            });
+            console.log("[useGame] Supported languages (mapped):", supportedLangs);
 
             gameStructure.levels.sort((a, b) => a.level_seq - b.level_seq).forEach(level => {
                 level.rounds.sort((a, b) => a.round_seq - b.round_seq).forEach(round => {
-                    supportedLangs.forEach(lang => { // Inner loop: Languages
+                    supportedLangs.forEach(lang => { // Inner loop: Languages (now mapped to names)
                         queue.push({ level, round, language: lang });
                     });
                 });
@@ -721,7 +818,9 @@ export const useGame = (
         }
 
         // Standard Game Flow (Non-Contest)
-        const count = difficultyCounts[difficulty];
+        // If a page is selected (playlist), we want all images from that page (up to reasonable max),
+        // ignoring the difficulty-based count which is meant for random mode.
+        const count = selectedPageId ? 50 : difficultyCounts[difficulty];
         setGameState('loading');
         // ... (rest of standard logic)
 
@@ -752,8 +851,9 @@ export const useGame = (
             orgCode
         );
         if (data.length > 0) {
-            // Filter out objects without quiz questions for learners mode
-            const validData = data.filter(item => item.quiz_qa && item.quiz_qa.length > 0);
+            // For standard learners mode (Matching), we don't strictly require quiz questions.
+            // Using all available data.
+            const validData = data;
 
             if (validData.length > 0) {
                 setGameData(validData);
@@ -768,10 +868,11 @@ export const useGame = (
                     startRound(validData.map(d => d.id));
                 }
             } else {
+                // Should be unreachable if data.length > 0
                 setGameData([]);
                 setShuffledDescriptions([]);
                 setShuffledImages([]);
-                setGameStartError('All objects found lack quiz questions for this language and category. Please try different settings.');
+                setGameStartError('No valid objects found. Please try different settings.');
                 setGameState('idle');
             }
         } else {
@@ -783,9 +884,7 @@ export const useGame = (
         }
     }, [selectedLanguage, difficulty, selectedCategory, selectedFos, selectedTubSheet, searchKeyword, languages, selectedBookId, selectedChapterId, selectedPageId, isContest, startRound, contestDetails]); // Added contestDetails dependency
 
-
-    // Ref to track if we've already triggered completion for the current round
-    const completionTriggeredRef = useRef(false);
+    // Reset completion flag when gameData or correctlyMatchedIds changes
 
     // Reset completion flag when gameData or correctlyMatchedIds changes
     useEffect(() => {
@@ -809,12 +908,24 @@ export const useGame = (
             console.log('[useGame] 🎯 ALL OBJECTS MATCHED! Waiting 1 second before showing completion...');
             completionTriggeredRef.current = true; // Set flag immediately to prevent re-trigger
 
+            // Capture the segment for which this timeout was started
+            const startingSegmentKey = currentSegment ? `${currentSegment.level.level_seq}-${currentSegment.round.round_seq}-${currentSegment.language}` : null;
+
             // Capture current timer value to calculate time taken
             const timeAtCompletion = level1Timer;
 
             // Level 1 Round Complete
             const timeout = setTimeout(() => {
-                console.log('[useGame] ✅ Round complete, showing modal/advancing');
+                // VERIFICATION: Check if we are still on the same segment after 1 second
+                const currentSegmentKey = currentSegment ? `${currentSegment.level.level_seq}-${currentSegment.round.round_seq}-${currentSegment.language}` : null;
+                if (startingSegmentKey !== currentSegmentKey) {
+                    console.log('[useGame] Completion timeout fired but segment already changed. Aborting.', { startingSegmentKey, currentSegmentKey });
+                    return;
+                }
+
+                const currentScore = scoreRef.current; // Use ref for latest score
+                console.log('[useGame] ✅ Round complete, showing modal/advancing, Final Score:', currentScore);
+
                 if (isContest && currentSegment) {
                     const timeUsed = currentSegment.round.time_limit_seconds - level1Timer;
                     const timeLeft = Math.max(0, currentSegment.round.time_limit_seconds - timeUsed);
@@ -825,23 +936,12 @@ export const useGame = (
                         timeBonus = timeLeft * multiplier;
                     }
 
-                    const finalRoundScore = score + timeBonus;
+                    const finalRoundScore = currentScore + timeBonus;
                     const incrementalScore = Math.max(0, finalRoundScore - scoreAtRoundStartRef.current);
 
                     setScore(finalRoundScore);
 
-                    // Log progress immediately when round completes
-                    if (username && contestId) {
-                        contestService.logProgress({
-                            contest_id: contestId,
-                            username: username,
-                            level: currentSegment.level.level_seq,
-                            round: currentSegment.round.round_seq,
-                            score: incrementalScore,
-                            language: currentSegment.language,
-                            time_taken: timeUsed
-                        }).catch(err => console.error('[useGame] Failed to log progress:', err));
-                    }
+                    // Log progress call removed from here - consolidated into handleSegmentComplete
 
                     // Show modal for contest mode
                     setRoundCompletionData({
@@ -851,7 +951,7 @@ export const useGame = (
                         roundSeq: currentSegment.round.round_seq,
                         language: currentSegment.language,
                         score: finalRoundScore,
-                        baseScore: score,
+                        baseScore: currentScore,
                         timeBonus: timeBonus,
                         timeElapsed: timeUsed
                     });
@@ -860,19 +960,19 @@ export const useGame = (
                     // Standard non-contest flow
                     setGameState('complete');
                     playGameCompleteSound();
-                    uploadScore(score);
+                    uploadScore(currentScore);
                 }
             }, 1000);
             return () => clearTimeout(timeout);
         }
-    }, [gameState, gameData.length, correctlyMatchedIds.size, gameLevel, score, isContest, currentSegment]);
+    }, [gameState, gameData.length, correctlyMatchedIds.size, gameLevel, isContest, currentSegment]);
 
     const handleDrop = (imageId: string, descriptionId: string) => {
         if (imageId === descriptionId) {
             playCorrectSound();
             const matchedItem = gameData.find(item => item.id === imageId);
             if (matchedItem) {
-                speakText(matchedItem.imageName, currentLanguageBcp47);
+                speakText(matchedItem.imageName, currentLanguageBcp47, currentLanguageName);
             }
             if (isContest) {
                 trackMatch(imageId);
@@ -1073,7 +1173,7 @@ export const useGame = (
     };
 
     const handleMatchedImageClick = (imageName: string) => {
-        speakText(imageName, currentLanguageBcp47);
+        speakText(imageName, currentLanguageBcp47, currentLanguageName);
     };
 
     const clearGameStartError = useCallback(() => {
@@ -1095,14 +1195,27 @@ export const useGame = (
     };
 
     useEffect(() => {
-        if (gameLevel === 2 && level2State && !level2State.isComplete && !isLevel2Paused) {
+        // Don't run timer if modal is showing, transitioning, or completion already triggered
+        if (showRoundCompletionModal || isTransitioningRef.current || completionTriggeredRef.current || !level2State || level2State.isComplete || isLevel2Paused) {
+            return;
+        }
+
+        if (gameLevel === 2) {
             const interval = setInterval(() => {
                 setLevel2Timer(prev => {
                     if (isContest) {
                         // Contest Mode: Countdown
                         if (prev <= 0) {
                             clearInterval(interval);
-                            console.log('[useGame] ⏰ Level 2 Timer expired!');
+                            console.log('[useGame] ⏰ Level 2 Timer expired!', { isTransitioning: isTransitioningRef.current, completionTriggered: completionTriggeredRef.current });
+
+                            // Prevent double triggering if a round completion is already pending or transitioning
+                            if (isTransitioningRef.current || completionTriggeredRef.current) {
+                                console.log('[useGame] Level 2 Timer expired but transition or completion already triggered. Ignoring.');
+                                return prev; // Return prev instead of 0 to avoid leaking 0 to next round
+                            }
+
+                            completionTriggeredRef.current = true; // Set flag to prevent quiz completion from firing too
                             // TODO: Handle Level 2 round expiration strictly?
                             // For now, let's auto-complete efficiently or show timeout
                             // Since we have questions, maybe we just stop? or complete?
@@ -1314,7 +1427,18 @@ export const useGame = (
             // For contests, automatically proceed to segment completion after a brief delay
             if (isContest) {
                 console.log('[useGame] Level 2 (Quiz) complete in contest mode. Proceeding...');
+
+                // Capture the segment for which this timeout was started
+                const startingSegmentKey = currentSegment ? `${currentSegment.level.level_seq}-${currentSegment.round.round_seq}-${currentSegment.language}` : null;
+
                 setTimeout(() => {
+                    // VERIFICATION: Check if we are still on the same segment after delay
+                    const currentSegmentKey = currentSegment ? `${currentSegment.level.level_seq}-${currentSegment.round.round_seq}-${currentSegment.language}` : null;
+                    if (startingSegmentKey !== currentSegmentKey) {
+                        console.log('[useGame] Level 2 completion timeout fired but segment already changed. Aborting.', { startingSegmentKey, currentSegmentKey });
+                        return;
+                    }
+
                     handleLevel2Complete();
                 }, 1500);
             }
@@ -1356,7 +1480,6 @@ export const useGame = (
 
             const totalRoundScore = quizScore + timeBonus;
             const finalScore = score + totalRoundScore;
-            const incrementalScore = Math.max(0, finalScore - scoreAtRoundStartRef.current);
 
             console.log(`[ScoreDebug] useGame.handleQuizComplete:`, {
                 prevTotalScore: score,
@@ -1370,18 +1493,7 @@ export const useGame = (
 
             setScore(finalScore);
 
-            // Log progress immediately when quiz completes
-            if (username && contestId) {
-                contestService.logProgress({
-                    contest_id: contestId,
-                    username: username,
-                    level: currentSegment.level.level_seq,
-                    round: currentSegment.round.round_seq,
-                    score: incrementalScore,
-                    language: currentSegment.language,
-                    time_taken: timeUsed
-                }).catch(err => console.error('[useGame] Failed to log quiz progress:', err));
-            }
+            // Log progress call removed from here - consolidated into handleSegmentComplete
 
             setRoundCompletionData({
                 levelName: currentSegment.level.level_name,
@@ -1424,24 +1536,13 @@ export const useGame = (
             }
 
             const newTotalScore = currentBaseScore + timeBonus;
-            const incrementalScore = Math.max(0, newTotalScore - scoreAtRoundStartRef.current);
 
             console.log(`[ScoreDebug] Legacy Quiz Round Final: Base=${currentBaseScore}, Bonus=${timeBonus}, Total=${newTotalScore}`);
 
             setScore(newTotalScore);
 
-            // Log progress immediately when quiz completes
-            if (username && contestId) {
-                contestService.logProgress({
-                    contest_id: contestId,
-                    username: username,
-                    level: currentSegment.level.level_seq,
-                    round: currentSegment.round.round_seq,
-                    score: incrementalScore,
-                    language: currentSegment.language,
-                    time_taken: timeUsed
-                }).catch(err => console.error('[useGame] Failed to log legacy quiz progress:', err));
-            }
+
+            // Log progress call removed from here - consolidated into handleSegmentComplete
 
             setRoundCompletionData({
                 levelName: currentSegment.level.level_name,
@@ -1575,11 +1676,11 @@ export const useGame = (
         handleSelectFos,
         currentLanguageBcp47,
         handleSpeakHint: useCallback((text: string, pictureId?: string) => {
-            speakText(text, currentLanguageBcp47);
+            speakText(text, currentLanguageBcp47, currentLanguageName);
             if (isContest && pictureId) {
                 trackHintFlip(pictureId);
             }
-        }, [speakText, currentLanguageBcp47, isContest, trackHintFlip]),
+        }, [speakText, currentLanguageBcp47, currentLanguageName, isContest, trackHintFlip]),
         stopSpeech: stop,
         setLevel2Timer,
 

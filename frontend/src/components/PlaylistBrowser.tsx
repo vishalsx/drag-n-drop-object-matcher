@@ -76,65 +76,20 @@ const PlaylistBrowser: React.FC<PlaylistBrowserProps> = ({ onPageSelect, disable
         loadBooks(searchText);
     };
 
-    const toggleBook = async (book: Book) => {
+    const toggleBook = (book: Book) => {
         if (expandedBookId === book._id) {
             setExpandedBookId(null);
             return;
         }
-
         setExpandedBookId(book._id);
-
-        // If chapters not loaded, fetch them
-        if (!book.chapters || book.chapters.length === 0) {
-            setLoading(true);
-            try {
-                const chapters = await curriculumService.getBookChapters(book._id);
-                setBooks(prevBooks => prevBooks.map(b =>
-                    b._id === book._id ? { ...b, chapters } : b
-                ));
-            } catch (err) {
-                console.error("Failed to load chapters", err);
-                // Optionally show error toast
-            } finally {
-                setLoading(false);
-            }
-        }
     };
 
-    const toggleChapter = async (bookId: string, chapter: Chapter) => {
+    const toggleChapter = (chapter: Chapter) => {
         if (expandedChapterId === chapter.chapter_id) {
             setExpandedChapterId(null);
             return;
         }
-
         setExpandedChapterId(chapter.chapter_id || null);
-
-        // If pages not loaded, fetch them
-        if (!chapter.pages || chapter.pages.length === 0) {
-            setLoading(true);
-            try {
-                // Determine chapter identifier (id or number?)
-                // API signature uses "chapter_identifier". Implementation uses ID probably.
-                const identifier = chapter.chapter_id || String(chapter.chapter_number);
-
-                const pages = await curriculumService.getChapterPages(bookId, identifier);
-                setBooks(prevBooks => prevBooks.map(b => {
-                    if (b._id === bookId && b.chapters) {
-                        return {
-                            ...b,
-                            chapters: b.chapters.map(c =>
-                                c.chapter_id === chapter.chapter_id ? { ...c, pages } : c
-                            )
-                        };
-                    }
-                    return b;
-                }));
-            } catch (err) {
-                console.error("Failed to load pages", err);
-            } finally {
-                setLoading(false);
-            }
-        }
     };
 
     const handlePageClick = (book: Book, chapter: Chapter, page: Page) => {
@@ -196,7 +151,7 @@ const PlaylistBrowser: React.FC<PlaylistBrowserProps> = ({ onPageSelect, disable
                                 {book.chapters.map(chapter => (
                                     <div key={chapter.chapter_id || chapter.chapter_number} className="animate-fadeIn">
                                         <button
-                                            onClick={() => toggleChapter(book._id, chapter)}
+                                            onClick={() => toggleChapter(chapter)}
                                             className={`w-full text-left p-1 text-sm text-slate-300 hover:text-white flex items-center gap-2 transition-all duration-200 ${expandedChapterId === chapter.chapter_id ? 'text-blue-300 pl-2' : ''}`}
                                         >
                                             <span className={`text-xs transition-transform duration-300 ${expandedChapterId === chapter.chapter_id ? 'scale-110' : ''}`}>
