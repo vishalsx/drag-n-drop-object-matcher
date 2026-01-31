@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 import requests
 import os
 import logging
-from app.database import objects_collection, translation_collection
+import re
+from app.database import objects_collection, translation_collection, books_collection, organisations_collection
 from app.models import PyObjectId, Book, Chapter, Page
 from bson import ObjectId
 from datetime import datetime, timezone
@@ -188,3 +189,80 @@ async def get_chapter_pages(
 #         })
 
 #     return game_objects
+
+@router.get("/curriculum/books/external-search", response_model=List[Book])
+async def fetch_books_for_external_org(
+    request: Request,
+    search_text: Optional[str] = Query(None),
+    language: Optional[str] = None,
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """
+    Fetch books for the current organization context.
+    - If org is Private: Access restricted to members of that org.
+    - If org is Public: Open access for all users.
+    """
+    # 1. Extract org context from request state (populated by middleware via X-Org-ID)
+    org_data = getattr(request.state, "org", None)
+    if not org_data:
+        raise HTTPException(status_code=400, detail="Organization context missing. Please ensure X-Org-ID header is present.")
+    
+    target_org_id = org_data.get("org_id")
+    org_type = (org_data.get("org_type") or "").lower()
+
+    # 2. Access Control Logic
+    if org_type == "private":
+        user_org_id = current_user.get("org_id") or current_user.get("organisation_id") if current_user else None
+        if target_org_id != user_org_id:
+            logger.warning(f"Access denied: User {current_user.get('username') if current_user else 'Anonymous'} attempted to access private org {target_org_id}")
+            raise HTTPException(status_code=403, detail="Access denied for private organization data.")
+    
+    # 3. Build Query
+    query = {"org_id": target_org_id}
+    
+    # Handling search_text: empty, None, or "all" means fetch everything for the org
+    effective_search = (search_text or "").strip().lower()
+    if effective_search and effective_search != "all":
+        regex = re.compile(re.escape(search_text), re.IGNORECASE)
+        query["$or"] = [
+            {"title": regex},
+            {"author": regex},
+            {"subject": regex},
+            {"grade_level": regex},
+            {"tags": regex},
+            {"chapters.chapter_name": regex},
+        ]
+    
+    if language:
+        query["language"] = language
+
+    # 4. Projection
+    projection = {
+        "_id": 1,
+        "title": 1,
+        "language": 1,
+        "author": 1,
+        "subject": 1,
+        "education_board": 1,
+        "grade_level": 1,
+        "chapter_count": 1, 
+        "page_count": 1,
+        "image_count": 1, 
+        "tags": 1,
+        "created_at": 1,
+        "updated_at": 1,
+        "created_by": 1,
+        "org_id": 1,
+        "chapters": 1
+    }
+
+    cursor = books_collection.find(query, projection)
+    results = await cursor.to_list(length=50)
+    
+    # 5. Sort Results
+    results = sorted(results, key=lambda b: (b.get("grade_level", ""), b.get("title", "")), reverse=False)
+
+    for b in results:
+        b["_id"] = str(b["_id"])
+    
+    return results

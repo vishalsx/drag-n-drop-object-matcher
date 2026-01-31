@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Form, Query
 from pydantic import BaseModel
 import requests
 from typing import Optional, List, Dict, Any
-from app.database import organisations_collection, participants_collection, contests_collection
+from app.database import organisations_collection, participants_collection, contests_collection, users_collection
 from app.contest_config import Contest
 from app.contest_participant import Participant, ParticipantCreate, ParticipantLogin, Contestant, ContestParticipation, ContestParticipantCreate, ContestParticipantUpdate, ContestScoreSubmission, RoundScore
 from bson import ObjectId
@@ -45,15 +45,23 @@ class CreateUserResponse(BaseModel):
     message: str
     user_id: str
 
+class GlobalUserRegister(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+    age: Optional[int] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    languages: Optional[List[str]] = []
+
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str
-    org_name: Optional[str] = None
-    logo_url: Optional[str] = None
     org_id: Optional[str] = None
-    languages_allowed: Optional[List[str]] = None
     username: Optional[str] = None
-    contest_details: Optional[Dict[str, Any]] = None
+    languages_allowed: Optional[List[str]] = None
+    contest_details: Optional[Contest] = None
     search_text: Optional[str] = None
     contest_error: Optional[str] = None
 
@@ -99,8 +107,6 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
 
 @router.post("/auth/anonymous-login", response_model=LoginResponse)
 async def anonymous_login(org_code: str = Form(...)):
@@ -166,6 +172,46 @@ async def anonymous_login(org_code: str = Form(...)):
         
     except requests.RequestException as e:
         raise HTTPException(status_code=503, detail=f"External authentication service unavailable: {str(e)}")
+
+@router.post("/auth/register")
+async def register_global_user(data: GlobalUserRegister):
+    """
+    Register a new global user (not associated with any specific organization).
+    """
+    # 1. Check if user already exists
+    existing_user = await users_collection.find_one({"username": data.username})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    # 2. Create External User
+    try:
+        external_payload = {
+            "username": data.username,
+            "email_id": data.email,
+            "password": data.password,
+            "phone": data.phone if data.phone else f"GLOBAL_{data.username[:10]}",
+            "roles": ["global_user"],
+            "languages_allowed": data.languages if data.languages else ["English"], 
+            "country": data.country or "Unknown",
+            "organisation_id": None # Global user
+        }
+
+        response = requests.post(EXTERNAL_CREATE_USER_URL, json=external_payload)
+        
+        if response.status_code not in [200, 201]:
+            raise HTTPException(status_code=400, detail=f"User creation failed: {response.text}")
+        
+        resp_data = response.json()
+        external_user_id = resp_data.get("user_id")
+
+    except requests.RequestException as e:
+        print(f"Error calling external create-user: {str(e)}")
+        raise HTTPException(status_code=503, detail="External user service unavailable")
+
+    # 3. No longer creating local profile in participants_collection here.
+    # It will be created when the user registers for their first contest.
+    
+    return {"message": "Registration successful", "user_id": external_user_id}
 
 @router.post("/auth/login", response_model=LoginResponse)
 async def login(

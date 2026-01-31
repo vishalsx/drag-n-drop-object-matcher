@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 import requests
 from typing import Optional, List, Dict, Any
-from app.database import organisations_collection, participants_collection, contests_collection
+from app.database import organisations_collection, participants_collection, contests_collection, users_collection
 from app.contest_config import Contest
 from app.contest_participant import Participant, ParticipantCreate, ParticipantLogin, Contestant, ContestParticipation, ContestParticipantCreate, ContestParticipantUpdate, ContestScoreSubmission, RoundScore
 from bson import ObjectId
@@ -32,8 +32,6 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -57,23 +55,103 @@ class LeaderboardResponse(BaseModel):
     entries: List[LeaderboardEntry]
     average_time_all_participants: float = 0
 
+def json_serializable(data):
+    """
+    Recursively converts ObjectId and datetime to JSON serializable formats (strings).
+    Handles dicts, lists, sets, tuples and nested objects.
+    """
+    if isinstance(data, list):
+        return [json_serializable(item) for item in data]
+    if isinstance(data, tuple):
+        return tuple(json_serializable(item) for item in data)
+    if isinstance(data, set):
+        return [json_serializable(item) for item in data]
+    if isinstance(data, dict):
+        return {key: json_serializable(val) for key, val in data.items()}
+    if isinstance(data, ObjectId):
+        return str(data)
+    if isinstance(data, datetime):
+        return data.isoformat()
+    return data
+
 @router.get("/contest/check-participant/{username}")
 async def check_participant(username: str):
     # Find most recent participant record with this username
     participant = await participants_collection.find_one({"username": username})
     if participant:
-        return {
+        return json_serializable({
             "found": True,
-            "data": {
-                "email_id": participant.get("email_id") or participant.get("email"),
-                "age": participant.get("age"),
-                "country": participant.get("country"),
-                "phone_number": participant.get("phone_number"),
-                "address": participant.get("address"),
-                "selected_languages": participant.get("selected_languages", [])
-            }
+            "message": "User already exists, enter the password to authenticate"
+        })
+    return json_serializable({"found": False})
+
+class ParticipantAuthRequest(BaseModel):
+    username: str
+    password: str
+
+@router.post("/contest/authenticate-participant")
+async def authenticate_participant(data: ParticipantAuthRequest):
+    # 1. Authenticate with External Service
+    try:
+        login_payload = {
+            "username": data.username,
+            "password": data.password
         }
-    return {"found": False}
+        print(f"[DEBUG-Auth] Authenticating participant: {data.username}")
+        response = requests.post(EXTERNAL_LOGIN_URL, data=login_payload)
+        print(f"[DEBUG-Auth] External Login Response Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            print(f"[DEBUG-Auth] Authentication successful for: {data.username}")
+            # Authentication Successful
+            ext_user = response.json()
+            
+            # Fetch Local Participant Data (if any)
+            participant = await participants_collection.find_one({"username": data.username})
+            print(f"[DEBUG-Auth] Local participant found: {participant is not None}")
+            
+            # Default empty profile
+            profile_data = {
+                "email_id": ext_user.get("username"), # Fallback
+                "age": "",
+                "country": ext_user.get("country", "India"),
+                "phone_number": "",
+                "address": "",
+                "selected_languages": ext_user.get("languages_allowed", []),
+                "roles": ext_user.get("roles", ["global_user"])
+            }
+
+            if participant:
+                # Merge local data
+                profile_data.update({
+                    "email_id": participant.get("email_id") or participant.get("email") or profile_data["email_id"],
+                    "age": participant.get("age"),
+                    "phone_number": participant.get("phone_number"),
+                    "address": participant.get("address"),
+                })
+
+            return json_serializable({
+                "found": True,
+                "data": profile_data
+            })
+            
+        else:
+            # Authentication Failed
+            print(f"[DEBUG-Auth] Authentication failed for: {data.username}. Checking users collection...")
+            # Check if user exists to differentiate between "Wrong Password" and "New User"
+            user_exists = await users_collection.find_one({"username": data.username})
+            print(f"[DEBUG-Auth] User exists in users collection: {user_exists is not None}")
+            if user_exists:
+                 print(f"[DEBUG-Auth] User found in central DB but authentication failed. Likely incorrect password.")
+                 # User exists, so password must be wrong. Block registration.
+                 raise HTTPException(status_code=401, detail="Incorrect password")
+            else:
+                 print(f"[DEBUG-Auth] User NOT found in central DB. Proceeding with New User flow.")
+                 # User does not exist, proceed to registration
+                 return json_serializable({"found": False, "message": "Authentication failed"})
+
+    except requests.RequestException as e:
+        raise HTTPException(status_code=503, detail="External authentication service unavailable")
 
 @router.post("/contest/register")
 async def register_contest_participant(data: ContestParticipantCreate, user_timezone: Optional[str] = Query(None, alias="timezone")):
@@ -95,14 +173,31 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
         
     languages_allowed = contest.get("supported_languages", [])
     organisation_id = contest.get("org_id")
+    print(f"[DEBUG-Register] Registering {data.username} for contest {data.contest_id} (Org: {organisation_id})")
 
     # 2. Check if contestant exists locally
     contestant = await participants_collection.find_one({"username": data.username})
+    print(f"[DEBUG-Register] Existing participant record found: {contestant is not None}")
     
     if contestant:
-        # NEW: Verify password for existing user
-        if contestant.get("password") != hash_password(data.password):
-            raise HTTPException(status_code=401, detail="Incorrect password for existing username. Please verify your credentials.")
+        print(f"[DEBUG-Register] Scenario 1: Existing Participant {data.username}")
+        # NEW: Verify password for existing user via External Service
+        # (Trust external service as source of truth)
+        try:
+            login_payload = {
+                "username": data.username,
+                "password": data.password
+            }
+            # Add param2/param3 if needed by external login? Auth service usually just needs user/pass
+            login_response = requests.post(EXTERNAL_LOGIN_URL, data=login_payload)
+            print(f"[DEBUG-Register] External Login Response Status: {login_response.status_code}")
+            
+            if login_response.status_code != 200:
+                 raise HTTPException(status_code=401, detail="Incorrect password for existing username. Please verify your credentials.")
+        except requests.RequestException:
+             # Fallback: If external service is down, we cannot authenticate properly.
+             # Security Decision: Do not fallback to local password as we shouldn't be storing it.
+             raise HTTPException(status_code=503, detail="Authentication service unavailable")
 
         # Check if already registered for THIS contest
         if any(p.get("contest_id") == data.contest_id for p in contestant.get("participations", [])):
@@ -116,7 +211,6 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
             "role": "participant",
             "status": "applied",
             "entry_sources": data.entry_sources.model_dump(),
-            "selected_languages": data.selected_languages,
             "flags": {},
             "participation_dates": {"applied_at": datetime.now(timezone.utc)},
             "round_scores": [],
@@ -125,58 +219,104 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
             "updated_at": datetime.now(timezone.utc)
         }
         
+        # Update user profile with latest details from form
+        update_fields = {
+            "age": data.age,
+            "address": data.address,
+            "updated_at": datetime.now(timezone.utc)
+        }
+        # Only update email and phone if provided (though they are mandatory in form, safer to check)
+        if data.email_id:
+            update_fields["email_id"] = data.email_id
+        if data.phone_number:
+            update_fields["phone_number"] = data.phone_number
+
         result = await participants_collection.update_one(
             {"_id": contestant["_id"]},
-            {"$push": {"participations": new_participation}}
+            {
+                "$push": {"participations": new_participation},
+                "$set": update_fields
+            }
         )
         # Existing user, so external_user_id is in their profile
-        return {"message": "Registration successful", "id": str(contestant["_id"]), "external_user_id": contestant.get("user_id")}
+        return json_serializable({"message": "Registration successful", "id": str(contestant["_id"]), "external_user_id": contestant.get("user_id")})
         
     else:
-        # 3. Create External User (New Contestant)
+        # Check Central Users collection (Scenario 2 or 3)
+        print(f"[DEBUG-Register] Scenario 2 or 3: Checking users collection for {data.username}")
+        user_in_central = await users_collection.find_one({"username": data.username})
+        print(f"[DEBUG-Register] User in central collection: {user_in_central is not None}")
         external_user_id = None
-        try:
-            external_payload = {
-                "username": data.username,
-                "email_id": data.email_id,
-                "password": data.password,
-                "phone": data.phone_number if data.phone_number else f"CONTEST_{data.username[:10]}",
-                "roles": ["contest_participant"],
-                "languages_allowed": languages_allowed,
-                "country": "India",
-                "organisation_id": organisation_id
-            }
 
-            response = requests.post(EXTERNAL_CREATE_USER_URL, json=external_payload)
-            
-            if response.status_code == 200 or response.status_code == 201:
-                resp_data = response.json()
-                external_user_id = resp_data.get("user_id")
-            else:
-                # Fallback: Check if user exists and credentials are valid
-                print(f"User creation failed ({response.status_code}), trying login verification...")
-                try:
-                    login_payload = {
-                        "username": data.username,
-                        "password": data.password,
-                        "param2": "contest",
-                        "param3": data.contest_id
-                    }
-                    login_response = requests.post(EXTERNAL_LOGIN_URL, data=login_payload)
-                    
-                    if login_response.status_code == 200:
-                        print("Existing user verified via login. Proceeding with contest registration.")
-                        pass 
-                    else:
-                        print(f"Fallback login failed: {login_response.text}")
+        if user_in_central:
+            print(f"[DEBUG-Register] Scenario 2: Existing External User {data.username}")
+            # Scenario 2: Existing External User (New to Contests)
+            # Must authenticate via external service
+            try:
+                login_payload = {
+                    "username": data.username,
+                    "password": data.password
+                }
+                login_response = requests.post(EXTERNAL_LOGIN_URL, data=login_payload)
+                print(f"[DEBUG-Register] External Login Response Status: {login_response.status_code}")
+                
+                if login_response.status_code != 200:
+                     print(f"[DEBUG-Register] Authentication failed for existing central user: {data.username}")
+                     raise HTTPException(status_code=401, detail="Incorrect password for existing username. Please verify your credentials or choose a different username.")
+                
+                ext_user = login_response.json()
+                external_user_id = ext_user.get("user_id") or user_in_central.get("user_id") or user_in_central.get("_id")
+                print(f"[DEBUG-Register] External User ID: {external_user_id}")
+            except requests.RequestException:
+                raise HTTPException(status_code=503, detail="Authentication service unavailable")
+        else:
+            # Scenario 3: New User (Not found in participants or users)
+            print(f"[DEBUG-Register] Scenario 3: Creating New User {data.username}")
+            try:
+                external_payload = {
+                    "username": data.username,
+                    "email_id": data.email_id,
+                    "password": data.password,
+                    "phone": data.phone_number if data.phone_number else f"CONTEST_{data.username[:10]}",
+                    "roles": ["global_user"],
+                    "languages_allowed": data.selected_languages,
+                    "country": data.country if data.country else "India",
+                    "organisation_id": organisation_id
+                }
+                print(f"[DEBUG-Register] Calling External Create User URL: {EXTERNAL_CREATE_USER_URL}")
+                response = requests.post(EXTERNAL_CREATE_USER_URL, json=external_payload)
+                print(f"[DEBUG-Register] External Create User Response Status: {response.status_code}")
+                
+                if response.status_code == 200 or response.status_code == 201:
+                    resp_data = response.json()
+                    external_user_id = resp_data.get("user_id")
+                    print(f"[DEBUG-Register] New External User ID: {external_user_id}")
+                else:
+                    # Fallback verification in case of race condition or stale local users collection
+                    print(f"[DEBUG-Register] External creation failed ({response.status_code}). Trying fallback login verification...")
+                    try:
+                        login_payload = {
+                            "username": data.username,
+                            "password": data.password
+                        }
+                        login_response = requests.post(EXTERNAL_LOGIN_URL, data=login_payload)
+                        print(f"[DEBUG-Register] Fallback Login Response Status: {login_response.status_code}")
+                        
+                        if login_response.status_code == 200:
+                            print("Existing user verified via fallback login. Proceeding with contest registration.")
+                            resp_data = login_response.json()
+                            external_user_id = resp_data.get("user_id")
+                            print(f"[DEBUG-Register] External User ID (Fallback): {external_user_id}")
+                        else:
+                            print(f"User creation failed ({response.status_code}) and fallback login failed: {login_response.text}")
+                            raise HTTPException(status_code=400, detail=f"User registration failed. {response.text}")
+
+                    except requests.RequestException:
                         raise HTTPException(status_code=400, detail=f"User creation failed: {response.text}")
 
-                except requests.RequestException:
-                    raise HTTPException(status_code=400, detail=f"User creation failed: {response.text}")
-
-        except requests.RequestException as e:
-            print(f"Error calling external create-user: {str(e)}")
-            raise HTTPException(status_code=503, detail="External user service unavailable")
+            except requests.RequestException as e:
+                print(f"Error calling external create-user: {str(e)}")
+                raise HTTPException(status_code=503, detail="External user service unavailable")
 
         # 4. Create new contestant with first participation
         new_participation = {
@@ -185,7 +325,6 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
             "role": "participant",
             "status": "applied",
             "entry_sources": data.entry_sources.model_dump(),
-            "selected_languages": data.selected_languages,
             "flags": {},
             "participation_dates": {"applied_at": datetime.now(timezone.utc)},
             "round_scores": [],
@@ -197,20 +336,21 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
         contestant_dict = {
             "username": data.username,
             "email_id": data.email_id,
-            "password": hash_password(data.password), # Store hashed
+            # "password": hash_password(data.password), # REMOVED: Do not store local password
             "age": data.age,
             "age_group": "teen" if data.age < 20 and data.age >= 13 else ("child" if data.age < 13 else "adult"),
             "country": data.country,
             "phone_number": data.phone_number,
             "address": data.address,
             "user_id": external_user_id,
+            "roles": ["global_user"],
             "participations": [new_participation],
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)
         }
         
         result = await participants_collection.insert_one(contestant_dict)
-    return {"message": "Registration successful", "id": str(result.inserted_id), "external_user_id": external_user_id}
+    return json_serializable({"message": "Registration successful", "id": str(result.inserted_id), "external_user_id": external_user_id})
 
 @router.post("/contest/login", response_model=LoginResponse)
 async def login_contest_participant(data: ParticipantLogin, user_timezone: Optional[str] = Query(None, alias="timezone")):
@@ -274,12 +414,12 @@ async def login_contest_participant(data: ParticipantLogin, user_timezone: Optio
     user_payload = {
         "sub": contestant["username"],
         "username": contestant["username"],
-        "contest_id": data.contest_id,
+        "contest_id": str(data.contest_id),
         "is_contest_participant": True,
-        "roles": ["contest_participant"],
-        "org_id": org_id or participation.get("org_id") or external_data.get("org_id"),
-        "organisation_id": org_id or participation.get("org_id") or external_data.get("org_id"),
-        "user_id": contestant.get("user_id") or external_data.get("user_id") or external_data.get("org_id")
+        "roles": ["global_user"],
+        "org_id": str(org_id or participation.get("org_id") or external_data.get("org_id") or ""),
+        "organisation_id": str(org_id or participation.get("org_id") or external_data.get("org_id") or ""),
+        "user_id": str(contestant.get("user_id") or external_data.get("user_id") or external_data.get("org_id") or "")
     }
     
     token = create_access_token(user_payload)
@@ -293,12 +433,12 @@ async def login_contest_participant(data: ParticipantLogin, user_timezone: Optio
     }
     
     if contest_doc:
-        response_data["contest_details"] = contest_doc
+        response_data["contest_details"] = json_serializable(contest_doc)
     
     response_data["search_text"] = search_text
     response_data["contest_error"] = contest_error
     
-    return response_data
+    return json_serializable(response_data)
 
 @router.post("/contest/submit-scores")
 async def submit_contest_scores(data: ContestScoreSubmission):
@@ -319,6 +459,8 @@ async def submit_contest_scores(data: ContestScoreSubmission):
     total_score = 0
     for score_data in data.round_scores:
         round_score = RoundScore(
+            level=score_data.get("level", 1),
+            round=score_data.get("round", 1),
             language=score_data.get("language"),
             score=score_data.get("score", 0),
             time_taken=score_data.get("time_taken", 0),
@@ -357,11 +499,11 @@ async def submit_contest_scores(data: ContestScoreSubmission):
     if result.modified_count == 0:
         raise HTTPException(status_code=500, detail="Failed to update participant scores")
     
-    return {
+    return json_serializable({
         "message": "Scores submitted successfully",
         "total_score": total_score,
         "rounds_completed": len(round_scores)
-    }
+    })
 
 @router.get("/contest/{contest_id}/leaderboard", response_model=LeaderboardResponse)
 async def get_contest_leaderboard(
@@ -448,21 +590,7 @@ async def list_org_contests(org_id: str):
     """
     cursor = contests_collection.find({"org_id": org_id})
     contests = await cursor.to_list(length=100)
-    
-    for contest in contests:
-        contest["id"] = str(contest["_id"])
-        contest["_id"] = str(contest["_id"])
-        # Ensure dates are stringified for JSON serialization
-        for key, val in contest.items():
-            if isinstance(val, (datetime)):
-                contest[key] = val.isoformat()
-            elif isinstance(val, dict):
-                # Recursively handle nested datetimes if any
-                for k2, v2 in val.items():
-                    if isinstance(v2, datetime):
-                        val[k2] = v2.isoformat()
-                
-    return contests
+    return [json_serializable(c) for c in contests]
 
 class ContestEnterRequest(BaseModel):
     contest_id: str
@@ -585,7 +713,7 @@ async def enter_contest(data: ContestEnterRequest, current_username: Optional[st
             "previous_scores": participation.get("round_scores", [])
         }
 
-    return response
+    return json_serializable(response)
 
 @router.post("/contest/log-progress")
 async def log_contest_progress(data: ContestProgressLog):
@@ -730,7 +858,7 @@ async def get_participant_summary(contest_id: str, username: str = Query(...)):
             "calculation": " + ".join(map(str, data["scores"])) + f" = {data['total']}"
         })
         
-    return {
+    return json_serializable({
         "total_score": participation.get("total_score", 0),
         "breakdown": breakdown
-    }
+    })

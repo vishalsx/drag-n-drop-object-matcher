@@ -6,22 +6,40 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 import hashlib
 
+from pydantic_core import core_schema
+
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        cls, _source_type: Any, _handler: Any
+    ) -> core_schema.CoreSchema:
+        def validate_from_str(v: str) -> ObjectId:
+            if not ObjectId.is_valid(v):
+                raise ValueError("Invalid ObjectId")
+            return ObjectId(v)
 
-    @classmethod
-    def validate(cls, v, handler):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid ObjectId")
-        return ObjectId(v)
+        from_str_schema = core_schema.chain_schema([
+            core_schema.str_schema(),
+            core_schema.no_info_plain_validator_function(validate_from_str),
+        ])
+
+        return core_schema.json_or_python_schema(
+            json_schema=from_str_schema,
+            python_schema=core_schema.union_schema([
+                core_schema.is_instance_schema(ObjectId),
+                from_str_schema,
+            ]),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda x: str(x),
+                when_used='json-unless-none',
+            ),
+        )
 
     @classmethod
     def __get_pydantic_json_schema__(
-        cls, core_schema: Any, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        return {"type": "string"}
+        cls, _core_schema: core_schema.CoreSchema, handler: Any
+    ) -> Any:
+        return handler(core_schema.str_schema())
 
 
 

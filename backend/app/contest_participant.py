@@ -33,8 +33,8 @@ class ParticipationTimeline(BaseModel):
     completed_at: Optional[datetime] = None
 
 class RoundScore(BaseModel):
-    level: int
-    round: int
+    level: Optional[int] = 1 # Optional for backward compatibility
+    round: Optional[int] = 1 # Optional for backward compatibility
     language: str
     score: int
     time_taken: float = 0 # In seconds
@@ -59,7 +59,6 @@ class ContestParticipation(BaseModel):
     is_disqualified: bool = False
     last_active_at: Optional[datetime] = None
     entry_sources: EntrySource
-    selected_languages: List[str]
     flags: FlagsControls = Field(default_factory=FlagsControls)
     
     participation_dates: ParticipationTimeline = Field(default_factory=ParticipationTimeline)
@@ -79,7 +78,7 @@ class ContestParticipation(BaseModel):
 class Contestant(BaseModel):
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
     username: str
-    password: str # Hashed
+    password: Optional[str] = None # Hashed (Deprecated: Auth via external service)
     email_id: str
     
     # Profile
@@ -90,7 +89,8 @@ class Contestant(BaseModel):
     address: Optional[str] = None
     
     # External Link
-    user_id: Optional[str] = None
+    user_id: Optional[PyObjectId] = None
+    roles: List[str] = Field(default_factory=lambda: ["global_user"])
     
     participations: List[ContestParticipation] = Field(default_factory=list)
     

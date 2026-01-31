@@ -23,4 +23,6 @@ counters_collection = db["counters"]
 contests_collection = db["contests"]
 contest_analytics_collection = db["contest_analytics"]
 participants_collection = db["participants"]
+books_collection = db["books"]
+users_collection = db["users"]
 

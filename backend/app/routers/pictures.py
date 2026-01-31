@@ -28,7 +28,7 @@ router = APIRouter(prefix="/pictures", tags=["pictures"])
 @router.get("/random", response_model=List[ApiPicture])
 async def get_random_pictures(
     request: Request,
-    count: int = Query(6, ge=1, le=20, description="Number of random pictures to fetch"),
+    count: int = Query(6, ge=1, le=100, description="Number of random pictures to fetch"),
     language: Optional[str] = Query(None, description="Language filter for pictures"),
     category: Optional[str] = Query(None, description="Object category filter"),
     field_of_study: Optional[str] = Query(None, description="Field of study filter"),

@@ -1,9 +1,10 @@
-from app.database import objects_collection, translation_collection
+from app.database import objects_collection, translation_collection, books_collection
 import requests
 import os
 import logging
 from fastapi import HTTPException, Request
 from app.models import Book, Chapter, Page, ImageRef
+from bson import ObjectId
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -13,51 +14,46 @@ EXTERNAL_API_URL = os.getenv("EXTERNAL_CURRICULUM_API_URL", "http://localhost:80
 
 async def get_page_details(book_id: str, chapter_id: str, page_id: str, request: Request = None, language:str = "English", org_id: str = None) -> list:
     """
-    Fetch image hashes for a page from external API and resolve them to translation documents.
+    Fetch image hashes for a page from local books collection and resolve them to translation documents.
     Returns a list of translation_doc dictionaries similar to get_random_picture_details.
     """
     
-    headers = {}
-    if request:
-        auth_header = request.headers.get("Authorization")
-        if auth_header:
-            headers["Authorization"] = auth_header
-
-    # 1. Fetch images (image_hashes) from external API
+    # 1. Fetch book data from local database
     try:
-        url = f"{EXTERNAL_API_URL}/books/{book_id}/chapters/{chapter_id}/pages/{page_id}/images"
-        logger.info(f"Fetching images from: {url}")
+        book_doc = await books_collection.find_one({"_id": ObjectId(book_id)})
+        if not book_doc:
+            logger.error(f"Book not found: {book_id}")
+            raise HTTPException(status_code=404, detail="Book not found")
         
-        response = requests.get(url, headers=headers)
+        # 2. Find the specific chapter and page
+        target_page = None
+        for chapter in book_doc.get("chapters", []):
+            if str(chapter.get("chapter_id")) == str(chapter_id):
+                for page in chapter.get("pages", []):
+                    if str(page.get("page_id")) == str(page_id):
+                        target_page = page
+                        break
+            if target_page:
+                break
         
-        if response.status_code != 200:
-             logger.error(f"External API error: {response.text}")
-             # We might raise exception or return empty list. curriculum.py raised HTTPException.
-             # Since this is a service, raising HTTPException is acceptable if intended for API usage,
-             # or we let the caller handle exceptions.
-             # Assuming this service is used by router directly, raising HTTPException is fine.
-             raise HTTPException(status_code=response.status_code, detail=f"External API error: {response.text}")
-        
-        images_data = response.json()
-    except requests.RequestException as e:
-         logger.error(f"Service unavailable: {str(e)}")
-         raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
+        if not target_page:
+            logger.error(f"Page not found: {page_id} in chapter {chapter_id} of book {book_id}")
+            raise HTTPException(status_code=404, detail="Page not found")
 
-    if not images_data:
+        images = target_page.get("images", [])
+        page_story = target_page.get("story")
+        page_moral = target_page.get("moral")
+
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"Error retrieving page details: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    if not images:
         return []
 
     translation_docs = []
-    
-    # Extract the images array from the response
-    images = images_data.get("images", [])
-    
-    if not images:
-        logger.info(f"No images found for page {page_id}")
-        return []
-    
-    # Extract story and moral from the page level response
-    page_story = images_data.get("story")
-    page_moral = images_data.get("moral")
 
     # 2. Process each image
     for img in images:
