@@ -76,34 +76,38 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                 {orgData?.org_name ? (
                     // Organization Header
                     <>
-                        {orgData.logo_url ? (
-                            <img
-                                src={orgData.logo_url}
-                                alt={`${orgData.org_name} logo`}
-                                className="h-12 w-12 object-contain rounded-md"
-                            />
-                        ) : (
-                            <div className="h-12 w-12 rounded-md bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center">
-                                <span className="text-white font-bold text-lg">{orgData.org_name.charAt(0)}</span>
+                        <a href="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+                            {orgData.logo_url ? (
+                                <img
+                                    src={orgData.logo_url}
+                                    alt={`${orgData.org_name} logo`}
+                                    className="h-12 w-12 object-contain rounded-md"
+                                />
+                            ) : (
+                                <div className="h-12 w-12 rounded-md bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center">
+                                    <span className="text-white font-bold text-lg">{orgData.org_name.charAt(0)}</span>
+                                </div>
+                            )}
+                            <div className="flex flex-col">
+                                <h1 className="text-xl font-bold text-slate-200 leading-tight">
+                                    {orgData.org_name} {contestDetails ? "- Active Contest" : "- Learner's Mode"}
+                                </h1>
                             </div>
-                        )}
-                        <div className="flex flex-col">
-                            <h1 className="text-xl font-bold text-slate-200 leading-tight">
-                                {orgData.org_name} {contestDetails ? "- Active Contest" : "- Learner's Mode"}
-                            </h1>
-                        </div>
+                        </a>
                     </>
                 ) : (
                     // Default Header
                     <>
-                        <img
-                            src="/alphatub-logo.png"
-                            alt="alphaTUB logo"
-                            className="h-12 w-12 object-contain rounded-md"
-                        />
-                        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-orange-500 leading-tight">
-                            alphaTUB {contestDetails ? "- Active Contest" : "- Learner's Mode"}
-                        </h1>
+                        <a href="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+                            <img
+                                src="/alphatub-logo.png"
+                                alt="playTUB logo"
+                                className="h-12 w-12 object-contain rounded-md"
+                            />
+                            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-orange-500 leading-tight">
+                                playTUB {contestDetails ? "- Active Contest" : "- Learner's Mode"}
+                            </h1>
+                        </a>
                     </>
                 )}
             </div>
@@ -133,7 +137,7 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                     // Replicating original "Welcome" text here if desired, but user asked to keep Org Logo/Name "as it was".
                     // The original code had Org Name OR "Welcome...".
                     // I put Org Name on Left. "Welcome" text might be too long for left.
-                    // I condensed default left to "alphaTUB Matches".
+                    // I condensed default left to "playTUB Matches".
                     null
                 )}
             </div>
@@ -209,7 +213,8 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                     </div>
                 )}
 
-                {!username && gameState === 'idle' && !orgData && (
+                {/* Login/Register button - show when user is not logged in and not actively playing the game */}
+                {!username && gameState !== 'playing' && onShowLogin && (
                     <button
                         onClick={onShowLogin}
                         className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-sm font-bold rounded-full shadow-lg shadow-blue-600/20 transform hover:-translate-y-0.5 active:translate-y-0 transition-all"

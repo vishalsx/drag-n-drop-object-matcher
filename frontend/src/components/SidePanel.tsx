@@ -71,6 +71,35 @@ const SidePanel: React.FC<SidePanelProps> = ({
     isSavedCardDisabled
 }) => {
     // const [expandedSection, setExpandedSection] = React.useState<'presets' | 'custom'>('presets');
+    const [isLangDropdownOpen, setIsLangDropdownOpen] = React.useState(false);
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = React.useState(false);
+    const [isFosDropdownOpen, setIsFosDropdownOpen] = React.useState(false);
+
+    const langDropdownRef = React.useRef<HTMLDivElement>(null);
+    const categoryDropdownRef = React.useRef<HTMLDivElement>(null);
+    const fosDropdownRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            if (langDropdownRef.current && !langDropdownRef.current.contains(target)) {
+                setIsLangDropdownOpen(false);
+            }
+            if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(target)) {
+                setIsCategoryDropdownOpen(false);
+            }
+            if (fosDropdownRef.current && !fosDropdownRef.current.contains(target)) {
+                setIsFosDropdownOpen(false);
+            }
+        };
+
+        if (isLangDropdownOpen || isCategoryDropdownOpen || isFosDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isLangDropdownOpen, isCategoryDropdownOpen, isFosDropdownOpen]);
 
     const isInteractive = gameState === 'playing' || gameState === 'complete';
     const areSettingsDisabled = gameState === 'playing' || gameState === 'loading';
@@ -138,7 +167,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
             <div className="p-4 text-center border-b border-slate-700">
                 <img
                     src="/alphatub-logo-text.png"
-                    alt="alphaTUB - Language Learning Simplified"
+                    alt="playTUB - Language Learning Simplified"
                     className="h-12 w-auto mx-auto object-contain"
                 />
             </div>
@@ -146,24 +175,45 @@ const SidePanel: React.FC<SidePanelProps> = ({
             <div className="flex-grow p-4 space-y-1 overflow-y-auto">
                 {/* Language Selector - Always visible */}
                 <div>
-                    <label htmlFor="language-select" className="block text-sm font-medium text-slate-300 mb-1">
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
                         Language <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
-                        <select
-                            id="language-select"
-                            value={selectedLanguage}
-                            onChange={(e) => onSelectLanguage(e.target.value)}
+                    <div className="relative" ref={langDropdownRef}>
+                        <button
+                            type="button"
                             disabled={areSettingsDisabled}
-                            className="w-full appearance-none bg-slate-700 border border-slate-600 text-white py-2 pl-3 pr-8 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                            onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                            className={`w-full px-3 py-3 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group hover:bg-white/[0.08] transition-all ${areSettingsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            {languages.map(lang => (
-                                <option key={lang.code} value={lang.code}>{lang.name}</option>
-                            ))}
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                        </div>
+                            <span className="text-sm font-bold text-slate-200">
+                                {languages.find(l => l.code === selectedLanguage)?.name || 'Select Language'}
+                            </span>
+                            <svg className={`w-3 h-3 text-slate-500 transition-transform duration-300 ${isLangDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        {isLangDropdownOpen && (
+                            <div className="absolute top-full left-0 w-full mt-1 bg-[#1a1c20] border border-white/20 rounded-2xl shadow-xl z-50 p-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                {languages.map((lang) => {
+                                    const isSelected = selectedLanguage === lang.code;
+                                    return (
+                                        <button
+                                            key={lang.code}
+                                            type="button"
+                                            onClick={() => {
+                                                onSelectLanguage(lang.code);
+                                                setIsLangDropdownOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold mb-1 ${isSelected ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-white/10 text-slate-300'}`}
+                                        >
+                                            <span>{lang.name}</span>
+                                            {isSelected && <span className="text-blue-400">✓</span>}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -246,51 +296,85 @@ const SidePanel: React.FC<SidePanelProps> = ({
 
                         {/* Category Selector */}
                         <div>
-                            <label htmlFor="category-select" className="block text-sm font-medium text-slate-300 mb-1">Object Category</label>
-                            <div className="relative">
-                                <select
-                                    id="category-select"
-                                    value={currentCategory}
-                                    onChange={(e) => handleCategoryChangeWithClear(e.target.value)}
+                            <label className="block text-sm font-medium text-slate-300 mb-1">Object Category</label>
+                            <div className="relative" ref={categoryDropdownRef}>
+                                <button
+                                    type="button"
                                     disabled={isCategoryDisabled}
-                                    className="w-full appearance-none bg-slate-700 border border-slate-600 text-white py-2 pl-3 pr-8 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                    onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                    className={`w-full px-3 py-3 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group hover:bg-white/[0.08] transition-all ${isCategoryDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
-                                    {areCategoriesLoading ? (
-                                        <option>Loading...</option>
-                                    ) : (
-                                        objectCategories.map(category => (
-                                            <option key={category.en} value={category.en}>{category.translated}</option>
-                                        ))
-                                    )}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                                </div>
+                                    <span className="text-sm font-bold text-slate-200 truncate pr-2">
+                                        {areCategoriesLoading ? 'Loading...' : (objectCategories.find(c => c.en === currentCategory)?.translated || currentCategory)}
+                                    </span>
+                                    <svg className={`w-3 h-3 text-slate-500 transition-transform duration-300 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+
+                                {isCategoryDropdownOpen && !isCategoryDisabled && (
+                                    <div className="absolute bottom-full left-0 w-full mb-1 bg-[#1a1c20] border border-white/20 rounded-2xl shadow-xl z-50 p-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {objectCategories.map(category => {
+                                            const isSelected = currentCategory === category.en;
+                                            return (
+                                                <button
+                                                    key={category.en}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        handleCategoryChangeWithClear(category.en);
+                                                        setIsCategoryDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold mb-1 ${isSelected ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-white/10 text-slate-300'}`}
+                                                >
+                                                    <span>{category.translated}</span>
+                                                    {isSelected && <span className="text-blue-400">✓</span>}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         {/* Field of Study Selector */}
                         <div>
-                            <label htmlFor="fos-select" className="block text-sm font-medium text-slate-300 mb-1">Field of Study</label>
-                            <div className="relative">
-                                <select
-                                    id="fos-select"
-                                    value={currentFos}
-                                    onChange={(e) => handleFosChangeWithClear(e.target.value)}
+                            <label className="block text-sm font-medium text-slate-300 mb-1">Field of Study</label>
+                            <div className="relative" ref={fosDropdownRef}>
+                                <button
+                                    type="button"
                                     disabled={isFosDisabled}
-                                    className="w-full appearance-none bg-slate-700 border border-slate-600 text-white py-2 pl-3 pr-8 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                    onClick={() => setIsFosDropdownOpen(!isFosDropdownOpen)}
+                                    className={`w-full px-3 py-3 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group hover:bg-white/[0.08] transition-all ${isFosDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
-                                    {areCategoriesLoading ? (
-                                        <option>Loading...</option>
-                                    ) : (
-                                        fieldsOfStudy.map(fos => (
-                                            <option key={fos.en} value={fos.en}>{fos.translated}</option>
-                                        ))
-                                    )}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                                </div>
+                                    <span className="text-sm font-bold text-slate-200 truncate pr-2">
+                                        {areCategoriesLoading ? 'Loading...' : (fieldsOfStudy.find(f => f.en === currentFos)?.translated || currentFos)}
+                                    </span>
+                                    <svg className={`w-3 h-3 text-slate-500 transition-transform duration-300 ${isFosDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+
+                                {isFosDropdownOpen && !isFosDisabled && (
+                                    <div className="absolute bottom-full left-0 w-full mb-1 bg-[#1a1c20] border border-white/20 rounded-2xl shadow-xl z-50 p-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {fieldsOfStudy.map(fos => {
+                                            const isSelected = currentFos === fos.en;
+                                            return (
+                                                <button
+                                                    key={fos.en}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        handleFosChangeWithClear(fos.en);
+                                                        setIsFosDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold mb-1 ${isSelected ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-white/10 text-slate-300'}`}
+                                                >
+                                                    <span>{fos.translated}</span>
+                                                    {isSelected && <span className="text-blue-400">✓</span>}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
 

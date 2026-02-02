@@ -14,6 +14,12 @@ interface LoginResponse {
     contest_details?: Contest;
     search_text?: string;
     contest_error?: string;
+    email_id?: string;
+    phone?: string;
+    country?: string;
+    address?: string;
+    age?: number;
+    dob?: string;
 }
 
 export const authService = {
@@ -85,6 +91,10 @@ export const authService = {
                     localStorage.removeItem('languages_allowed');
                 }
 
+                if (response.data.email_id) localStorage.setItem('email_id', response.data.email_id);
+                if (response.data.phone) localStorage.setItem('phone', response.data.phone);
+                if (response.data.country) localStorage.setItem('country', response.data.country);
+
                 return response.data.access_token;
             } else {
                 throw new Error('No access token received');
@@ -136,6 +146,9 @@ export const authService = {
         localStorage.removeItem('contest_error');
         localStorage.removeItem('is_anonymous');
         localStorage.removeItem('languages_allowed');
+        localStorage.removeItem('email_id');
+        localStorage.removeItem('phone');
+        localStorage.removeItem('country');
     },
 
     getToken: (): string | null => {
@@ -184,6 +197,7 @@ export const authService = {
         phone?: string;
         address?: string;
         languages?: string[];
+        dob?: string;
     }): Promise<any> => {
         try {
             const response = await axios.post(`${API_BASE_URL}/auth/register`, data);
@@ -202,6 +216,63 @@ export const authService = {
         } catch (e) {
             console.error("[authService] Failed to parse languages_allowed:", e);
             return null;
+        }
+    },
+
+    getEmailId: (): string | null => localStorage.getItem('email_id'),
+    getPhone: (): string | null => localStorage.getItem('phone'),
+    getCountry: (): string | null => localStorage.getItem('country'),
+
+    revalidate: async (orgCode: string, param2?: string, param3?: string): Promise<boolean> => {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return false;
+
+        try {
+            const params = new URLSearchParams();
+            params.append('org_code', orgCode);
+            if (param2) params.append('param2', param2);
+            if (param3) params.append('param3', param3);
+
+            try {
+                const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                params.append('timezone', userTimezone);
+            } catch (error) {
+                console.warn('[Auth] Could not detect timezone:', error);
+            }
+
+            const response = await axios.post<LoginResponse>(`${API_BASE_URL}/auth/revalidate`, params, {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.data.access_token) {
+                // Update storage with latest info from revalidation
+                localStorage.setItem('auth_token', response.data.access_token);
+                if (response.data.org_id) localStorage.setItem('org_id', response.data.org_id);
+                if (response.data.username) localStorage.setItem('username', response.data.username);
+
+                if (response.data.contest_details) {
+                    localStorage.setItem('contest_details', JSON.stringify(response.data.contest_details));
+                }
+                if (response.data.search_text) {
+                    localStorage.setItem('contest_search_text', response.data.search_text);
+                }
+                if (response.data.languages_allowed) {
+                    localStorage.setItem('languages_allowed', JSON.stringify(response.data.languages_allowed));
+                }
+
+                if (response.data.email_id) localStorage.setItem('email_id', response.data.email_id);
+                if (response.data.phone) localStorage.setItem('phone', response.data.phone);
+                if (response.data.country) localStorage.setItem('country', response.data.country);
+
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Revalidation failed:', error);
+            return false;
         }
     }
 };

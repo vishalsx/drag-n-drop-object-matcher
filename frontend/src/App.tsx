@@ -145,8 +145,15 @@ const App: React.FC = () => {
         resumeNotificationData,
         clearResumeNotification,
         attemptsLeft,
-        previousScores
-    } = useGame(isOrgChecked, param2 === 'contest', contestDetails?._id || contestDetails?.id, authService.getToken(), orgData?.org_id || null, contestDetails);
+        previousScores,
+        isLanguagesLoadedRef
+    } = useGame(isOrgChecked, param2 === 'contest', contestDetails?._id || contestDetails?.id, authService.getToken(), orgData?.org_id || null, contestDetails, orgData?.org_type === 'Public');
+
+    // languagesRef to capture languages for synchronous access in helpers like getLanguageName
+    const languagesRef = useRef(languages);
+    useEffect(() => {
+        languagesRef.current = languages;
+    }, [languages]);
 
     // Helper function to map language code/value to proper language name
     // Uses contest's supported_languages as the canonical list and maps to full names from languages array
@@ -154,7 +161,8 @@ const App: React.FC = () => {
         if (!langCodeOrName) return langCodeOrName;
 
         // Try to find in languages array by code or name (case-insensitive)
-        const langObj = languages.find(l =>
+        const currentLangs = languagesRef.current.length > 0 ? languagesRef.current : languages;
+        const langObj = currentLangs.find(l =>
             l.code?.toLowerCase() === langCodeOrName.toLowerCase() ||
             l.name?.toLowerCase() === langCodeOrName.toLowerCase()
         );
@@ -226,7 +234,31 @@ const App: React.FC = () => {
 
                     // Handle authentication based on org type
                     if (org.org_type === 'Private' || pathSegments[1] === 'contest') {
-                        setShowLogin(true);
+                        const isSpecificContest = pathSegments[1] === 'contest' && pathSegments[2];
+
+                        // Contest flow is separate and must always show the login/registration screen
+                        // Standard private org games can bypass if already authenticated
+                        if (authService.isAuthenticated() && !isSpecificContest) {
+                            console.log('[App] User already authenticated and not a specific contest, attempting revalidation...');
+                            try {
+                                const isValid = await authService.revalidate(org.org_code, pathSegments[1], pathSegments[2]);
+                                if (isValid) {
+                                    console.log('[App] Revalidation successful, bypassing login screen');
+                                    setShowLogin(false);
+                                } else {
+                                    console.log('[App] Revalidation failed, showing login screen');
+                                    setShowLogin(true);
+                                }
+                            } catch (error) {
+                                console.error('[App] Revalidation error:', error);
+                                setShowLogin(true);
+                            }
+                        } else {
+                            if (isSpecificContest) {
+                                console.log('[App] Specific contest detected, forcing login screen');
+                            }
+                            setShowLogin(true);
+                        }
                     } else if (org.org_type === 'Public') {
                         // COMMENTED OUT: For public orgs, let user play as unlogged user or use existing session
                         /*
@@ -334,7 +366,7 @@ const App: React.FC = () => {
         // Check for game_structure OR legacy round_structure before auto-starting
         const hasValidStructure = contestDetails?.game_structure || (contestDetails as any)?.round_structure;
 
-        if (param2 === 'contest' && gameState === 'idle' && contestDetails?.supported_languages?.length > 0 && hasValidStructure && !gameStartError) {
+        if (!isAppLoading && isLanguagesLoadedRef.current && param2 === 'contest' && gameState === 'idle' && contestDetails?.supported_languages?.length > 0 && hasValidStructure && !gameStartError) {
             // Convert the first language from supported_languages to proper language name
             const firstLangName = getLanguageName(contestDetails.supported_languages[0]);
 
@@ -348,7 +380,7 @@ const App: React.FC = () => {
                 setPendingContestStart(true);
             }
         }
-    }, [contestDetails, gameState, selectedLanguage, pendingContestStart, gameStartError, setSelectedLanguage, param2, languages]);
+    }, [contestDetails, gameState, selectedLanguage, pendingContestStart, gameStartError, setSelectedLanguage, param2, languages, isAppLoading]);
 
     useEffect(() => {
         if (param2 === 'contest' && showRoundCompletionModal && roundCompletionData) {
@@ -517,6 +549,11 @@ const App: React.FC = () => {
         return result;
     }, [contestDetails, currentLanguageName, languages]);
 
+    // 1. Contest Dashboard rendering (No specific contest selected)
+    if (param2 === 'contest' && !param3 && orgData) {
+        return <ContestDashboard orgData={orgData} />;
+    }
+
     if (showLogin) {
         if (param2 === 'contest') {
             if (param3) {
@@ -532,8 +569,6 @@ const App: React.FC = () => {
                     orgCode={orgData?.org_code}
                     orgData={orgData}
                 />;
-            } else if (orgData) {
-                return <ContestDashboard orgData={orgData} />;
             }
         }
         return <LoginScreen

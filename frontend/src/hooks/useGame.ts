@@ -30,10 +30,13 @@ export const useGame = (
     contestId: string | null = null,
     authToken: string | null = null,
     explicitOrgId: string | null = null,
-    contestDetails: Contest | null = null
+    contestDetails: Contest | null = null,
+    isPublicOrg: boolean = false
 ) => {
-    console.log(`[useGame] Init: isContest=${isContest}, contestId=${contestId}, hasToken=${!!authToken}`);
+    console.log(`[useGame] Init: isContest=${isContest}, contestId=${contestId}, hasToken=${!!authToken}, isPublicOrg=${isPublicOrg}`);
     const [languages, setLanguages] = useState<Language[]>([]);
+    const languagesRef = useRef<Language[]>([]); // Ref to capture languages state for synchronous access
+    const isLanguagesLoadedRef = useRef(false); // Synchronous flag for language availability
     const [isAppLoading, setIsAppLoading] = useState(true);
     const [gameData, setGameData] = useState<GameObject[]>([]);
     const [shuffledDescriptions, setShuffledDescriptions] = useState<GameObject[]>([]);
@@ -224,8 +227,9 @@ export const useGame = (
                 const effectiveOrgId = explicitOrgId || orgId;
                 let activeLanguages = await fetchActiveLanguages(effectiveOrgId);
 
-                // Filter languages for global users in the base area
-                if (!effectiveOrgId && authService.isAuthenticated()) {
+                // Filter languages for global users in the base area (no org context)
+                // Skip this filtering for public orgs - they should show all org languages
+                if (!effectiveOrgId && !isPublicOrg && authService.isAuthenticated()) {
                     const allowedLangs = authService.getLanguagesAllowed();
                     console.log("[useGame] Global context detected. Allowed languages from authService:", allowedLangs);
 
@@ -245,9 +249,13 @@ export const useGame = (
                     } else {
                         console.warn("[useGame] User authenticated but no allowed languages found in localStorage.");
                     }
+                } else if (isPublicOrg) {
+                    console.log("[useGame] Public org detected. Showing all org languages without user-based filtering.");
                 }
 
                 setLanguages(activeLanguages);
+                languagesRef.current = activeLanguages;
+                isLanguagesLoadedRef.current = true;
 
                 if (activeLanguages.length > 0) {
                     // Check if current/persisted language is still valid for this context
@@ -717,13 +725,15 @@ export const useGame = (
             // gameStructure.levels -> level.rounds -> contestDetails.supported_languages
 
             const supportedLangs = (contestDetails.supported_languages || [selectedLanguage]).map(lang => {
-                const found = languages.find(l =>
+                // Use languagesRef.current to map lang to name if it's a code
+                const currentLangs = languagesRef.current.length > 0 ? languagesRef.current : languages;
+                const found = currentLangs.find(l =>
                     l.code.toLowerCase() === lang.toLowerCase() ||
                     l.name.toLowerCase() === lang.toLowerCase()
                 );
                 return found?.name || lang;
             });
-            console.log("[useGame] Supported languages (mapped):", supportedLangs);
+            console.log("[useGame] Supported languages (mapped from ref/state):", supportedLangs);
 
             gameStructure.levels.sort((a, b) => a.level_seq - b.level_seq).forEach(level => {
                 level.rounds.sort((a, b) => a.round_seq - b.round_seq).forEach(round => {
@@ -1692,6 +1702,7 @@ export const useGame = (
         attemptsLeft: resumeAttemptsLeftRef.current,
         resumeNotificationData,
         previousScores: resumeNotificationData?.previousScores || [],
-        clearResumeNotification: useCallback(() => setResumeNotificationData(null), [])
+        clearResumeNotification: useCallback(() => setResumeNotificationData(null), []),
+        isLanguagesLoadedRef
     };
 };

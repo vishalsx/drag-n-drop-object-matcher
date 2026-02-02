@@ -27,9 +27,13 @@ export const contestService = {
         }
     },
 
-    authenticateParticipant: async (username: string, password: string): Promise<{ found: boolean; data?: any }> => {
+    authenticateParticipant: async (username: string, password: string, contestId?: string): Promise<{ found: boolean; data?: any }> => {
         try {
-            const response = await axios.post(`${API_BASE_URL}/contest/authenticate-participant`, { username, password });
+            const response = await axios.post(`${API_BASE_URL}/contest/authenticate-participant`, {
+                username,
+                password,
+                contest_id: contestId
+            });
             return response.data;
         } catch (error) {
             console.error('Authenticate participant error:', error);
@@ -43,8 +47,9 @@ export const contestService = {
         contestId: string;
         email?: string;
         age: number;
+        dob?: string;
         country: string;
-        phone_number?: string;
+        phone?: string;
         address?: string;
         selected_languages: string[];
     }): Promise<any> => {
@@ -56,8 +61,9 @@ export const contestService = {
                 email_id: data.email,
                 contest_id: data.contestId,
                 age: data.age,
+                dob: data.dob,
                 country: data.country,
-                phone_number: data.phone_number,
+                phone: data.phone,
                 address: data.address,
                 selected_languages: data.selected_languages,
                 entry_sources: { type: "individual" }

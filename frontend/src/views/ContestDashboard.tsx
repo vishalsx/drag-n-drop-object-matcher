@@ -96,12 +96,14 @@ const ContestDashboard: React.FC<ContestDashboardProps> = ({ orgData }) => {
             <div className="z-10 flex-shrink-0 bg-white/[0.02] backdrop-blur-md border-b border-white/10 p-5 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-3">
-                        <img
-                            src="/alphatub-logo.png"
-                            alt="alphaTUB"
-                            className="h-10 w-10 object-contain drop-shadow-xl"
-                        />
-                        <span className="text-2xl font-black tracking-tighter text-white">alphaTUB</span>
+                        <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                            <img
+                                src="/alphatub-logo.png"
+                                alt="playTUB"
+                                className="h-10 w-10 object-contain drop-shadow-xl"
+                            />
+                            <span className="text-2xl font-black tracking-tighter text-white">playTUB</span>
+                        </a>
                     </div>
                     <div className="w-px h-8 bg-white/10 hidden md:block"></div>
                     <div className="flex items-center gap-3">

@@ -20,6 +20,7 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
     const [password, setPassword] = useState('');
     const [email, setEmail] = useState('');
     const [age, setAge] = useState('');
+    const [dob, setDob] = useState('');
     const [country, setCountry] = useState('');
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
@@ -40,6 +41,7 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
     const resetRegistrationFields = () => {
         setEmail('');
         setAge('');
+        setDob('');
         setCountry('');
         setPhone('');
         setAddress('');
@@ -49,6 +51,18 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
         setHasAttemptedAuth(false);
         setIsReadOnly(false);
         setIsPersonalDetailsExpanded(false);
+    };
+
+    const calculateAge = (birthDate: string) => {
+        if (!birthDate) return null;
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+        }
+        return age;
     };
 
     React.useEffect(() => {
@@ -114,15 +128,16 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
         setSuccess(null); // Clear previous success messages
 
         try {
-            const result = await contestService.authenticateParticipant(username, password);
+            const result = await contestService.authenticateParticipant(username, password, contestId);
 
             if (result.found && result.data) {
                 const data = result.data;
                 // Populate data
                 if (data.email_id) setEmail(data.email_id);
                 if (data.age) setAge(data.age.toString());
+                if (data.dob) setDob(data.dob);
                 if (data.country) setCountry(data.country);
-                if (data.phone_number) setPhone(data.phone_number); // Changed from setPhoneNumber to setPhone
+                if (data.phone) setPhone(data.phone);
                 if (data.address) setAddress(data.address);
                 if (data.selected_languages && data.selected_languages.length > 0) {
                     setSelectedLanguages(data.selected_languages);
@@ -134,8 +149,8 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                 setIsDataAutoPopulated(true);
                 setIsAuthenticatedForReg(true);
                 setHasAttemptedAuth(true); // Mark that authentication was attempted
-                setIsPersonalDetailsExpanded(true); // Auto-expand on success
-                setSuccess('Authentication successful. Please verify details and join.');
+                setIsPersonalDetailsExpanded(false); // Keep collapsed for existing participants
+                setSuccess('Authentication successful. You can now join the contest or verify your details below.');
             } else {
                 // Auth Failed -> New User Flow
                 resetRegistrationFields(); // Clear fields first
@@ -152,11 +167,13 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                 setError('Incorrect password. Please verify your credentials.');
                 // Keep hasAttemptedAuth = false so button remains "Authenticate"
             } else {
-                // Other errors (Network, 503, etc.) - Fallback or Error?
-                // If service is down, maybe allow manual entry? Or show error?
-                // The implementation plan says: "If API returns found: False: Proceed to New User".
-                // So exceptions here are unexpected.
-                setError('Authentication service error. Please try again.');
+                // Other errors (Network, 503, 403, etc.)
+                const backendError = err.response?.data?.detail || err.response?.data?.error;
+                if (backendError) {
+                    setError(backendError);
+                } else {
+                    setError('Authentication service error. Please try again.');
+                }
             }
         } finally {
             setIsLoading(false);
@@ -188,22 +205,28 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
             if (mode === 'register') {
                 // Step 2: Register
 
-                // Step 2: Register
                 await contestService.contestRegister({
                     username,
                     password,
                     contestId,
                     email,
                     age: parseInt(age),
+                    dob,
                     country,
-                    phone_number: phone,
+                    phone: phone,
                     address,
                     selected_languages: selectedLanguages.length > 0 ? selectedLanguages : ['English']
                 });
-                setSuccess('Registration successful! You can now log in.');
-                setMode('login');
-                setPassword('');
-                resetRegistrationFields();
+
+                // Auto-login after successful registration/update
+                await contestService.contestLogin(username, password, contestId);
+                const contestError = authService.getContestError();
+                if (contestError) {
+                    setError(contestError);
+                    authService.logout();
+                } else {
+                    onLoginSuccess();
+                }
             } else {
                 await contestService.contestLogin(username, password, contestId);
                 const contestError = authService.getContestError();
@@ -246,15 +269,15 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                     <div className="md:w-[40%] p-8 flex flex-col justify-between bg-gradient-to-br from-blue-600/20 to-transparent border-b md:border-b-0 md:border-r border-white/10">
                         <div>
                             <div className="flex flex-col gap-6 mb-6">
-                                {/* alphaTUB Branding (Icon + Text) */}
-                                <div className="flex items-center gap-3">
+                                {/* playTUB Branding (Icon + Text) */}
+                                <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity w-fit">
                                     <img
                                         src="/alphatub-logo.png"
-                                        alt="alphaTUB"
+                                        alt="playTUB"
                                         className="w-10 h-10 object-contain drop-shadow-lg"
                                     />
-                                    <span className="text-2xl font-black tracking-tighter text-white">alphaTUB</span>
-                                </div>
+                                    <span className="text-2xl font-black tracking-tighter text-white">playTUB</span>
+                                </a>
 
                                 {/* Divider with Org Logo */}
                                 <div className="flex items-center gap-4">
@@ -290,11 +313,20 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                             </p>
                         </div>
 
+                        {/* Illustration Section */}
+                        <div className="flex-1 flex items-center justify-center min-h-0 py-8 pointer-events-none">
+                            <img
+                                src="/registration-illustration.png"
+                                alt="Registration Illustration"
+                                className="max-h-[90%] max-w-[90%] object-contain opacity-100 mix-blend-screen drop-shadow-[0_0_50px_rgba(37,99,235,0.3)]"
+                            />
+                        </div>
+
                         <div className="flex flex-col gap-4">
                             <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
                                 <p className="text-sm text-slate-400 italic">"Join the community of learners and competitors."</p>
                             </div>
-                            <p className="text-slate-500 text-xs">© 2026 alphaTUB. All rights reserved.</p>
+                            <p className="text-slate-500 text-xs">© 2026 playTUB. All rights reserved.</p>
                         </div>
                     </div>
 
@@ -425,17 +457,31 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                                             {/* Collapsible Content */}
                                             <div className={`transition-all duration-700 ease-in-out overflow-hidden border border-t-0 p-5 rounded-b-3xl bg-white/5 ${isPersonalDetailsExpanded ? 'max-h-[1000px] opacity-100 mb-4' : 'max-h-0 opacity-0 mb-0 pointer-events-none p-0 border-none'} ${hasAttemptedAuth ? 'border-blue-500/30' : 'border-white/10'}`}>
                                                 <div className="space-y-4">
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <input
-                                                            type="number"
-                                                            value={age}
-                                                            onChange={(e) => setAge(e.target.value)}
-                                                            required
-                                                            min="1"
-                                                            placeholder="Age"
-                                                            className={`w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600`}
-                                                            disabled={isLoading}
-                                                        />
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="relative group">
+                                                            <input
+                                                                type="date"
+                                                                value={dob}
+                                                                onChange={(e) => {
+                                                                    const newDob = e.target.value;
+                                                                    setDob(newDob);
+                                                                    const calculated = calculateAge(newDob);
+                                                                    if (calculated !== null) {
+                                                                        setAge(calculated.toString());
+                                                                    }
+                                                                }}
+                                                                required
+                                                                placeholder="Date of Birth"
+                                                                className={`w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600 ${isReadOnly ? 'opacity-50 cursor-not-allowed text-slate-400' : ''}`}
+                                                                disabled={isLoading || isReadOnly}
+                                                            />
+                                                            {dob && (
+                                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Age</span>
+                                                                    <span className="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/20">{age}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                         <input
                                                             type="text"
                                                             value={country}
@@ -447,21 +493,40 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                                                         />
                                                     </div>
 
-                                                    <div className="relative group">
-                                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors">
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                            </svg>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="relative group">
+                                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors">
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                                </svg>
+                                                            </div>
+                                                            <input
+                                                                type="email"
+                                                                value={email}
+                                                                onChange={(e) => setEmail(e.target.value)}
+                                                                required
+                                                                placeholder="Email Address"
+                                                                className={`w-full pl-12 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600 ${isReadOnly ? 'opacity-50 cursor-not-allowed text-slate-400' : ''}`}
+                                                                disabled={isLoading || isReadOnly}
+                                                            />
                                                         </div>
-                                                        <input
-                                                            type="email"
-                                                            value={email}
-                                                            onChange={(e) => setEmail(e.target.value)}
-                                                            required
-                                                            placeholder="Email Address"
-                                                            className={`w-full pl-12 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600`}
-                                                            disabled={isLoading}
-                                                        />
+
+                                                        <div className="relative group">
+                                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors">
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                                                </svg>
+                                                            </div>
+                                                            <input
+                                                                type="tel"
+                                                                value={phone}
+                                                                onChange={(e) => setPhone(e.target.value)}
+                                                                required
+                                                                placeholder="Phone Number"
+                                                                className={`w-full pl-12 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600 ${isReadOnly ? 'opacity-50 cursor-not-allowed text-slate-400' : ''}`}
+                                                                disabled={isLoading || isReadOnly}
+                                                            />
+                                                        </div>
                                                     </div>
 
                                                     {/* Language Selection */}
@@ -522,28 +587,31 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                                                         value={address}
                                                         onChange={(e) => setAddress(e.target.value)}
                                                         placeholder="Address (City, State)"
-                                                        className={`w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600`}
-                                                        disabled={isLoading}
+                                                        className={`w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600 ${isReadOnly ? 'opacity-50 cursor-not-allowed text-slate-400' : ''}`}
+                                                        disabled={isLoading || isReadOnly}
                                                     />
-
-                                                    <button
-                                                        type="submit"
-                                                        disabled={isLoading || !hasAttemptedAuth}
-                                                        className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-2xl shadow-xl shadow-blue-600/20 transform hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                                                    >
-                                                        {isLoading ? (
-                                                            <SpinnerIcon className="w-5 h-5 animate-spin text-white" />
-                                                        ) : (
-                                                            <span>{isAuthenticatedForReg ? 'Join Now' : 'Join'}</span>
-                                                        )}
-                                                        {!isLoading && (
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                                            </svg>
-                                                        )}
-                                                    </button>
                                                 </div>
                                             </div>
+
+                                            {/* Action Button for Registration - Visible after Step 1 */}
+                                            {hasAttemptedAuth && (
+                                                <button
+                                                    type="submit"
+                                                    disabled={isLoading}
+                                                    className="w-full py-3 mt-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-2xl shadow-xl shadow-blue-600/20 transform hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                                >
+                                                    {isLoading ? (
+                                                        <SpinnerIcon className="w-5 h-5 animate-spin text-white" />
+                                                    ) : (
+                                                        <span>{isAuthenticatedForReg ? 'Join Now' : 'Join'}</span>
+                                                    )}
+                                                    {!isLoading && (
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            )}
                                         </div>
                                     )}
 

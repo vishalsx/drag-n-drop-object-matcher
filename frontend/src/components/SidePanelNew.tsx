@@ -157,7 +157,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
             <div className="p-4 text-center border-b border-slate-700">
                 <img
                     src="/alphatub-logo-text.png"
-                    alt="alphaTUB - Language Learning Simplified"
+                    alt="playTUB - Language Learning Simplified"
                     className="h-12 w-auto mx-auto object-contain"
                 />
             </div>
@@ -191,8 +191,8 @@ const SidePanel: React.FC<SidePanelProps> = ({
                     <button
                         onClick={() => setActiveTab('preset')}
                         className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'preset'
-                                ? 'text-blue-400 border-b-2 border-blue-400'
-                                : 'text-slate-400 hover:text-slate-300'
+                            ? 'text-blue-400 border-b-2 border-blue-400'
+                            : 'text-slate-400 hover:text-slate-300'
                             }`}
                     >
                         Preset
@@ -200,8 +200,8 @@ const SidePanel: React.FC<SidePanelProps> = ({
                     <button
                         onClick={() => setActiveTab('custom')}
                         className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'custom'
-                                ? 'text-blue-400 border-b-2 border-blue-400'
-                                : 'text-slate-400 hover:text-slate-300'
+                            ? 'text-blue-400 border-b-2 border-blue-400'
+                            : 'text-slate-400 hover:text-slate-300'
                             }`}
                     >
                         Custom
@@ -401,8 +401,8 @@ const SidePanel: React.FC<SidePanelProps> = ({
                     onClick={isInteractive ? onWithdrawRequest : handleStartGame}
                     disabled={isButtonDisabled}
                     className={`w-full text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transform hover:disabled:scale-100 hover:scale-105 ${isInteractive
-                            ? 'bg-red-600 hover:bg-red-500 focus:ring-red-500'
-                            : 'bg-green-600 hover:bg-green-500 focus:ring-green-500'
+                        ? 'bg-red-600 hover:bg-red-500 focus:ring-red-500'
+                        : 'bg-green-600 hover:bg-green-500 focus:ring-green-500'
                         }`}
                 >
                     {areCategoriesLoading ? 'Processing...' : (isInteractive ? 'Withdraw' : 'Play Game')}
