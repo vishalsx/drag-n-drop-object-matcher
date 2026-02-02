@@ -42,6 +42,12 @@ class LoginResponse(BaseModel):
     contest_details: Optional[Dict[str, Any]] = None
     search_text: Optional[str] = None
     contest_error: Optional[str] = None
+    email_id: Optional[str] = None
+    phone: Optional[str] = None
+    country: Optional[str] = None
+    address: Optional[str] = None
+    age: Optional[int] = None
+    dob: Optional[str] = None
 
 class LeaderboardEntry(BaseModel):
     rank: int
@@ -88,6 +94,7 @@ async def check_participant(username: str):
 class ParticipantAuthRequest(BaseModel):
     username: str
     password: str
+    contest_id: Optional[str] = None
 
 @router.post("/contest/authenticate-participant")
 async def authenticate_participant(data: ParticipantAuthRequest):
@@ -106,17 +113,45 @@ async def authenticate_participant(data: ParticipantAuthRequest):
             # Authentication Successful
             ext_user = response.json()
             
+            # Calculate Age from DOB
+            dob_str = ext_user.get("dob")
+            calculated_age = 0
+            if dob_str:
+                try:
+                    dob = datetime.fromisoformat(dob_str.replace('Z', '+00:00')).date()
+                    today = datetime.now(timezone.utc).date()
+                    calculated_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                except Exception as e:
+                    print(f"[DEBUG-Auth] Age calculation error: {e}")
+
+            # Check Eligibility if contest_id is provided and DOB is available
+            if data.contest_id and dob_str:
+                contest_doc = await contests_collection.find_one({"_id": ObjectId(data.contest_id)})
+                if contest_doc:
+                    contest_obj = Contest(**contest_doc)
+                    rules = contest_obj.eligibility_rules
+                    if rules:
+                        if calculated_age < rules.min_age or calculated_age > rules.max_age:
+                            print(f"[DEBUG-Auth] Eligibility Failed: Age {calculated_age} not in {rules.min_age}-{rules.max_age}")
+                            raise HTTPException(
+                                status_code=403, 
+                                detail=f"Age eligibility failed. Requirement: {rules.min_age}-{rules.max_age} years. Your age: {calculated_age}"
+                            )
+            elif data.contest_id and not dob_str:
+                print(f"[DEBUG-Auth] Warning: No DOB found for existing user {data.username}. Skipping pre-auth age check.")
+
             # Fetch Local Participant Data (if any)
             participant = await participants_collection.find_one({"username": data.username})
             print(f"[DEBUG-Auth] Local participant found: {participant is not None}")
             
             # Default empty profile
             profile_data = {
-                "email_id": ext_user.get("username"), # Fallback
-                "age": "",
+                "email_id": ext_user.get("email_id") or ext_user.get("username"), 
+                "age": calculated_age,
+                "dob": dob_str,
                 "country": ext_user.get("country", "India"),
-                "phone_number": "",
-                "address": "",
+                "phone": ext_user.get("phone") or ext_user.get("phone") or "",
+                "address": ext_user.get("address", ""),
                 "selected_languages": ext_user.get("languages_allowed", []),
                 "roles": ext_user.get("roles", ["global_user"])
             }
@@ -124,10 +159,9 @@ async def authenticate_participant(data: ParticipantAuthRequest):
             if participant:
                 # Merge local data
                 profile_data.update({
-                    "email_id": participant.get("email_id") or participant.get("email") or profile_data["email_id"],
-                    "age": participant.get("age"),
-                    "phone_number": participant.get("phone_number"),
-                    "address": participant.get("address"),
+                    "age": calculated_age, # Always use calculated age from DOB
+                    "dob": dob_str,
+                    "address": ext_user.get("address", "") or participant.get("address"),
                 })
 
             return json_serializable({
@@ -221,15 +255,8 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
         
         # Update user profile with latest details from form
         update_fields = {
-            "age": data.age,
-            "address": data.address,
             "updated_at": datetime.now(timezone.utc)
         }
-        # Only update email and phone if provided (though they are mandatory in form, safer to check)
-        if data.email_id:
-            update_fields["email_id"] = data.email_id
-        if data.phone_number:
-            update_fields["phone_number"] = data.phone_number
 
         result = await participants_collection.update_one(
             {"_id": contestant["_id"]},
@@ -277,12 +304,15 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
                     "username": data.username,
                     "email_id": data.email_id,
                     "password": data.password,
-                    "phone": data.phone_number if data.phone_number else f"CONTEST_{data.username[:10]}",
+                    "dob": data.dob,
+                    "address": data.address,
+                    "phone": data.phone if data.phone else f"CONTEST_{data.username[:10]}",
                     "roles": ["global_user"],
                     "languages_allowed": data.selected_languages,
                     "country": data.country if data.country else "India",
                     "organisation_id": organisation_id
                 }
+                print(f"[DEBUG-Register] Registration Payload: {external_payload}")
                 print(f"[DEBUG-Register] Calling External Create User URL: {EXTERNAL_CREATE_USER_URL}")
                 response = requests.post(EXTERNAL_CREATE_USER_URL, json=external_payload)
                 print(f"[DEBUG-Register] External Create User Response Status: {response.status_code}")
@@ -335,15 +365,8 @@ async def register_contest_participant(data: ContestParticipantCreate, user_time
         
         contestant_dict = {
             "username": data.username,
-            "email_id": data.email_id,
             # "password": hash_password(data.password), # REMOVED: Do not store local password
-            "age": data.age,
-            "age_group": "teen" if data.age < 20 and data.age >= 13 else ("child" if data.age < 13 else "adult"),
-            "country": data.country,
-            "phone_number": data.phone_number,
-            "address": data.address,
             "user_id": external_user_id,
-            "roles": ["global_user"],
             "participations": [new_participation],
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)
@@ -419,7 +442,10 @@ async def login_contest_participant(data: ParticipantLogin, user_timezone: Optio
         "roles": ["global_user"],
         "org_id": str(org_id or participation.get("org_id") or external_data.get("org_id") or ""),
         "organisation_id": str(org_id or participation.get("org_id") or external_data.get("org_id") or ""),
-        "user_id": str(contestant.get("user_id") or external_data.get("user_id") or external_data.get("org_id") or "")
+        "user_id": str(contestant.get("user_id") or external_data.get("user_id") or external_data.get("org_id") or ""),
+        "email_id": external_data.get("email_id"),
+        "phone": external_data.get("phone") or external_data.get("phone"),
+        "country": external_data.get("country")
     }
     
     token = create_access_token(user_payload)
@@ -429,8 +455,25 @@ async def login_contest_participant(data: ParticipantLogin, user_timezone: Optio
         "token_type": "bearer",
         "username": contestant["username"],
         "org_id": user_payload["org_id"],
-        "user_id": user_payload["user_id"]
+        "user_id": user_payload["user_id"],
+        "email_id": user_payload.get("email_id"),
+        "phone": user_payload.get("phone"),
+        "country": user_payload.get("country"),
+        "address": external_data.get("address"),
+        "age": 0,
+        "dob": external_data.get("dob")
     }
+    
+    # Calculate Age for Login Response
+    dob_str = external_data.get("dob")
+    if dob_str:
+        try:
+            dob = datetime.fromisoformat(dob_str.replace('Z', '+00:00')).date()
+            today = datetime.now(timezone.utc).date()
+            calculated_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            response_data["age"] = calculated_age
+        except Exception as e:
+            print(f"[LOGIN] Age calculation error: {e}")
     
     if contest_doc:
         response_data["contest_details"] = json_serializable(contest_doc)

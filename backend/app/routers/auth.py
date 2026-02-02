@@ -54,6 +54,7 @@ class GlobalUserRegister(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     languages: Optional[List[str]] = []
+    dob: Optional[str] = None
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -64,6 +65,12 @@ class LoginResponse(BaseModel):
     contest_details: Optional[Contest] = None
     search_text: Optional[str] = None
     contest_error: Optional[str] = None
+    email_id: Optional[str] = None
+    phone: Optional[str] = None
+    country: Optional[str] = None
+    address: Optional[str] = None
+    age: Optional[int] = None
+    dob: Optional[str] = None
 
 async def validate_org(org_code: str, response: dict):
     org_coll = await organisations_collection.find_one({"org_code": org_code})
@@ -193,7 +200,9 @@ async def register_global_user(data: GlobalUserRegister):
             "roles": ["global_user"],
             "languages_allowed": data.languages if data.languages else ["English"], 
             "country": data.country or "Unknown",
-            "organisation_id": None # Global user
+            "organisation_id": None, # Global user
+            "dob": data.dob,
+            "address": data.address
         }
 
         response = requests.post(EXTERNAL_CREATE_USER_URL, json=external_payload)
@@ -257,7 +266,12 @@ async def login(
                 "org_id": response_data.get("org_id"),
                 "organisation_id": response_data.get("org_id"),  # Also add as organisation_id
                 "roles": response_data.get("roles"),
-                "permissions": response_data.get("permissions")
+                "permissions": response_data.get("permissions"),
+                "email_id": response_data.get("email_id"),
+                "phone": response_data.get("phone") or response_data.get("phone"),
+                "country": response_data.get("country"),
+                "address": response_data.get("address"),
+                "dob": response_data.get("dob")
             }
             new_token = create_access_token(user_payload)
             
@@ -299,3 +313,76 @@ async def login(
             
     except requests.RequestException as e:
         raise HTTPException(status_code=503, detail=f"Login service unavailable: {str(e)}")
+
+@router.post("/auth/revalidate", response_model=LoginResponse)
+async def revalidate(
+    request: Request,
+    org_code: str = Form(...),
+    param2: Optional[str] = Form(None),
+    param3: Optional[str] = Form(None),
+    timezone: Optional[str] = Form(None)
+):
+    """
+    Revalidates the current user session for a specific organization.
+    If valid, returns the session info and contest details if applicable.
+    """
+    user = getattr(request.state, "user", None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        # Find organization by org_code
+        org = await organisations_collection.find_one({"org_code": org_code})
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+
+        # Basic org membership check
+        if org.get("org_type") == "Private":
+            user_org_id = user.get("org_id") or user.get("organisation_id")
+            if org.get("org_id") != user_org_id:
+                raise HTTPException(status_code=403, detail="User does not belong to this organization")
+
+        # Construct the basic response data from existing token info
+        response_data = {
+            "access_token": request.headers.get("Authorization").split()[1],
+            "token_type": "bearer",
+            "org_id": org.get("org_id"),
+            "username": user.get("username"),
+            "languages_allowed": user.get("languages_allowed"),
+            "email_id": user.get("email_id"),
+            "phone": user.get("phone") or user.get("phoner"),
+            "country": user.get("country"),
+            "address": user.get("address")
+        }
+        
+        # Calculate Age if dob is in token
+        dob_str = user.get("dob")
+        if dob_str:
+            try:
+                dob = datetime.fromisoformat(dob_str.replace('Z', '+00:00')).date()
+                today = datetime.now(timezone.utc).date()
+                calculated_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                response_data["age"] = calculated_age
+            except Exception as e:
+                print(f"[REVALIDATE] Age calculation error: {e}")
+
+        # --- CONTEST VALIDATION START (Same as login) ---
+        if param2 and param3 and param2.lower() == "contest":
+            contest_doc, search_text, contest_error = await validate_contest_for_login(param3, timezone)
+            if contest_doc:
+                # Convert ObjectId and datetime for JSON serialization
+                contest_doc["_id"] = str(contest_doc["_id"])
+                for key, val in contest_doc.items():
+                    if isinstance(val, datetime):
+                        contest_doc[key] = val.isoformat()
+                response_data["contest_details"] = contest_doc
+            response_data["search_text"] = search_text
+            response_data["contest_error"] = contest_error
+        # --- CONTEST VALIDATION END ---
+
+        return response_data
+
+    except Exception as e:
+        print(f"Revalidation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Revalidation failed: {str(e)}")
+

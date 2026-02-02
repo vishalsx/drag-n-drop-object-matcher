@@ -74,18 +74,21 @@ async def get_languages(request: Request):
         user = getattr(request.state, "user", None)
         
         final_languages = set()
-        # print("\nOrg:", org)
-        print("\nUser:", user)
+        if user:
+            print("\nUser:", user)
+
         if org:
             # Step 1: Org Logic
             org_id = org.get("org_id")
             
             # Check for languages_allowed at top level (per model) or under settings (fallback)
-            org_allowed = org.get("language_allowed")
+            # Support both "languages_allowed" and "language_allowed"
+            org_allowed = org.get("languages_allowed") or org.get("language_allowed")
             if org_allowed is None:
-                org_allowed = org.get("settings", {}).get("language_allowed")
+                settings = org.get("settings", {})
+                org_allowed = settings.get("languages_allowed") or settings.get("language_allowed")
 
-            print(f"\nFor Org id : {org_id}Org allowed languages:{org_allowed}")
+            print(f"\nFor Org id: {org_id} | Org allowed languages: {org_allowed}")
             
             # Find languages in translations where org_id matches and status is Approved
             available_in_db = await translation_collection.distinct(
@@ -97,12 +100,16 @@ async def get_languages(request: Request):
             if org_allowed is not None:
                 step1_langs = set(org_allowed) & set(available_in_db)
             else:
-                # step1_langs = set(available_in_db)
-                step1_langs = set() # No languages allowed for this org
+                # If no restriction is defined on the Org, show all approved translated languages
+                step1_langs = set(available_in_db)
 
-            # Step 2: User Logic (if logged in)
-            if user:
-                print(f"\nUser Token Payload Keys: {list(user.keys())}")
+            # Step 2: User Logic (if logged in and the Org is Private)
+            # Requirement: Public or global contexts should show all available org-level languages 
+            # even for logged-in users. Filtering only applies in Private Org context.
+            is_public_org = str(org.get("org_type", "")).lower() == "public"
+            
+            if user and not is_public_org:
+                print(f"\nPrivate Org context: Applying user-specific filters for {user.get('username') or user.get('sub')}")
                 user_allowed = user.get("languages_allowed") # List[str] or None
                 username = user.get("username") or user.get("sub") or user.get("user_id")
                 print (f"\nUser allowed languages: {user_allowed}, for user id {username}")
@@ -112,14 +119,13 @@ async def get_languages(request: Request):
                     final_languages = step1_langs & set(user_allowed)
                     print (f"\nFinal languages after intersection: {final_languages}")
                 else:
-                    # final_languages = step1_langs
-                    # If languages_allowed is missing from token, decide policy. 
-                    # For now, keeping existing logic: return empty if not specified (strict)
-                    # Or maybe log a warning?
-                    print("\nWarning: 'languages_allowed' not found in user token. Defaulting to empty set.")
-                    final_languages = set() # No languages allowed for this user
+                    # If languages_allowed is missing from token, default to empty set for private orgs
+                    print("\nWarning: 'languages_allowed' not found in user token for private org. Defaulting to empty set.")
+                    final_languages = set()
             else:
-                final_languages = step1_langs #public org no user logged in. take all org level languages
+                if user and is_public_org:
+                    print("\nPublic Org detected. Bypassing user-specific language filtering.")
+                final_languages = step1_langs # Take all org level languages
                 
         else:
             # Step 3: No Org

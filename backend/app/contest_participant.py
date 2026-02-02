@@ -79,13 +79,13 @@ class Contestant(BaseModel):
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
     username: str
     password: Optional[str] = None # Hashed (Deprecated: Auth via external service)
-    email_id: str
+    email_id: Optional[str] = None
     
-    # Profile
-    age: int
+    # Profile (Source of truth is external service)
+    age: Optional[int] = None
     age_group: Optional[str] = None
-    country: str
-    phone_number: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
     
     # External Link
@@ -96,15 +96,6 @@ class Contestant(BaseModel):
     
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
-    def model_post_init(self, __context: Any) -> None:
-        if not self.age_group:
-             if self.age < 13:
-                 self.age_group = "child"
-             elif self.age < 20:
-                 self.age_group = "teen"
-             else:
-                 self.age_group = "adult"
 
     model_config = {
         "populate_by_name": True,
@@ -118,8 +109,9 @@ class ContestParticipantCreate(BaseModel):
     username: str
     password: str
     age: int
+    dob: Optional[str] = None
     email_id: str
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
     country: str
     entry_sources: EntrySource
@@ -129,7 +121,7 @@ class ContestParticipantUpdate(BaseModel):
     username: Optional[str] = None
     age: Optional[int] = None
     email_id: Optional[str] = None
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
     status: Optional[str] = None
