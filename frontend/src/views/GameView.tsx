@@ -488,6 +488,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                 onTimeUpdate={props.setLevel2Timer}
                                 timeLimitSeconds={props.currentSegment?.round?.time_limit_seconds || 60}
                                 scoringParams={props.contestDetails?.scoring_config?.quiz}
+                                timerMode={!props.isContest ? 'elapsed' : 'countdown'}
                             />
                         ) : (
 
@@ -653,14 +654,14 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                     Time: {props.level1Timer}s
                                 </div>
                             )}
-                            {/* Contest Mode Level 2 Timer (quiz countdown) */}
+                            {/* Contest Mode Level 2 Timer (quiz countdown) OR Learners Mode Quiz Timer (elapsed) */}
                             {props.gameState === 'playing' && props.level2Timer !== undefined && props.currentSegment?.level?.game_type === 'quiz' && (
-                                <div className={`text-xl font-bold ${props.level2Timer < 10 ? 'text-red-500 animate-pulse' : 'text-blue-300'}`}>
+                                <div className={`text-xl font-bold ${!props.isContest ? 'text-emerald-400' : (props.level2Timer < 10 ? 'text-red-500 animate-pulse' : 'text-blue-300')}`}>
                                     Time: {props.level2Timer}s
                                 </div>
                             )}
-                            {/* Learners Mode Timer (elapsed time, non-contest) */}
-                            {props.gameState === 'playing' && !props.isContest && props.learnersTimer !== undefined && (
+                            {/* Learners Mode Timer (elapsed time, non-contest) - matching game only */}
+                            {props.gameState === 'playing' && !props.isContest && props.learnersTimer !== undefined && props.currentSegment?.level?.game_type !== 'quiz' && (
                                 <div className="text-xl font-bold text-emerald-400">
                                     Time: {props.learnersTimer}s
                                 </div>

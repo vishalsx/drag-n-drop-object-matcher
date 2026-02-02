@@ -15,13 +15,24 @@ interface QuizGameProps {
     questions: QuizQuestion[];
     onComplete: (score: number, correctCount: number, timeLeftSeconds: number) => void;
     timeLimitSeconds: number;
+    initialTimeSeconds?: number;
     onTimeUpdate?: (secondsLeft: number) => void;
     scoringParams?: QuizScoringParameters;
+    timerMode?: 'countdown' | 'elapsed';
 }
 
-const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSeconds, onTimeUpdate, scoringParams }) => {
+const QuizGame: React.FC<QuizGameProps> = ({
+    questions,
+    onComplete,
+    timeLimitSeconds,
+    initialTimeSeconds = 0,
+    onTimeUpdate,
+    scoringParams,
+    timerMode = 'countdown'
+}) => {
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [timeLeft, setTimeLeft] = useState(timeLimitSeconds);
+    // For countdown, start with limit. For elapsed, start with initialTime (usually 0).
+    const [timeLeft, setTimeLeft] = useState(timerMode === 'countdown' ? timeLimitSeconds : initialTimeSeconds);
     const [score, setScore] = useState(0);
     const [correctCount, setCorrectCount] = useState(0);
     const [userAnswer, setUserAnswer] = useState('');
@@ -37,19 +48,26 @@ const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSec
     useEffect(() => {
         if (!gameActive) return;
 
-        console.log(`[QuizGame] Starting timer with ${timeLeft}s`);
+        console.log(`[QuizGame] Starting timer (${timerMode}) with ${timeLeft}s`);
 
         const timer = setInterval(() => {
             setTimeLeft((prev) => {
-                if (prev <= 0) {
-                    console.log('[QuizGame] Timer reached 0. Completing...');
-                    clearInterval(timer);
-                    handleComplete();
-                    return 0;
+                if (timerMode === 'countdown') {
+                    if (prev <= 0) {
+                        console.log('[QuizGame] Timer reached 0. Completing...');
+                        clearInterval(timer);
+                        handleComplete();
+                        return 0;
+                    }
+                    const nextVal = prev - 1;
+                    if (onTimeUpdate) onTimeUpdate(nextVal);
+                    return nextVal;
+                } else {
+                    // Elapsed mode (Learners)
+                    const nextVal = prev + 1;
+                    if (onTimeUpdate) onTimeUpdate(nextVal);
+                    return nextVal;
                 }
-                const nextVal = prev - 1;
-                if (onTimeUpdate) onTimeUpdate(nextVal);
-                return nextVal;
             });
         }, 1000);
 
@@ -57,7 +75,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ questions, onComplete, timeLimitSec
             console.log('[QuizGame] Clearing timer.');
             clearInterval(timer);
         };
-    }, [gameActive, onTimeUpdate]);
+    }, [gameActive, onTimeUpdate, timerMode]);
 
     const handleComplete = () => {
         console.log('[QuizGame] handleComplete triggered. Final Score:', score, 'Time Left:', timeLeftRef.current);

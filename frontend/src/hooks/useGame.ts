@@ -1205,6 +1205,20 @@ export const useGame = (
     };
 
     useEffect(() => {
+        // Debug logging for Level 2 Timer
+        if (gameLevel === 2) {
+            console.log('[useGame] Level 2 Timer Check:', {
+                gameLevel,
+                hasLevel2State: !!level2State,
+                isComplete: level2State?.isComplete,
+                isPaused: isLevel2Paused,
+                modalShowing: showRoundCompletionModal,
+                transitioning: isTransitioningRef.current,
+                completionTriggered: completionTriggeredRef.current,
+                timerValue: level2Timer
+            });
+        }
+
         // Don't run timer if modal is showing, transitioning, or completion already triggered
         if (showRoundCompletionModal || isTransitioningRef.current || completionTriggeredRef.current || !level2State || level2State.isComplete || isLevel2Paused) {
             return;
@@ -1335,8 +1349,13 @@ export const useGame = (
         });
 
         setLevel2Timer(0);
-        setIsLevel2Paused(true);
+        setIsLevel2Paused(false); // Don't pause for Learners Mode - start timer immediately
         setGameLevel(2);
+
+        // Reset completion flags
+        completionTriggeredRef.current = false;
+        isTransitioningRef.current = false;
+
         setGameState('playing');
     };
 
@@ -1454,7 +1473,7 @@ export const useGame = (
             }
         } else {
             // Move to next picture
-            setIsLevel2Paused(true); // Pause while next image is loading
+            setIsLevel2Paused(isContest); // Only pause in contest mode
             setLevel2State({
                 ...level2State,
                 currentPictureIndex: nextIndex,

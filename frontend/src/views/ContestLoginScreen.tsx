@@ -279,29 +279,26 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                                     <span className="text-2xl font-black tracking-tighter text-white">playTUB</span>
                                 </a>
 
-                                {/* Divider with Org Logo */}
-                                <div className="flex items-center gap-4">
-                                    <div className="h-px bg-white/10 flex-1"></div>
+                                <div className="flex items-center gap-4 mt-2">
                                     {orgData?.logo_url ? (
                                         <img
                                             src={orgData.logo_url}
                                             alt={orgData.org_name}
-                                            className="h-10 object-contain drop-shadow-xl"
+                                            className="h-12 w-12 object-contain drop-shadow-xl"
                                         />
                                     ) : (
-                                        <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-teal-400 rounded-xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/20">
+                                        <div className="w-12 h-12 bg-gradient-to-tr from-blue-500 to-teal-400 rounded-xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/20">
                                             {orgData?.org_name ? orgData.org_name[0] : 'A'}
                                         </div>
                                     )}
-                                    <div className="h-px bg-white/10 flex-1"></div>
-                                </div>
 
-                                {orgData?.org_name && (
-                                    <div className="text-center">
-                                        <span className="text-xs font-black uppercase tracking-widest text-blue-400/80">Affiliated with</span>
-                                        <h4 className="text-lg font-bold text-white tracking-tight">{orgData.org_name}</h4>
-                                    </div>
-                                )}
+                                    {orgData?.org_name && (
+                                        <div className="flex flex-col text-left">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-400/80">Affiliated with</span>
+                                            <h4 className="text-lg font-bold text-white tracking-tight">{orgData.org_name}</h4>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <h2 className="text-3xl md:text-4xl font-black leading-tight mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">
@@ -472,7 +469,7 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                                                                 }}
                                                                 required
                                                                 placeholder="Date of Birth"
-                                                                className={`w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600 ${isReadOnly ? 'opacity-50 cursor-not-allowed text-slate-400' : ''}`}
+                                                                className={`w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 focus:outline-none transition-all placeholder:text-slate-600 text-white [color-scheme:dark] ${isReadOnly ? 'opacity-50 cursor-not-allowed text-slate-400' : ''}`}
                                                                 disabled={isLoading || isReadOnly}
                                                             />
                                                             {dob && (
