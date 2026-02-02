@@ -473,8 +473,7 @@ const ContestLoginScreen: React.FC<ContestLoginScreenProps> = ({ contestName, co
                                                                 disabled={isLoading || isReadOnly}
                                                             />
                                                             {dob && (
-                                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
-                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Age</span>
+                                                                <div className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
                                                                     <span className="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/20">{age}</span>
                                                                 </div>
                                                             )}
