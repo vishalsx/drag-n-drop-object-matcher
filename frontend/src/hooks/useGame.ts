@@ -272,7 +272,9 @@ export const useGame = (
                             setSelectedLanguage(activeLanguages[0].code);
                         }
                     }
-                } else {
+                }
+
+                if (activeLanguages.length === 0 || isContest) {
                     setIsAppLoading(false);
                 }
             } catch (error) {
