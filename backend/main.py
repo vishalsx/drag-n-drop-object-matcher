@@ -14,6 +14,7 @@ from app.routers import analytics
 from app.routers import contest
 from app.routers import game_play
 from app.routers import curriculum
+from app.routers import event_analytics
 import uvicorn
 
 
@@ -43,6 +44,7 @@ app.include_router(contest.router, tags=["contest"])
 app.include_router(curriculum.router)
 app.include_router(analytics.router)
 app.include_router(game_play.router, tags=["game_play"])
+app.include_router(event_analytics.router)
 
 @app.get("/health")
 async def health():

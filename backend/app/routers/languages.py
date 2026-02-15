@@ -141,7 +141,7 @@ async def get_languages(request: Request):
 
         distinct_lang_texts = list(final_languages)
 
-        print("\nDistinct languages found:", distinct_lang_texts)
+        # print("\nDistinct languages found:", distinct_lang_texts)
         if not distinct_lang_texts:
             return JSONResponse(content=[])
 
@@ -152,7 +152,7 @@ async def get_languages(request: Request):
         )
 
         raw_languages = await cursor.to_list(length=None)
-        print("\n⏰⏰⏰Raw languages fetched:", raw_languages)
+        # print("\n⏰⏰⏰Raw languages fetched:", raw_languages)
         # Normalize field names for frontend
         languages = [
             {
@@ -164,7 +164,7 @@ async def get_languages(request: Request):
             for lang in raw_languages
         ]
 
-        print("\nLanguages details fetched:", languages)
+        # print("\nLanguages details fetched:", languages)
         # Sort languages alphabetically by name
         sorted_languages = sorted(languages, key=lambda x: x['name'] if x['name'] else "")
         return JSONResponse(content=sorted_languages)

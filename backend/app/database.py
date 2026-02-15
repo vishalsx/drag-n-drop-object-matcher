@@ -25,4 +25,5 @@ contest_analytics_collection = db["contest_analytics"]
 participants_collection = db["participants"]
 books_collection = db["books"]
 users_collection = db["users"]
+event_analytics_collection = db["event_analytics"]
 
