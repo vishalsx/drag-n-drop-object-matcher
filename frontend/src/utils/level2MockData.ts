@@ -48,6 +48,7 @@ export const generateLevel2Questions = (picture: GameObject): Level2Question[] =
             question: q.question,
             answer: q.answer,
             isCorrect: true,
+            difficulty_level: (q.difficulty_level?.toLowerCase() || 'medium') as any
         })).sort(() => Math.random() - 0.5);
     }
 

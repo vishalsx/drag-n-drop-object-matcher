@@ -6,6 +6,7 @@ import type {
     AnalyticsSubmissionResponse,
     QueuedAnalytics
 } from '../types/analyticsTypes';
+import type { GameEvent } from '../types/eventAnalyticsTypes';
 
 // Get API base URL from environment or use default
 const API_BASE_URL = import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8081';
@@ -55,6 +56,40 @@ export const analyticsService = {
             // Queue for retry on failure
             this.queueFailedSubmission(analytics);
 
+            throw error;
+        }
+    },
+
+    /**
+     * Log an event-driven analytics event to the backend
+     * @param event - The event to log
+     * @param token - JWT authentication token
+     */
+    async logEvent(
+        event: GameEvent,
+        token: string
+    ): Promise<any> {
+        console.log(`[Analytics Service] Logging event: ${event.envelope.event_type}`);
+        try {
+            const response = await fetch(`${API_BASE_URL}/event-analytics/log`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(event)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Event logging failed (${response.status}): ${errorText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('[Analytics Service] Failed to log event:', error);
+            // We don't queue these events for now to avoid complexity, 
+            // but we could in the future if needed.
             throw error;
         }
     },
@@ -213,6 +248,49 @@ export const analyticsService = {
             return await response.json();
         } catch (error) {
             console.error('[Analytics Service] Failed to fetch user analytics:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get language mastery score from aggregation
+     * @param languageCode - Language code
+     * @param token - JWT authentication token
+     */
+    async getMasteryScore(
+        languageCode: string,
+        token: string,
+        orgId?: string | null,
+        orgCode?: string | null
+    ): Promise<{ score: number, coverage: number, wordsExposed: number, totalWords: number, change: number, period: string }> {
+        try {
+            const queryParams = new URLSearchParams();
+            if (orgCode) queryParams.append('org_code', orgCode);
+
+            const url = `${API_BASE_URL}/event-analytics/mastery/${languageCode}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    ...(orgId ? { 'X-Org-ID': orgId } : {})
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch mastery score: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return {
+                score: data.score,
+                coverage: data.coverage,
+                wordsExposed: data.words_exposed || 0,
+                totalWords: data.total_words || 0,
+                change: data.change,
+                period: data.period
+            };
+        } catch (error) {
+            console.error('[Analytics Service] Failed to fetch mastery score:', error);
             throw error;
         }
     }

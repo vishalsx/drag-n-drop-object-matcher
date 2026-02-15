@@ -75,6 +75,8 @@ interface GameViewProps {
     currentSegment?: any;
     transitionMessage?: string | null;
     handleQuizComplete?: (score: number, correct: number, timeLeft?: number) => void;
+    handleQuizAnswerAttempt?: (itemId: string, isCorrect: boolean, index: number, difficulty: string) => void;
+    handleHintFlip?: (itemId: string, fromType: string, toType: string) => void;
     setLevel2Timer: React.Dispatch<React.SetStateAction<number>>;
     attemptsLeft?: number | null;
 }
@@ -314,11 +316,13 @@ const GameView: React.FC<GameViewProps> = (props) => {
         fetchTubSheets();
     }, [props.selectedLanguage, props.languageBcp47, props.selectedCategory, props.selectedFos, props.gameState, props.languages, props.userId, props.orgData]); // Re-fetch on game state, language, user, or org change
 
-    // Auto-collapse panel when game starts
+    // Auto-collapse panel when game starts/stops
     useEffect(() => {
         if (props.gameState === 'playing') {
             setIsLeftPanelOpen(false);
             setSelectedDescriptionId(null);
+        } else if (props.gameState === 'idle') {
+            setIsLeftPanelOpen(true);
         }
     }, [props.gameState]);
 
@@ -485,6 +489,7 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                         props.handleQuizComplete(score, correct, timeLeft);
                                     }
                                 }}
+                                onAnswerAttempt={props.handleQuizAnswerAttempt}
                                 onTimeUpdate={props.setLevel2Timer}
                                 timeLimitSeconds={props.currentSegment?.round?.time_limit_seconds || 60}
                                 scoringParams={props.contestDetails?.scoring_config?.quiz}
@@ -632,9 +637,11 @@ const GameView: React.FC<GameViewProps> = (props) => {
                                             isSelected={selectedDescriptionId === item.id}
                                             onSelect={() => handleSelectDescription(item.id)}
                                             onSpeakHint={(text) => props.handleSpeakHint(text, item.id)}
+                                            onHintFlip={props.handleHintFlip}
                                             languageBcp47={props.languageBcp47}
                                             label={(index + 1).toString()}
                                             allowFlip={!props.isContest}
+                                            initialHintType={item.initialHintType}
                                         />
                                     ))}
                                 </>

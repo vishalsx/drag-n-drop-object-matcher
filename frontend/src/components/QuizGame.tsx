@@ -14,6 +14,7 @@ interface QuizQuestion {
 interface QuizGameProps {
     questions: QuizQuestion[];
     onComplete: (score: number, correctCount: number, timeLeftSeconds: number) => void;
+    onAnswerAttempt?: (itemId: string, isCorrect: boolean, questionIndex: number, difficulty: string) => void;
     timeLimitSeconds: number;
     initialTimeSeconds?: number;
     onTimeUpdate?: (secondsLeft: number) => void;
@@ -24,6 +25,7 @@ interface QuizGameProps {
 const QuizGame: React.FC<QuizGameProps> = ({
     questions,
     onComplete,
+    onAnswerAttempt,
     timeLimitSeconds,
     initialTimeSeconds = 0,
     onTimeUpdate,
@@ -90,6 +92,11 @@ const QuizGame: React.FC<QuizGameProps> = ({
         // Simple case-insensitive string match for now. 
         // Enhance with fuzzy matching if needed later.
         const correct = userAnswer.trim().toLowerCase() === currentQ.answer.toLowerCase();
+
+        // Emit attempt for analytics
+        if (onAnswerAttempt) {
+            onAnswerAttempt(currentQ.translation_id, correct, currentIndex + 1, currentQ.difficulty_level || 'medium');
+        }
 
         setIsCorrect(correct);
         setShowFeedback(true);

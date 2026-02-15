@@ -19,6 +19,7 @@ import { SpinnerIcon } from './components/Icons.tsx';
 import AlertDialog from './components/AlertDialog';
 import SaveSetDialog from './components/SaveSetDialog';
 import LoginScreen from './views/LoginScreen';
+import AnalyticsModal from './components/AnalyticsModal';
 import { determineOrg, Organisation } from './services/routingService';
 
 import { authService } from './services/authService';
@@ -141,6 +142,8 @@ const App: React.FC = () => {
         handleContinueToNext,
         transitionMessage,
         handleQuizComplete,
+        handleQuizAnswerAttempt,
+        handleHintFlip,
         setLevel2Timer,
         resumeNotificationData,
         clearResumeNotification,
@@ -173,6 +176,7 @@ const App: React.FC = () => {
 
     const [isWithdrawConfirmVisible, setIsWithdrawConfirmVisible] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
+    const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
     const [contestSearchText, setContestSearchText] = useState<string | null>(null);
     const [contestError, setContestError] = useState<string | null>(null);
     const [pendingContestStart, setPendingContestStart] = useState(false);
@@ -384,8 +388,10 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (param2 === 'contest' && showRoundCompletionModal && roundCompletionData) {
-            // Convert selectedLanguage to proper language name using helper
-            const currentLangName = getLanguageName(selectedLanguage);
+            // Use the language directly from roundCompletionData (set from currentSegment.language,
+            // which is already resolved to full name e.g. "English" during segment queue construction).
+            // Avoids stale closure issue where getLanguageName('en') fails on first round.
+            const currentLangName = getLanguageName(roundCompletionData.language);
             const roundScore = roundCompletionData.score;
             const roundTime = roundCompletionData.timeElapsed;
             const roundKey = `${roundCompletionData.levelName}-${roundCompletionData.roundName}-${currentLangName}`;
@@ -426,7 +432,7 @@ const App: React.FC = () => {
                 }];
             });
         }
-    }, [showRoundCompletionModal, roundCompletionData, param2, selectedLanguage, languages]);
+    }, [showRoundCompletionModal, roundCompletionData, param2, languages]);
 
     // Contest: Auto-rotation logic REMOVED.
     // useGame.ts now manages the full queue (Levels -> Rounds -> Languages).
@@ -641,6 +647,7 @@ const App: React.FC = () => {
                 languages={languages}
                 contestNameOverride={currentContestName}
                 onShowLogin={() => setShowLogin(true)}
+                onShowAnalytics={() => setShowAnalyticsModal(true)}
             />
 
             {contestError && (
@@ -709,10 +716,23 @@ const App: React.FC = () => {
                     currentSegment={currentSegment}
                     transitionMessage={transitionMessage}
                     handleQuizComplete={handleQuizComplete}
+                    handleQuizAnswerAttempt={handleQuizAnswerAttempt}
+                    handleHintFlip={handleHintFlip}
                     setLevel2Timer={setLevel2Timer}
                     attemptsLeft={attemptsLeft}
                 />
             )}
+
+            {/* Analytics Modal */}
+            <AnalyticsModal
+                isOpen={showAnalyticsModal}
+                onClose={() => setShowAnalyticsModal(false)}
+                username={authService.getUsername()}
+                languages={languages}
+                selectedLanguage={selectedLanguage}
+                orgId={orgData?.org_id}
+                orgCode={orgData?.org_code}
+            />
 
             {gameState === 'loading' && gameLevel !== 1 && (
                 <LoadingScreen
@@ -792,6 +812,7 @@ const App: React.FC = () => {
                     sheetSaveState={sheetSaveState}
                     sheetSaveError={sheetSaveError}
                     onClose={handleCloseCompletion}
+                    onPlayAgain={() => startGameWithData(gameData)}
                     onVote={handleVote}
                     onSaveSheet={handleSaveSheetRequest}
                     onMatchedImageClick={handleMatchedImageClick}

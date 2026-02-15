@@ -17,15 +17,17 @@ interface DraggableDescriptionProps {
   isWrongDrop: boolean;
   isJustMatched: boolean;
   onSpeakHint?: (text: string) => void;
+  onHintFlip?: (itemId: string, fromType: string, toType: string) => void;
   languageBcp47?: string;
   label?: string;
   allowFlip?: boolean; // Controls whether flip hints button is shown
   isSelected?: boolean;
   onSelect?: () => void;
+  initialHintType?: 'normal' | 'short' | 'name';
 }
 
 const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
-  const [hintType, setHintType] = useState<'normal' | 'short' | 'name'>('normal');
+  const [hintType, setHintType] = useState<'normal' | 'short' | 'name'>(props.initialHintType || 'normal');
 
   let displayText;
   switch (hintType) {
@@ -49,11 +51,19 @@ const DraggableDescription: React.FC<DraggableDescriptionProps> = (props) => {
 
   const handleFlip = (e: React.MouseEvent) => {
     e.stopPropagation();
+    const fromType = hintType;
+    let toType: 'normal' | 'short' | 'name' = 'normal';
+
     setHintType(prev => {
-      if (prev === 'normal') return 'short';
-      if (prev === 'short') return 'name';
-      return 'normal';
+      if (prev === 'normal') toType = 'short';
+      else if (prev === 'short') toType = 'name';
+      else toType = 'normal';
+      return toType;
     });
+
+    if (props.onHintFlip) {
+      props.onHintFlip(props.id, fromType, toType);
+    }
   };
 
   const handleSpeak = (e: React.MouseEvent) => {

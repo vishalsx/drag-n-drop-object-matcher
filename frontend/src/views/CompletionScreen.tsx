@@ -13,6 +13,7 @@ interface CompletionScreenProps {
     sheetSaveState: 'idle' | 'saving' | 'success' | 'error';
     sheetSaveError: string | null;
     onClose: () => void;
+    onPlayAgain: () => void;
     onVote: (translationId: string, voteType: 'up' | 'down') => void;
     onSaveSheet: () => void;
     onMatchedImageClick: (imageName: string) => void;
@@ -257,6 +258,9 @@ const CompletionScreen: React.FC<CompletionScreenProps> = (props) => {
                                     Level 2 🚀
                                 </button>
                             )}
+                            <button onClick={props.onPlayAgain} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105 flex items-center gap-2">
+                                <RefreshIcon className="w-5 h-5" /> Play Again
+                            </button>
                             <button onClick={props.onClose} className="px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">
                                 Close
                             </button>

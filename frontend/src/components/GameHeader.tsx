@@ -13,9 +13,10 @@ interface GameHeaderProps {
     languages?: any[];
     contestNameOverride?: string;
     onShowLogin?: () => void;
+    onShowAnalytics?: () => void;
 }
 
-const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, username, onLogout, contestDetails, currentLanguage, languages = [], contestNameOverride, onShowLogin }) => {
+const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, username, onLogout, contestDetails, currentLanguage, languages = [], contestNameOverride, onShowLogin, onShowAnalytics }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -184,11 +185,14 @@ const GameHeader: React.FC<GameHeaderProps> = ({ orgData, gameLevel, gameState, 
                                     Profile
                                 </button>
                                 <button
-                                    onClick={() => setIsDropdownOpen(false)}
+                                    onClick={() => {
+                                        setIsDropdownOpen(false);
+                                        onShowAnalytics && onShowAnalytics();
+                                    }}
                                     className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2"
                                 >
                                     <ChartBarIcon className="w-4 h-4" />
-                                    Play Statistics
+                                    Progress Tracker
                                 </button>
                                 <button
                                     onClick={() => setIsDropdownOpen(false)}

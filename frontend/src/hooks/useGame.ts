@@ -3,9 +3,11 @@ import type { GameObject, Difficulty, Language, CategoryFosItem } from '../types
 import type { Level2GameState, Level2PictureData } from '../types/level2Types';
 import type { Contest, GameStructure, LevelStructure, RoundStructure } from '../types/contestTypes';
 import { fetchGameData, uploadScore, voteOnImage, saveTranslationSet, fetchCategoriesAndFos, fetchActiveLanguages, fetchContestLevelContent } from '../services/gameService';
+import { analyticsService } from '../services/analyticsService';
 import { contestService } from '../services/contestService';
 import { useContestAnalytics } from './useContestAnalytics';
 import { RoundStatus } from '../types/analyticsTypes';
+import type { GameEvent, EventType, EventPayload } from '../types/eventAnalyticsTypes';
 import { authService } from '../services/authService';
 import { shuffleArray } from '../utils/arrayUtils';
 import { difficultyCounts } from '../constants/gameConstants';
@@ -47,9 +49,152 @@ export const useGame = (
     const [wrongDropTargetId, setWrongDropTargetId] = useState<string | null>(null);
     const [wrongDropSourceId, setWrongDropSourceId] = useState<string | null>(null);
     const [justMatchedId, setJustMatchedId] = useState<string | null>(null);
+
+    const [gameLevel, setGameLevel] = useState<GameLevel>(1);
+    const [currentSegment, setCurrentSegment] = useState<GameSegment | null>(null);
+
+    // Level 2 states
+    const [level2State, setLevel2State] = useState<Level2GameState | null>(null);
+    const [level2Timer, setLevel2Timer] = useState(0);
+    const [isLevel2Paused, setIsLevel2Paused] = useState(true);
+
+    // Contest State
+    const [segmentQueue, setSegmentQueueState] = useState<GameSegment[]>([]);
+    const segmentQueueRef = useRef<GameSegment[]>([]);
+
+    // Sync ref with state
+    const setSegmentQueue = (queue: GameSegment[]) => {
+        segmentQueueRef.current = queue;
+        setSegmentQueueState(queue);
+    };
+
+    // Event Analytics Tracking States
+    const incorrectAttemptsRef = useRef<Map<string, number>>(new Map());
+    const lastAttemptTimeRef = useRef<Map<string, number>>(new Map());
+    const hintFlipCountsRef = useRef<Map<string, number>>(new Map());
+    const currentHintTypeRef = useRef<Map<string, string>>(new Map());
+    const sessionStartTimeRef = useRef<number>(Date.now());
+    const gameInstanceIdRef = useRef<string>(Math.random().toString(36).substring(2, 11));
+    const previousGameInstanceIdRef = useRef<string | null>(null);
+    const gameCountRef = useRef<number>(0);
+    const sessionIdRef = useRef<string>(localStorage.getItem('game_session_id') || Math.random().toString(36).substring(2, 11));
+
+    // Session-wide analytics counters
+    const totalTimeMsRef = useRef<number>(0);
+    const totalAttemptsRef = useRef<number>(0);
+    const correctAttemptsCountRef = useRef<number>(0);
+    const imagesEncounteredRef = useRef<Set<string>>(new Set());
+    const languagesUsedRef = useRef<Set<string>>(new Set());
+    const imagesReplayedRef = useRef<number>(0);
+
+    // Initialize session context
+    useEffect(() => {
+        if (!localStorage.getItem('game_session_id')) {
+            localStorage.setItem('game_session_id', sessionIdRef.current);
+        }
+        languagesUsedRef.current.add(selectedLanguage);
+    }, []);
+
     const [selectedLanguage, setSelectedLanguageState] = useState<string>(() => {
         return localStorage.getItem('last_selected_language') || 'en';
     });
+
+    const currentLanguageBcp47 = useMemo(() => {
+        // In contest mode, use the segment language directly - backend TTS will normalize it
+        if (isContest && currentSegment) {
+            console.log(`[useGame] currentLanguageBcp47: Contest mode - using segment language: '${currentSegment.language}'`);
+            return currentSegment.language;
+        }
+
+        // In learners mode, try to get BCP-47 from languages array
+        const currentLangObj = languages.find(l =>
+            l.code.toLowerCase() === (selectedLanguage || '').toLowerCase() ||
+            l.name.toLowerCase() === (selectedLanguage || '').toLowerCase()
+        );
+
+        const resolved = currentLangObj?.bcp47 || selectedLanguage || 'en-US';
+        console.log(`[useGame] currentLanguageBcp47: Learners mode - resolved to '${resolved}'`);
+        return resolved;
+    }, [selectedLanguage, languages, isContest, currentSegment]);
+
+    // Language name for TTS - in contest mode, use segment language name directly
+    const currentLanguageName = useMemo(() => {
+        if (isContest && currentSegment) {
+            return currentSegment.language; // e.g., "Hindi", "Bengali"
+        }
+        // In learners mode, try to get the name from the languages array
+        const currentLangObj = languages.find(l =>
+            l.code.toLowerCase() === (selectedLanguage || '').toLowerCase() ||
+            l.name.toLowerCase() === (selectedLanguage || '').toLowerCase()
+        );
+        return currentLangObj?.name || selectedLanguage;
+    }, [selectedLanguage, languages, isContest, currentSegment]);
+
+    const getRandomHintType = (): 'normal' | 'short' | 'name' => {
+        const types: ('normal' | 'short' | 'name')[] = ['normal', 'short', 'name'];
+        return types[Math.floor(Math.random() * types.length)];
+    };
+
+    /**
+     * Centralized event emitter for Learner Mode
+     */
+    const emitGameEvent = useCallback(async (eventType: EventType, payload: EventPayload) => {
+        // ONLY emit in Learner Mode (non-contest)
+        if (isContest) return;
+
+        try {
+            const token = authService.getToken();
+            const username = authService.getUsername() || 'anonymous';
+
+            const event: GameEvent = {
+                envelope: {
+                    event_id: crypto.randomUUID(),
+                    event_type: eventType,
+                    timestamp: new Date().toISOString(),
+                    user_id: username,
+                    session_id: sessionIdRef.current,
+                    game_instance_id: gameInstanceIdRef.current,
+                    mode: gameLevel === 1 ? 'matching' : 'quiz',
+                    language: currentLanguageName,
+                    level_sequence: currentSegment?.level.level_seq || 1,
+                    schema_version: 1
+                },
+                payload: payload as any // Casting to any to allow Union payload compatibility with EventType
+            };
+
+            await analyticsService.logEvent(event, token || '');
+        } catch (error) {
+            console.error(`[useGame] Failed to emit event ${eventType}:`, error);
+        }
+    }, [isContest, currentLanguageName, gameLevel, currentSegment]);
+
+    /**
+     * Helper to trigger game_started event with correct metadata
+     */
+    const triggerGameStarted = useCallback((reasonOverride?: "first_time" | "retry_after_failure" | "retry_after_completion" | "language_switch") => {
+        if (isContest) return;
+
+        const isReplay = gameCountRef.current > 0;
+        let reason = reasonOverride;
+        if (!reason) {
+            if (!isReplay) {
+                reason = "first_time";
+            } else {
+                reason = gameState === 'complete' ? "retry_after_completion" : "retry_after_failure";
+            }
+        }
+
+        // Update IDs for the new game instance
+        previousGameInstanceIdRef.current = gameInstanceIdRef.current;
+        gameInstanceIdRef.current = Math.random().toString(36).substring(2, 11);
+        gameCountRef.current++;
+
+        emitGameEvent('game_started', {
+            is_replay: isReplay,
+            previous_game_instance_id: previousGameInstanceIdRef.current || undefined,
+            reason: reason as any
+        });
+    }, [isContest, emitGameEvent, gameState]);
 
     const setSelectedLanguage = useCallback((langOrCode: string) => {
         // We want to store the CODE. Let's try to map it.
@@ -65,10 +210,78 @@ export const useGame = (
                 );
                 if (found) code = found.code;
             }
+
+            // Emit language_switch event for Learner Mode
+            if (!isContest && prevState !== code) {
+                languagesUsedRef.current.add(code);
+                const prevLangName = languages.find(l => l.code === prevState)?.name || prevState;
+                const newLangName = languages.find(l => l.code === code)?.name || code;
+                emitGameEvent('language_switch', {
+                    previous_language: prevLangName,
+                    new_language: newLangName,
+                    images_replayed: imagesReplayedRef.current
+                });
+            }
+
             localStorage.setItem('last_selected_language', code);
             return code;
         });
-    }, [languages]);
+    }, [languages, isContest, emitGameEvent]);
+
+    /**
+     * Handle hint flipping in Learner Mode
+     */
+    const handleHintFlip = useCallback((itemId: string, fromType: string, toType: string) => {
+        if (isContest) return;
+
+        const count = hintFlipCountsRef.current.get(itemId) || 0;
+        hintFlipCountsRef.current.set(itemId, count + 1);
+        currentHintTypeRef.current.set(itemId, toType);
+
+        // Map frontend hint types to backend HintType
+        const mapType = (t: string): any => {
+            if (t === 'normal' || t === 'object_hint') return 'long_hint';
+            if (t === 'short' || t === 'object_short_hint') return 'short_hint';
+            return 'name';
+        };
+
+        emitGameEvent('hint_interaction', {
+            translation_id: itemId,
+            from_hint_type: mapType(fromType),
+            to_hint_type: mapType(toType),
+            flip_count_for_translation: hintFlipCountsRef.current.get(itemId) || 0
+        });
+    }, [isContest, emitGameEvent]);
+
+    const handleQuizAnswerAttempt = useCallback((itemId: string, isCorrect: boolean, questionIndex: number, difficulty: string) => {
+        if (isContest) return;
+
+        const now = Date.now();
+        const lastTime = lastAttemptTimeRef.current.get(itemId) || sessionStartTimeRef.current;
+        const responseTimeMs = now - lastTime;
+        lastAttemptTimeRef.current.set(itemId, now);
+
+        if (!isCorrect) {
+            const count = incorrectAttemptsRef.current.get(itemId) || 0;
+            incorrectAttemptsRef.current.set(itemId, count + 1);
+        }
+
+        // Update session stats
+        totalTimeMsRef.current += responseTimeMs;
+        totalAttemptsRef.current += 1;
+        if (isCorrect) correctAttemptsCountRef.current += 1;
+        imagesEncounteredRef.current.add(itemId);
+
+        emitGameEvent('interaction_attempt', {
+            translation_id: itemId,
+            question_id: questionIndex.toString(),
+            selected_answer_id: questionIndex.toString(),
+            difficulty_level: difficulty as any,
+            correct: isCorrect,
+            response_time_ms: responseTimeMs,
+            attempt_number: (incorrectAttemptsRef.current.get(itemId) || 0) + (isCorrect ? 1 : 0)
+        });
+    }, [isContest, emitGameEvent]);
 
     const [selectedCategory, setSelectedCategory] = useState<string>('Any');
     const [selectedTubSheet, setSelectedTubSheet] = useState<string>('');
@@ -91,23 +304,7 @@ export const useGame = (
     const [gameStartError, setGameStartError] = useState<string | null>(null);
     const [isSaveSetDialogVisible, setIsSaveSetDialogVisible] = useState(false);
 
-    // Level 2 states
-    const [gameLevel, setGameLevel] = useState<GameLevel>(1);
-    const [level2State, setLevel2State] = useState<Level2GameState | null>(null);
-    const [level2Timer, setLevel2Timer] = useState(0);
-    const [isLevel2Paused, setIsLevel2Paused] = useState(true);
-
-    // Contest State
-    const [segmentQueue, setSegmentQueueState] = useState<GameSegment[]>([]);
-    const segmentQueueRef = useRef<GameSegment[]>([]);
-
-    // Sync ref with state
-    const setSegmentQueue = (queue: GameSegment[]) => {
-        segmentQueueRef.current = queue;
-        setSegmentQueueState(queue);
-    };
-
-    const [currentSegment, setCurrentSegment] = useState<GameSegment | null>(null);
+    // (moved state up)
     const [level1Objects, setLevel1Objects] = useState<GameObject[]>([]);
     const [level1Timer, setLevel1Timer] = useState(0);
 
@@ -141,36 +338,7 @@ export const useGame = (
     const isTransitioningRef = useRef<boolean>(false);
 
 
-    const currentLanguageBcp47 = useMemo(() => {
-        // In contest mode, use the segment language directly - backend TTS will normalize it
-        if (isContest && currentSegment) {
-            console.log(`[useGame] currentLanguageBcp47: Contest mode - using segment language: '${currentSegment.language}'`);
-            return currentSegment.language;
-        }
 
-        // In learners mode, try to get BCP-47 from languages array
-        const currentLangObj = languages.find(l =>
-            l.code.toLowerCase() === (selectedLanguage || '').toLowerCase() ||
-            l.name.toLowerCase() === (selectedLanguage || '').toLowerCase()
-        );
-
-        const resolved = currentLangObj?.bcp47 || selectedLanguage || 'en-US';
-        console.log(`[useGame] currentLanguageBcp47: Learners mode - resolved to '${resolved}'`);
-        return resolved;
-    }, [selectedLanguage, languages, isContest, currentSegment]);
-
-    // Language name for TTS - in contest mode, use segment language name directly
-    const currentLanguageName = useMemo(() => {
-        if (isContest && currentSegment) {
-            return currentSegment.language; // e.g., "Hindi", "Bengali"
-        }
-        // In learners mode, try to get the name from the languages array
-        const currentLangObj = languages.find(l =>
-            l.code.toLowerCase() === (selectedLanguage || '').toLowerCase() ||
-            l.name.toLowerCase() === (selectedLanguage || '').toLowerCase()
-        );
-        return currentLangObj?.name || selectedLanguage;
-    }, [selectedLanguage, languages, isContest, currentSegment]);
 
     const objectIds = useMemo(() => gameData.map(d => d.id), [gameData]);
 
@@ -484,25 +652,30 @@ export const useGame = (
 
                 if (data.length > 0) {
                     // Transform contest API response to GameObject format
-                    const gameData: GameObject[] = data.map((item: any) => ({
-                        id: item.translation_id,
-                        objectId: item.object_id,
-                        description: item.object_hint,
-                        short_hint: item.object_short_hint,
-                        imageUrl: `data:image/png;base64,${item.image_base64}`,
-                        imageName: item.object_name,
-                        object_description: item.object_description,
-                        upvotes: 0,
-                        downvotes: 0,
-                        objectCategory: '',
-                        quiz_qa: item.quiz_qa,
-                        story: undefined,
-                        moral: undefined
-                    }));
+                    const uniformHint = getRandomHintType();
+                    const transformedData: GameObject[] = data.map((item: any) => {
+                        currentHintTypeRef.current.set(item.translation_id, uniformHint);
+                        return {
+                            id: item.translation_id,
+                            objectId: item.object_id,
+                            description: item.object_hint,
+                            short_hint: item.object_short_hint,
+                            imageUrl: `data:image/png;base64,${item.image_base64}`,
+                            imageName: item.object_name,
+                            object_description: item.object_description,
+                            upvotes: 0,
+                            downvotes: 0,
+                            objectCategory: '',
+                            quiz_qa: item.quiz_qa,
+                            story: undefined,
+                            moral: undefined,
+                            initialHintType: uniformHint
+                        };
+                    });
 
-                    setGameData(gameData);
-                    setShuffledDescriptions(shuffleArray(gameData));
-                    setShuffledImages(shuffleArray(gameData));
+                    setGameData(transformedData);
+                    setShuffledDescriptions(shuffleArray(transformedData));
+                    setShuffledImages(shuffleArray(transformedData));
 
                     if (isContest) {
                         segmentStartTimeRef.current = Date.now();
@@ -662,8 +835,18 @@ export const useGame = (
             console.log('[DEBUG-useGame] handleSegmentComplete: QUEUE EMPTY. Setting gameState to complete.');
             setGameState('complete');
             playGameCompleteSound();
+
+            // Emit game_completed event for Learner Mode
+            if (!isContest) {
+                emitGameEvent('game_completed', {
+                    total_images: imagesEncounteredRef.current.size,
+                    overall_accuracy: Math.round((correctAttemptsCountRef.current / Math.max(1, totalAttemptsRef.current)) * 100 * 100) / 100,
+                    avg_response_time_ms: totalTimeMsRef.current / Math.max(1, totalAttemptsRef.current),
+                    cross_language_played: languagesUsedRef.current.size > 1
+                });
+            }
         }
-    }, [gameData, submitAnalytics, score, playGameCompleteSound, isContest, username, currentSegment, contestId, gameLevel, level1Timer, level2Timer]);
+    }, [gameData, submitAnalytics, score, playGameCompleteSound, isContest, username, currentSegment, contestId, gameLevel, level1Timer, level2Timer, emitGameEvent]);
 
     // Handler for Continue button on round completion modal
     const handleContinueToNext = useCallback(() => {
@@ -675,6 +858,7 @@ export const useGame = (
 
 
     const handleStartGame = useCallback(async () => {
+        triggerGameStarted();
         setGameStartError(null);
         setCorrectlyMatchedIds(new Set());
         setScore(0);
@@ -863,14 +1047,17 @@ export const useGame = (
             orgCode
         );
         if (data.length > 0) {
-            // For standard learners mode (Matching), we don't strictly require quiz questions.
-            // Using all available data.
             const validData = data;
+            const uniformHint = getRandomHintType();
+            const transformedData = validData.map(item => {
+                currentHintTypeRef.current.set(item.id, uniformHint);
+                return { ...item, initialHintType: uniformHint };
+            });
 
-            if (validData.length > 0) {
-                setGameData(validData);
-                setShuffledDescriptions(shuffleArray(validData));
-                setShuffledImages(shuffleArray(validData));
+            if (transformedData.length > 0) {
+                setGameData(transformedData);
+                setShuffledDescriptions(shuffleArray(transformedData));
+                setShuffledImages(shuffleArray(transformedData));
                 setGameState('playing');
 
                 // Start analytics tracking with the actual fetched IDs
@@ -1025,6 +1212,53 @@ export const useGame = (
                 setWrongDropSourceId(null);
             }, 500);
         }
+
+        // Emit interaction_attempt event for Learner Mode
+        if (!isContest) {
+            const isCorrect = imageId === descriptionId;
+            const now = Date.now();
+            const lastTime = lastAttemptTimeRef.current.get(descriptionId) || sessionStartTimeRef.current;
+            const responseTimeMs = now - lastTime;
+            lastAttemptTimeRef.current.set(descriptionId, now);
+
+            if (!isCorrect) {
+                const count = incorrectAttemptsRef.current.get(descriptionId) || 0;
+                incorrectAttemptsRef.current.set(descriptionId, count + 1);
+            }
+
+            // Update session stats
+            totalTimeMsRef.current += responseTimeMs;
+            totalAttemptsRef.current += 1;
+            if (isCorrect) correctAttemptsCountRef.current += 1;
+            imagesEncounteredRef.current.add(imageId);
+
+            emitGameEvent('interaction_attempt', {
+                translation_id: descriptionId,
+                selected_answer_id: imageId,
+                hint_type: ((t: string): any => {
+                    if (t === 'normal' || t === 'object_hint') return 'long_hint';
+                    if (t === 'short' || t === 'object_short_hint') return 'short_hint';
+                    return 'name';
+                })(currentHintTypeRef.current.get(descriptionId) || 'object_hint'),
+                difficulty_level: 'low',
+                correct: isCorrect,
+                response_time_ms: responseTimeMs,
+                attempt_number: (incorrectAttemptsRef.current.get(descriptionId) || 0) + (isCorrect ? 1 : 0)
+            });
+
+            // Check for level completion
+            if (isCorrect && correctlyMatchedIds.size + 1 === gameData.length) {
+                const totalAttemptsForLevel = gameData.length + Array.from(incorrectAttemptsRef.current.values()).reduce((a, b) => a + b, 0);
+                const accuracy = (gameData.length / totalAttemptsForLevel) * 100;
+
+                emitGameEvent('level_completed', {
+                    total_images: gameData.length,
+                    correct_answers: gameData.length,
+                    accuracy: Math.round(accuracy * 100) / 100,
+                    total_time_ms: Date.now() - sessionStartTimeRef.current
+                });
+            }
+        }
     };
 
     const handleVote = async (translationId: string, voteType: 'up' | 'down') => {
@@ -1095,6 +1329,7 @@ export const useGame = (
     };
 
     const handleReplayInLanguage = async (newLanguage: string) => {
+        triggerGameStarted("language_switch");
         console.log(`[useGame] handleReplayInLanguage: ${newLanguage}`);
         setGameState('loading');
         setTransitionMessage(`Loading ${newLanguage}...`);
@@ -1121,7 +1356,11 @@ export const useGame = (
 
             if (newData.length > 0) {
                 // Filter out objects without quiz questions
-                const validNewData = newData.filter(item => item.quiz_qa && item.quiz_qa.length > 0);
+                const uniformHint = getRandomHintType();
+                const validNewData = newData.filter(item => item.quiz_qa && item.quiz_qa.length > 0).map(item => {
+                    currentHintTypeRef.current.set(item.id, uniformHint);
+                    return { ...item, initialHintType: uniformHint };
+                });
 
                 if (validNewData.length > 0) {
                     // Ensure the order of objects is preserved or matched correctly
@@ -1182,6 +1421,12 @@ export const useGame = (
         setGameLevel(1);
         setLevel2State(null);
         setLevel2Timer(0);
+
+        // Clear analytics refs
+        currentHintTypeRef.current.clear();
+        hintFlipCountsRef.current.set('', 0); // Assuming we can't clear a Map without a method if it was structured differently but it is a Map
+        currentHintTypeRef.current.clear();
+        hintFlipCountsRef.current.clear();
     };
 
     const handleMatchedImageClick = (imageName: string) => {
@@ -1371,6 +1616,38 @@ export const useGame = (
         // (since the answers are derived from the correct questions)
         const isCorrect = questionId === targetAnswerId;
 
+        // Analytics: Track Interaction Attempt
+        const now = Date.now();
+        const lastTime = lastAttemptTimeRef.current.get(questionId) || sessionStartTimeRef.current;
+        const responseTimeMs = now - lastTime;
+        lastAttemptTimeRef.current.set(questionId, now);
+
+        if (!isCorrect) {
+            const count = incorrectAttemptsRef.current.get(questionId) || 0;
+            incorrectAttemptsRef.current.set(questionId, count + 1);
+        }
+
+        // Update session stats
+        totalTimeMsRef.current += responseTimeMs;
+        totalAttemptsRef.current += 1;
+        if (isCorrect) correctAttemptsCountRef.current += 1;
+        imagesEncounteredRef.current.add(currentPicture.pictureId);
+
+        // Map difficulty and index
+        const currentQuestion = currentPicture.questions.find(q => q.id === questionId);
+        const difficulty = currentQuestion?.difficulty_level || 'medium';
+        const questionIndex = currentPicture.questions.findIndex(q => q.id === questionId) + 1;
+
+        emitGameEvent('interaction_attempt', {
+            translation_id: currentPicture.pictureId,
+            question_id: questionIndex.toString(),
+            selected_answer_id: questionIndex.toString(), // For consistency with sequential quiz mapping
+            difficulty_level: difficulty as any,
+            correct: isCorrect,
+            response_time_ms: responseTimeMs,
+            attempt_number: (incorrectAttemptsRef.current.get(questionId) || 0) + (isCorrect ? 1 : 0)
+        });
+
         if (isCorrect) {
             // Calculate base points with multipliers for contests
             let pointsToAdd = 15;
@@ -1493,38 +1770,19 @@ export const useGame = (
         console.log('[useGame] 🏁 Quiz Complete!', { quizScore, correctCount, timeLeftSeconds });
 
         if (isContest && currentSegment) {
-            // Exactly matching the logic from Level 1 Matching completion
             const totalRoundTime = currentSegment.round.time_limit_seconds;
-            // Use the passed timeLeft or fallback to level2Timer state
             const timeLeftAtCompletion = timeLeftSeconds !== undefined ? timeLeftSeconds : (level2Timer || 0);
-
             const timeUsed = totalRoundTime - timeLeftAtCompletion;
-            const timeLeft = Math.max(0, totalRoundTime - timeUsed);
 
             let timeBonus = 0;
             const qConfig = contestDetails?.scoring_config?.quiz;
             if (qConfig) {
                 const multiplier = qConfig.time_bonus || 0;
-                timeBonus = Math.round(timeLeft * multiplier);
-                console.log(`[useGame] Quiz Time Bonus Calc: ${timeLeft}s * ${multiplier} = ${timeBonus}`);
+                timeBonus = Math.round(timeLeftAtCompletion * multiplier);
             }
 
-            const totalRoundScore = quizScore + timeBonus;
-            const finalScore = score + totalRoundScore;
-
-            console.log(`[ScoreDebug] useGame.handleQuizComplete:`, {
-                prevTotalScore: score,
-                quizScoreEarned: quizScore,
-                timeLeftValue: timeLeft,
-                multiplier: qConfig?.time_bonus,
-                calculatedBonus: timeBonus,
-                totalRoundScore: totalRoundScore,
-                finalScoreAfterUpdate: finalScore
-            });
-
+            const finalScore = score + quizScore + timeBonus;
             setScore(finalScore);
-
-            // Log progress call removed from here - consolidated into handleSegmentComplete
 
             setRoundCompletionData({
                 levelName: currentSegment.level.level_name,
@@ -1542,9 +1800,19 @@ export const useGame = (
             // Standard non-contest flow
             const finalScore = score + quizScore;
             setScore(finalScore);
+
+            // Emit level_completed event for Learner Mode
+            emitGameEvent('level_completed', {
+                total_images: 0,
+                total_questions: gameData.length,
+                correct_answers: correctCount,
+                accuracy: Math.round((correctCount / gameData.length) * 100 * 100) / 100,
+                total_time_ms: Date.now() - sessionStartTimeRef.current
+            });
+
             handleSegmentComplete(false);
         }
-    }, [score, isContest, currentSegment, level2Timer, contestDetails, handleSegmentComplete]);
+    }, [score, isContest, currentSegment, level2Timer, contestDetails, handleSegmentComplete, gameData.length, emitGameEvent]);
 
     const handleLevel2Complete = useCallback(() => {
         let currentBaseScore = score;
@@ -1590,11 +1858,25 @@ export const useGame = (
         } else if (isContest) {
             handleSegmentComplete(false);
         } else {
+            // Standard non-contest flow (Learner Mode)
+            if (level2State) {
+                const totalQuestions = level2State.pictures.reduce((acc, pic) => acc + pic.questions.length, 0);
+                const totalCorrect = level2State.pictures.reduce((acc, pic) => acc + pic.matchedQuestions.size, 0);
+
+                emitGameEvent('level_completed', {
+                    total_images: level2State.pictures.length,
+                    total_questions: totalQuestions,
+                    correct_answers: totalCorrect,
+                    accuracy: totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100 * 100) / 100 : 0,
+                    total_time_ms: Date.now() - sessionStartTimeRef.current
+                });
+            }
             handleResetGame();
         }
     }, [level2State, isContest, currentSegment, score, level2Timer, contestDetails, handleSegmentComplete, handleResetGame]);
 
     const startGameWithData = useCallback((data: GameObject[]) => {
+        triggerGameStarted("retry_after_completion");
         setGameState('loading');
         setGameStartError(null);
         setCorrectlyMatchedIds(new Set());
@@ -1603,9 +1885,14 @@ export const useGame = (
         setSheetSaveError(null);
 
         if (data.length > 0) {
-            setGameData(data);
-            setShuffledDescriptions(shuffleArray(data));
-            setShuffledImages(shuffleArray(data));
+            const uniformHint = getRandomHintType();
+            const randomizedData = data.map(item => {
+                currentHintTypeRef.current.set(item.id, uniformHint);
+                return { ...item, initialHintType: uniformHint };
+            });
+            setGameData(randomizedData);
+            setShuffledDescriptions(shuffleArray(randomizedData));
+            setShuffledImages(shuffleArray(randomizedData));
             setGameState('playing');
         } else {
             setGameData([]);
@@ -1700,6 +1987,8 @@ export const useGame = (
         handleLevel2NextPicture,
         handleQuizComplete,
         handleLevel2Complete, // This needs to call handleSegmentComplete logic if queue not empty? Logic moved to handleSegmentComplete.
+        handleQuizAnswerAttempt,
+        handleHintFlip,
         handleLevel2ImageLoaded,
         handleReplayInLanguage,
         handleMatchedImageClick,

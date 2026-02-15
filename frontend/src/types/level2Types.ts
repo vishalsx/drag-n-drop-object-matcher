@@ -3,6 +3,7 @@ export interface Level2Question {
     question: string;
     answer: string;
     isCorrect: boolean; // true if this question is relevant to the current picture
+    difficulty_level?: "easy" | "medium" | "hard";
 }
 
 export interface Level2PictureData {

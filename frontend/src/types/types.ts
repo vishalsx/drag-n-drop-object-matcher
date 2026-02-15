@@ -14,6 +14,7 @@ export interface GameObject {
   story?: string;
   moral?: string;
   userVote?: 'up' | 'down' | null;
+  initialHintType?: 'normal' | 'short' | 'name';
 }
 
 export interface QuizQA {
